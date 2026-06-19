@@ -1,10 +1,12 @@
 {
   "name": "Keep Contact",
   "short_name": "KeepContact",
+  "id": "/",
   "description": "异常沉默主动关怀 / Proactive care for unusual silence",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "launch_handler": { "client_mode": "focus-existing" },
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "icons": [

@@ -1,3 +1,5 @@
+import { Browser } from '@capacitor/browser'
+import { Capacitor } from '@capacitor/core'
 import { useEffect, useState, type FormEvent } from 'react'
 import {
   initialAuthCode,
@@ -15,6 +17,7 @@ import {
 import { xhrFetch } from '@/lib/resilientFetch'
 import { InstallCard } from '@/features/install/InstallCard'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/config'
+import { authRedirectUrl } from '@/features/auth/authRedirect'
 import { LangToggle, useI18n } from '@/lib/i18n'
 import './AuthScreen.css'
 
@@ -208,7 +211,10 @@ export function AuthScreen() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { display_name: displayName || null } },
+          options: {
+            data: { display_name: displayName || null },
+            emailRedirectTo: authRedirectUrl(),
+          },
         })
         if (error) throw error
         // 若项目开启了邮箱确认，session 会为空，需用户点确认邮件
@@ -235,7 +241,7 @@ export function AuthScreen() {
     // skipBrowserRedirect：先拿 URL，确认 verifier 已写入存储后再跳转
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
+      options: { redirectTo: authRedirectUrl(), skipBrowserRedirect: true },
     })
     if (error || !data?.url) {
       setError(error?.message ?? 'OAuth URL missing')
@@ -246,7 +252,11 @@ export function AuthScreen() {
     try {
       localStorage.setItem('kc.verifier_at_init', backedUp ? 'Y' : 'N')
     } catch { /* ignore */ }
-    window.location.assign(data.url)
+    if (Capacitor.isNativePlatform()) {
+      await Browser.open({ url: data.url })
+    } else {
+      window.location.assign(data.url)
+    }
   }
 
   const pendingInvite = peekPendingInvite()

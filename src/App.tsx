@@ -1,7 +1,8 @@
-﻿import { AuthProvider, useAuth } from '@/features/auth/AuthProvider'
+import { AuthProvider, useAuth } from '@/features/auth/AuthProvider'
 import { AuthScreen } from '@/features/auth/AuthScreen'
 import { HomeScreen } from '@/features/relationships/HomeScreen'
 import { ErrorBoundary } from '@/features/common/ErrorBoundary'
+import { NativeAuthRedirectBridge } from '@/features/auth/NativeAuthRedirectBridge'
 import { I18nProvider, useI18n } from '@/lib/i18n'
 import {
   clearInviteFromUrl,
@@ -35,6 +36,7 @@ function Gate() {
 export default function App() {
   return (
     <I18nProvider>
+      <NativeAuthRedirectBridge />
       <ErrorBoundary>
         <AuthProvider>
           <Gate />
@@ -43,4 +45,5 @@ export default function App() {
     </I18nProvider>
   )
 }
+
 
