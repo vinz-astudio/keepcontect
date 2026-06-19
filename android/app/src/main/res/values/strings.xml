@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Keep Contact</string>
+    <string name="title_activity_main">Keep Contact</string>
+    <string name="package_name">com.keepcontact.app</string>
+    <string name="custom_url_scheme">com.keepcontact.app</string>
+</resources>

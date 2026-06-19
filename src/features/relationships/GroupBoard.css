@@ -1,0 +1,135 @@
+.board {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--bg);
+  border-radius: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* 顶部摘要里直接嵌在卡片中，无需额外内框 */
+.board--flush {
+  margin-top: 0.4rem;
+  padding: 0;
+  background: none;
+  gap: 0.4rem;
+}
+
+.board__group {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.board__loading {
+  margin: 0.5rem 0 0;
+}
+
+.board__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.board__row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.9rem;
+}
+
+.board__dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.board__dot--self {
+  background: var(--accent);
+}
+.board__dot--active {
+  background: var(--ok);
+}
+.board__dot--quiet {
+  background: #eab308;
+}
+.board__dot--silent {
+  background: var(--danger);
+}
+.board__dot--unknown {
+  background: var(--line-strong);
+}
+
+.board__name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.board__status {
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.board__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.board__vis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.board__vislabel {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.board__visseg {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.board__visseg button {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.8rem;
+  color: var(--fg);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.board__visseg button.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.board__hint {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.board__empty {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}

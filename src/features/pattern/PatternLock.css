@@ -1,0 +1,85 @@
+.pattern {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.pattern__hint {
+  color: var(--fg-muted);
+  font-size: 0.95rem;
+  margin: 0;
+  text-align: center;
+}
+
+.pattern__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  place-items: center;
+  width: min(72vw, 280px);
+  aspect-ratio: 1;
+  touch-action: none; /* 拖动连线时不触发页面滚动 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 连线层：盖在网格上，不拦截指针 */
+.pattern__lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.pattern__lines polyline,
+.pattern__lines line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+/* 圆点：外圈固定，命中后中心点亮 */
+.pattern__dot {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--line-strong);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none; /* 命中判定走网格容器的指针事件 */
+  transition: border-color 0.08s ease;
+}
+
+.pattern__core {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: transparent;
+  transition:
+    transform 0.08s ease,
+    background 0.08s ease;
+}
+
+.pattern__dot.is-on {
+  border-color: var(--accent);
+}
+
+.pattern__dot.is-on .pattern__core {
+  background: var(--accent);
+  transform: scale(1.25);
+}
+
+.pattern__warn {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin: 0;
+  text-align: center;
+}

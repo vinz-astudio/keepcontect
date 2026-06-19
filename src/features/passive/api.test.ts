@@ -1,0 +1,56 @@
+import { describe, expect, it } from 'vitest'
+import {
+  PASSIVE_WEB_PING_THROTTLE_MS,
+  countTodayPings,
+  lastPingAt,
+  pingUrl,
+  shouldSendPassiveWebPing,
+  shortcutImportUrl,
+  type BehaviorPing,
+} from '@/features/passive/api'
+
+describe('passive ping helpers', () => {
+  it('builds one generic ping URL without behavior classification', () => {
+    expect(pingUrl('abc123')).toBe(
+      'https://byekgmqyqlftgoveqnku.supabase.co/functions/v1/ping?token=abc123',
+    )
+  })
+
+  it('builds one iOS shortcut import URL for the generic ping', () => {
+    const url = shortcutImportUrl('token123')
+
+    expect(url.startsWith('shortcuts://import-shortcut?')).toBe(true)
+    expect(decodeURIComponent(url)).toContain(
+      'https://byekgmqyqlftgoveqnku.supabase.co/functions/v1/shortcut?token=token123',
+    )
+    expect(decodeURIComponent(url)).toContain('Keep Contact Ping')
+  })
+
+  it('summarizes activity without caring which trigger fired', () => {
+    const now = new Date()
+    now.setHours(12, 0, 0, 0)
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const later = new Date(now)
+    later.setHours(13, 0, 0, 0)
+
+    const pings = [
+      { kind: 'app', at: now.toISOString() },
+      { kind: 'app', at: yesterday.toISOString() },
+      { kind: 'app', at: later.toISOString() },
+    ] as BehaviorPing[]
+
+    expect(countTodayPings(pings, now.getTime())).toBe(2)
+    expect(lastPingAt(pings)).toBe(later.toISOString())
+  })
+
+  it('throttles generic web passive pings', () => {
+    const now = new Date('2026-06-19T12:00:00Z').getTime()
+
+    expect(shouldSendPassiveWebPing(null, now)).toBe(true)
+    expect(shouldSendPassiveWebPing(now - 60_000, now)).toBe(false)
+    expect(
+      shouldSendPassiveWebPing(now - PASSIVE_WEB_PING_THROTTLE_MS, now),
+    ).toBe(true)
+  })
+})

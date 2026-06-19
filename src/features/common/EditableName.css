@@ -1,0 +1,76 @@
+.editname__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.5rem;
+  width: 1.5rem; /* 用 rem 固定，不受父级小字号挤压；约等于正文字母高度以上 */
+  height: 1.5rem;
+  padding: 0;
+  vertical-align: -0.35rem;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.editname__icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: block;
+}
+
+.editname__icon:active {
+  transform: scale(0.92);
+}
+
+.editname {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.editname__input {
+  min-width: 0;
+  width: 9rem;
+  max-width: 60vw;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.95rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 0.45rem;
+}
+
+.editname__ok,
+.editname__cancel {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.9rem;
+  border-radius: 0.45rem;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.editname__ok {
+  background: var(--ok);
+  color: var(--bg);
+  border-color: var(--ok);
+}
+
+.editname__cancel {
+  background: none;
+  color: var(--fg-muted);
+}
+
+.editname__ok:disabled,
+.editname__cancel:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.editname__err {
+  font-size: 0.75rem;
+  color: var(--danger);
+  width: 100%;
+}

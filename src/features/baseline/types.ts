@@ -1,0 +1,61 @@
+// 异常沉默判断引擎的类型与配置（完全线下，纯本地）
+
+export type SignalKind = 'interaction' | 'steps' | 'unlock' | 'manual_checkin'
+
+/** 一次"生命迹象"事件（设备本地时序，绝不上传） */
+export interface SignalEvent {
+  t: number // epoch ms
+  kind: SignalKind
+}
+
+export type Sensitivity = 'high' | 'balanced' | 'low'
+
+/**
+ * 安静窗：
+ * - recurring：每周重复（如每晚睡眠），dow 0-6（0=周日），startMin/endMin 为当日分钟数，可跨午夜
+ * - oneoff：一次性"安全但不在"，绝对时间区间
+ */
+export interface QuietWindow {
+  kind: 'recurring' | 'oneoff'
+  label?: string
+  dow?: number
+  startMin?: number
+  endMin?: number
+  start?: number
+  end?: number
+}
+
+export interface BaselineConfig {
+  sensitivity: Sensitivity
+  /** 学习期天数（期间不按基线告警，只用冷启动绝对阈值兜底） */
+  learningDays: number
+  /** 冷启动绝对阈值（小时）：学习期内静默超过即告警，避免裸奔 */
+  coldStartGapHours: number
+  quietWindows: QuietWindow[]
+}
+
+/** 灵敏度档 → 阈值倍数 + 绝对下限（小时），由用户/家人首次设置时自选 */
+export const SENSITIVITY_PRESETS: Record<
+  Sensitivity,
+  { multiplier: number; floorHours: number }
+> = {
+  high: { multiplier: 1.3, floorHours: 1.5 },
+  balanced: { multiplier: 1.8, floorHours: 3 },
+  low: { multiplier: 2.6, floorHours: 6 },
+}
+
+export const DEFAULT_CONFIG: BaselineConfig = {
+  sensitivity: 'balanced',
+  learningDays: 14,
+  coldStartGapHours: 12,
+  quietWindows: [],
+}
+
+export type LivenessStatus = 'normal' | 'learning' | 'alert' | 'safe_window'
+
+export interface Evaluation {
+  status: LivenessStatus
+  reason: string
+  currentGapMs: number
+  thresholdMs: number | null
+}

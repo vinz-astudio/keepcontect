@@ -1,0 +1,40 @@
+﻿# dependencies
+node_modules/
+
+# build output
+dist/
+dist-ssr/
+
+# logs
+*.log
+npm-debug.log*
+
+# editor / os
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# capacitor native build artifacts
+android/app/build/
+android/.gradle/
+android/local.properties
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+
+.vercel
+
+android/build/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+.claude/
+.codex/
+.remember/
+supabase/.temp/
+

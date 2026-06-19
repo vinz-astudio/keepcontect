@@ -1,0 +1,105 @@
+.psig__stat {
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+}
+
+.psig__item {
+  background: var(--bg);
+  border-radius: 0.7rem;
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.5rem;
+}
+
+.psig__itemhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.92rem;
+}
+
+.psig__mode {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.12rem 0.4rem;
+  font-size: 0.72rem;
+  color: var(--fg-muted);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.psig__btns {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.psig__import {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--accent);
+  border-radius: 0.55rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.psig__import[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.psig__url {
+  display: block;
+  font-family: ui-monospace, monospace;
+  font-size: 0.68rem;
+  color: var(--fg-muted);
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.psig__kinddesc,
+.psig__statline {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  line-height: 1.4;
+}
+
+.psig__statline strong {
+  color: var(--fg);
+}
+
+.psig__toggle {
+  margin-top: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.psig__help {
+  margin-top: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--bg);
+  border-radius: 0.7rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.psig__help p {
+  margin: 0 0 0.5rem;
+  white-space: pre-line; /* 让指引里的 \n 换行真正显示成多行 */
+}
+
+.psig__help p:last-child {
+  margin-bottom: 0;
+}

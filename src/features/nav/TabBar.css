@@ -1,0 +1,121 @@
+.tabbar {
+  position: relative; /* flex 贴底子项，不用 fixed（iOS 地址栏显隐时 fixed 会抖动） */
+  z-index: 40;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  gap: 0.25rem;
+  padding: 0.4rem 0.5rem calc(0.4rem + env(safe-area-inset-bottom));
+  background: var(--bg-soft);
+  border-top: 1px solid var(--line);
+}
+
+.tabbar__btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.3rem 0;
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.tabbar__btn.is-active {
+  color: var(--accent);
+}
+
+.tabbar__icon {
+  position: relative;
+  display: inline-flex;
+}
+
+.tabbar__icon svg {
+  width: 1.55rem;
+  height: 1.55rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tabbar__label {
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.tabbar__badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.5rem;
+  min-width: 1rem;
+  padding: 0 0.25rem;
+  font-size: 0.62rem;
+  line-height: 1rem;
+  text-align: center;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 0.6rem;
+}
+
+/* 中间凸起的 SOS（长按确认，防误触） */
+.tabbar__sos {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  margin-top: -1.4rem;
+  border-radius: 50%;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--danger);
+  border: 3px solid var(--bg);
+  box-shadow: 0 4px 14px rgba(232, 100, 90, 0.5);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tabbar__soslabel {
+  position: relative;
+  z-index: 1;
+}
+
+.tabbar__sosring {
+  position: absolute;
+  inset: -3px;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+.tabbar__sosring circle {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.tabbar__sos.is-holding {
+  transform: scale(1.06);
+}
+
+.tabbar__sos:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.tabbar__sos:active {
+  filter: brightness(0.92);
+}
