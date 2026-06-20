@@ -14,6 +14,7 @@ import {
   sendHeartbeat,
   type Alert,
 } from '@/features/alerts/api'
+import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import {
   getServerSensitivity,
   getSleepWindow,
@@ -166,12 +167,17 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     window.addEventListener('focus', refreshAlert)
     window.addEventListener('pageshow', onPageShow)
     navigator.serviceWorker?.addEventListener('message', onSwMsg)
+    let unsubscribe: (() => void) | undefined
+    void subscribeAlertSignals(refreshAlert).then((fn) => {
+      unsubscribe = fn
+    })
     return () => {
       window.clearInterval(t)
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', refreshAlert)
       window.removeEventListener('pageshow', onPageShow)
       navigator.serviceWorker?.removeEventListener('message', onSwMsg)
+      unsubscribe?.()
     }
   }, [refreshAlert])
 

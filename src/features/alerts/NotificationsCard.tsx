@@ -13,6 +13,7 @@ import {
   type Alert,
   type EmergencyInfo,
 } from '@/features/alerts/api'
+import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import {
@@ -127,7 +128,19 @@ export function NotificationsCard({
   useEffect(() => {
     void refresh()
     const timer = window.setInterval(() => void refresh(), 20_000)
-    return () => window.clearInterval(timer)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    let unsubscribe: (() => void) | undefined
+    void subscribeAlertSignals(refresh).then((fn) => {
+      unsubscribe = fn
+    })
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      unsubscribe?.()
+    }
   }, [refresh])
 
   async function act(fn: () => Promise<unknown>) {
