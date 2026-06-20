@@ -110,6 +110,48 @@
   border-left-color: var(--danger);
 }
 
+/* SOS：比异常沉默更严重、视觉上明显区分 */
+@keyframes sos-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px var(--danger) inset,
+      0 0 0 0 rgba(232, 100, 90, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px var(--danger) inset,
+      0 0 0 6px rgba(232, 100, 90, 0);
+  }
+}
+
+.resp__item--sos {
+  border-color: var(--danger);
+  border-left-width: 4px;
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+  box-shadow: 0 0 0 1px var(--danger) inset;
+  animation: sos-glow 2s ease-in-out infinite;
+}
+
+.resp__item--sos .resp__stage {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resp__item--sos {
+    animation: none;
+  }
+}
+
+.resp__reaching {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ok);
+}
+
 .resp__head {
   display: flex;
   align-items: center;
@@ -214,6 +256,15 @@
 
 .nfeed__item.is-unread {
   border-left: 3px solid var(--accent);
+}
+
+.nfeed__item--sos {
+  border-left: 3px solid var(--danger);
+  background: var(--danger-soft);
+}
+
+.nfeed__item--sos .nfeed__body {
+  font-weight: 600;
 }
 
 .nfeed__body {

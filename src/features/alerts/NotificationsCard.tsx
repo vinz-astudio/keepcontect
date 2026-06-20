@@ -14,6 +14,7 @@ import {
   type EmergencyInfo,
 } from '@/features/alerts/api'
 import { subscribeAlertSignals } from '@/features/alerts/realtime'
+import { useAuth } from '@/features/auth/AuthProvider'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import {
@@ -29,6 +30,8 @@ interface ResponderItem {
   alert: Alert
   name: string
   emergency: EmergencyInfo | null
+  /** 已认领「我去联系」的成员名（alerts.paused_by 对应的 profile） */
+  reacherName: string | null
 }
 
 const NOTIF_KINDS = new Set([
@@ -36,6 +39,7 @@ const NOTIF_KINDS = new Set([
   'group',
   'community',
   'terminal',
+  'sos',
   'on_it',
   'resolved',
   'task_invite',
@@ -73,6 +77,7 @@ export function NotificationsCard({
   onChanged?: () => void
 } = {}) {
   const { t } = useI18n()
+  const { user } = useAuth()
   const [notifs, setNotifs] = useState<AppNotification[]>([])
   const [items, setItems] = useState<ResponderItem[]>([])
   const [busy, setBusy] = useState(false)
@@ -92,14 +97,14 @@ export function NotificationsCard({
       const list = await listMyNotifications()
       setNotifs(list)
 
-      // 需要我响应的：有 alert_id 且为 group/community/terminal 的去重
+      // 需要我响应的：有 alert_id 且为 group/community/terminal/sos 的去重
       const ids = [
         ...new Set(
           list
             .filter(
               (n) =>
                 n.alert_id &&
-                ['group', 'community', 'terminal'].includes(n.kind),
+                ['group', 'community', 'terminal', 'sos'].includes(n.kind),
             )
             .map((n) => n.alert_id as string),
         ),
@@ -108,14 +113,18 @@ export function NotificationsCard({
       for (const id of ids) {
         const alert = await getAlert(id)
         if (!alert || alert.status !== 'open') continue
-        const [name, emergency] = await Promise.all([
+        const [name, emergency, reacherName] = await Promise.all([
           getProfileName(alert.user_id),
           getEmergencyInfoForUser(alert.user_id).catch(() => null),
+          alert.paused_by
+            ? getProfileName(alert.paused_by).catch(() => null)
+            : Promise.resolve(null),
         ])
         built.push({
           alert,
           name: name ?? translate('notif.someone'),
           emergency,
+          reacherName,
         })
       }
       setItems(built)
@@ -243,62 +252,91 @@ export function NotificationsCard({
 
       {items.length > 0 && (
         <div className="resp">
-          {items.map(({ alert, name, emergency }) => (
-            <div key={alert.id} className={`resp__item resp__item--${alert.stage}`}>
-              <div className="resp__head">
-                <strong>{name}</strong>
-                <span className="resp__stage">
-                  {t(`notif.stage.${alert.stage}` as I18nKey)}
-                </span>
-              </div>
-              {alert.paused_until &&
-                new Date(alert.paused_until).getTime() > Date.now() && (
-                  <p className="resp__paused">{t('notif.paused')}</p>
+          {items.map(({ alert, name, emergency, reacherName }) => {
+            const isSos = alert.cause === 'sos'
+            const reached = !!alert.paused_by
+            const iAmReacher = !!user && user.id === alert.paused_by
+            return (
+              <div
+                key={alert.id}
+                className={`resp__item resp__item--${alert.stage}${
+                  isSos ? ' resp__item--sos' : ''
+                }`}
+              >
+                <div className="resp__head">
+                  <strong>{name}</strong>
+                  <span className="resp__stage">
+                    {isSos
+                      ? t('resp.sos')
+                      : t(`notif.stage.${alert.stage}` as I18nKey)}
+                  </span>
+                </div>
+                {alert.sos_lat != null && alert.sos_lng != null && (
+                  <div className="resp__loc">
+                    📍{' '}
+                    <a
+                      href={`https://www.google.com/maps?q=${alert.sos_lat},${alert.sos_lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t('resp.location')}
+                    </a>
+                  </div>
                 )}
-              {alert.sos_lat != null && alert.sos_lng != null && (
-                <div className="resp__loc">
-                  📍{' '}
-                  <a
-                    href={`https://www.google.com/maps?q=${alert.sos_lat},${alert.sos_lng}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {t('resp.location')}
-                  </a>
-                </div>
-              )}
-              {emergency && (
-                <div className="resp__emergency">
-                  {emergency.home_address && <div>📍 {emergency.home_address}</div>}
-                  {emergency.emergency_contact_phone && (
-                    <div>
-                      ☎{' '}
-                      <a href={`tel:${emergency.emergency_contact_phone}`}>
-                        {emergency.emergency_contact_name ?? t('ei.contact')}:
-                        {emergency.emergency_contact_phone}
-                      </a>
-                    </div>
-                  )}
-                  {emergency.medical_notes && <div>🩺 {emergency.medical_notes}</div>}
-                </div>
-              )}
-              <div className="resp__actions">
-                <button
-                  disabled={busy}
-                  onClick={() => act(() => ackAlert(alert.id))}
-                >
-                  {t('notif.onIt')}
-                </button>
-                <button
-                  className="resp__safe"
-                  disabled={busy}
-                  onClick={() => act(() => resolveAlert(alert.id))}
-                >
-                  {t('notif.confirmSafe')}
-                </button>
+                {emergency && (
+                  <div className="resp__emergency">
+                    {emergency.home_address && (
+                      <div>📍 {emergency.home_address}</div>
+                    )}
+                    {emergency.emergency_contact_phone && (
+                      <div>
+                        ☎{' '}
+                        <a href={`tel:${emergency.emergency_contact_phone}`}>
+                          {emergency.emergency_contact_name ?? t('ei.contact')}:
+                          {emergency.emergency_contact_phone}
+                        </a>
+                      </div>
+                    )}
+                    {emergency.medical_notes && (
+                      <div>🩺 {emergency.medical_notes}</div>
+                    )}
+                  </div>
+                )}
+
+                {!reached ? (
+                  // 还没人认领：只给「我去联系」
+                  <div className="resp__actions">
+                    <button
+                      disabled={busy}
+                      onClick={() => act(() => ackAlert(alert.id))}
+                    >
+                      {t('notif.onIt')}
+                    </button>
+                  </div>
+                ) : (
+                  // 已有人认领：所有人都看到是谁；仅认领者能「确认安全」
+                  <>
+                    <p className="resp__reaching">
+                      {t('notif.reaching', {
+                        name: reacherName || t('notif.someone'),
+                      })}
+                    </p>
+                    {iAmReacher && (
+                      <div className="resp__actions">
+                        <button
+                          className="resp__safe"
+                          disabled={busy}
+                          onClick={() => act(() => resolveAlert(alert.id))}
+                        >
+                          {t('notif.confirmSafe')}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -311,7 +349,9 @@ export function NotificationsCard({
           {shown.map((n) => (
             <li
               key={n.id}
-              className={`nfeed__item${n.read_at ? '' : ' is-unread'}`}
+              className={`nfeed__item${n.read_at ? '' : ' is-unread'}${
+                n.kind === 'sos' ? ' nfeed__item--sos' : ''
+              }`}
             >
               <div
                 className="nfeed__main"
