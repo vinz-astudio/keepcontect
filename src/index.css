@@ -62,6 +62,16 @@ body {
   flex-direction: column;
 }
 
+/* 移动端：用动态视口高度，让底部 sticky 栏始终贴合可见区域最底部，
+   不被地址栏占位推到屏幕外（100% 取的是大视口，地址栏出现时会溢出）。 */
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
+
 button {
   font-family: inherit;
 }
