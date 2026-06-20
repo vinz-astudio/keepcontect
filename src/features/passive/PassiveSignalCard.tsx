@@ -11,6 +11,7 @@ import {
 } from '@/features/passive/api'
 import { getPlatform } from '@/lib/platform'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
+import { Icon } from '@/features/common/Icon'
 import './PassiveSignalCard.css'
 
 function ago(iso: string): string {
@@ -82,7 +83,10 @@ export function PassiveSignalCard() {
 
   return (
     <section className="card">
-      <h2 className="card__title">{t('passive.title')}</h2>
+      <h2 className="card__title">
+        <Icon name="signal" />
+        {t('passive.title')}
+      </h2>
       <p className="muted">{t('passive.desc')}</p>
 
       {error && <p className="home__error">{error}</p>}

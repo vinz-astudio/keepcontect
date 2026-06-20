@@ -17,6 +17,7 @@ import {
 } from '@/features/tasks/api'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { translate, useI18n } from '@/lib/i18n'
+import { Icon } from '@/features/common/Icon'
 
 export function GuardiansCard() {
   const { t } = useI18n()
@@ -100,7 +101,10 @@ export function GuardiansCard() {
 
   return (
     <section className="card">
-      <h2 className="card__title">{t('guard.title')}</h2>
+      <h2 className="card__title">
+        <Icon name="shield" />
+        {t('guard.title')}
+      </h2>
       <p className="muted">{t('guard.desc')}</p>
 
       {loading ? (

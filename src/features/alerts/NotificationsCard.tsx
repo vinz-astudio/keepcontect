@@ -14,6 +14,7 @@ import {
   type EmergencyInfo,
 } from '@/features/alerts/api'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
+import { Icon } from '@/features/common/Icon'
 import {
   enablePush,
   getPushStatus,
@@ -163,6 +164,7 @@ export function NotificationsCard({
   return (
     <section className="card">
       <h2 className="card__title">
+        <Icon name="bell" />
         {t('notif.title')}
         {unread > 0 && <span className="nbadge">{unread}</span>}
       </h2>

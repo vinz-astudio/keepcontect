@@ -34,6 +34,7 @@ import { GroupBoard } from '@/features/relationships/GroupBoard'
 import { StatusBoard } from '@/features/relationships/StatusBoard'
 import { InstallCard } from '@/features/install/InstallCard'
 import { EditableName } from '@/features/common/EditableName'
+import { Icon } from '@/features/common/Icon'
 import { setDisplayName } from '@/features/profile/profileApi'
 import { getCurrentCoords } from '@/lib/geo'
 import { becomeGuardianByCode } from '@/features/guardians/api'
@@ -218,7 +219,10 @@ export function HomeScreen() {
       {tab === 'profile' && (
         <>
           <section className="card">
-            <h2 className="card__title">{t('tab.profile')}</h2>
+            <h2 className="card__title">
+              <Icon name="user" />
+              {t('tab.profile')}
+            </h2>
             <p className="profile__name">
               {t('profile.title')}：
               <EditableName
@@ -245,7 +249,10 @@ export function HomeScreen() {
         <>
       {/* 加入：邀请链接（收到链接直接点开即可自动加入；此处为手动兜底） */}
       <section className="card">
-        <h2 className="card__title">{t('invite.title')}</h2>
+        <h2 className="card__title">
+          <Icon name="share" />
+          {t('invite.title')}
+        </h2>
         <p className="muted">{t('invite.desc')}</p>
         <div className="row">
           <input
@@ -271,7 +278,10 @@ export function HomeScreen() {
 
       {/* Communities */}
       <section className="card">
-        <h2 className="card__title">{t('comm.title')}</h2>
+        <h2 className="card__title">
+          <Icon name="community" />
+          {t('comm.title')}
+        </h2>
         {loading ? (
           <p className="muted">{t('home.loading')}</p>
         ) : communities.length === 0 ? (
@@ -322,7 +332,10 @@ export function HomeScreen() {
 
       {/* Groups */}
       <section className="card">
-        <h2 className="card__title">{t('group.title')}</h2>
+        <h2 className="card__title">
+          <Icon name="group" />
+          {t('group.title')}
+        </h2>
         {loading ? (
           <p className="muted">{t('home.loading')}</p>
         ) : groups.length === 0 ? (

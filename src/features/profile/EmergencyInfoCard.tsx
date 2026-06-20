@@ -5,6 +5,7 @@ import {
   type EmergencyInfoInput,
 } from '@/features/profile/emergencyApi'
 import { useI18n } from '@/lib/i18n'
+import { Icon } from '@/features/common/Icon'
 
 const EMPTY: EmergencyInfoInput = {
   home_address: '',
@@ -59,7 +60,10 @@ export function EmergencyInfoCard() {
 
   return (
     <section className="card">
-      <h2 className="card__title">{t('ei.title')}</h2>
+      <h2 className="card__title">
+        <Icon name="heart" />
+        {t('ei.title')}
+      </h2>
       <p className="muted">{t('ei.desc')}</p>
       {loading ? (
         <p className="muted">{t('ei.loading')}</p>

@@ -11,6 +11,7 @@ import {
 } from '@/features/relationships/groupActivity'
 import { GroupBoard } from '@/features/relationships/GroupBoard'
 import { translate, useI18n } from '@/lib/i18n'
+import { Icon } from '@/features/common/Icon'
 import './GroupBoard.css'
 import './StatusBoard.css'
 
@@ -137,7 +138,10 @@ export function StatusBoard() {
 
   return (
     <section className="card">
-      <h2 className="card__title">{t('status.title')}</h2>
+      <h2 className="card__title">
+        <Icon name="group" />
+        {t('status.title')}
+      </h2>
       {error && <p className="home__error">{error}</p>}
 
       {loading ? (

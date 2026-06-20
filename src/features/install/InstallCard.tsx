@@ -6,6 +6,7 @@ import {
   promptInstall,
 } from '@/features/install/installPrompt'
 import { useI18n } from '@/lib/i18n'
+import { Icon } from '@/features/common/Icon'
 
 export function InstallCard({ compact = false }: { compact?: boolean }) {
   const { t } = useI18n()
@@ -41,7 +42,10 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
   if (platform === 'ios') {
     return (
       <section className="card">
-        <h2 className="card__title">{t('install.title')}</h2>
+        <h2 className="card__title">
+          <Icon name="download" />
+          {t('install.title')}
+        </h2>
         <p className="muted">{t('install.ios.desc')}</p>
         <ol className="install__steps">
           <li>{t('install.ios.s1')}</li>
@@ -55,7 +59,10 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
   // Android / 桌面：可直接触发安装
   return (
     <section className="card">
-      <h2 className="card__title">{t('install.title')}</h2>
+      <h2 className="card__title">
+        <Icon name="download" />
+        {t('install.title')}
+      </h2>
       <p className="muted">{t('install.android.desc')}</p>
       {installable ? (
         <button className="ei__save" onClick={() => void promptInstall()}>
