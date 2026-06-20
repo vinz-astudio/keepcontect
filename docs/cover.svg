@@ -1,0 +1,58 @@
+<svg viewBox="0 0 1280 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Keep Contact —— 异常沉默主动关怀 App">
+  <defs>
+    <radialGradient id="glow" cx="74%" cy="46%" r="58%">
+      <stop offset="0%" stop-color="#e0855f" stop-opacity="0.22"/>
+      <stop offset="45%" stop-color="#e0855f" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#e0855f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f7f2e9"/>
+      <stop offset="100%" stop-color="#e6dac8"/>
+    </linearGradient>
+    <radialGradient id="heartGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#e0855f" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#e0855f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- backdrop -->
+  <rect width="1280" height="640" fill="#15130e"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+  <rect x="28" y="28" width="1224" height="584" rx="30" fill="none" stroke="#38332a" stroke-width="1.5"/>
+
+  <!-- ===== right visual: care rings + heart ===== -->
+  <g transform="translate(965 322)">
+    <circle r="96" fill="url(#heartGlow)"/>
+    <line x1="0" y1="0" x2="118" y2="0" stroke="#e0855f" stroke-opacity="0.28" stroke-width="1.4"/>
+    <line x1="0" y1="0" x2="-150" y2="-75" stroke="#e0855f" stroke-opacity="0.28" stroke-width="1.4"/>
+    <circle r="118" fill="none" stroke="#e0855f" stroke-opacity="0.55" stroke-width="2"/>
+    <circle r="168" fill="none" stroke="#e0855f" stroke-opacity="0.34" stroke-width="1.8"/>
+    <circle r="222" fill="none" stroke="#e0855f" stroke-opacity="0.20" stroke-width="1.6"/>
+    <circle r="278" fill="none" stroke="#e0855f" stroke-opacity="0.10" stroke-width="1.4"/>
+    <!-- watcher nodes on the rings -->
+    <circle cx="118" cy="0" r="6.5" fill="#5cc99a"/>
+    <circle cx="-150" cy="-75" r="5.5" fill="#ada393"/>
+    <circle cx="40" cy="-162" r="5" fill="#e3a948"/>
+    <circle cx="-128" cy="118" r="5" fill="#ada393"/>
+    <circle cx="196" cy="108" r="4.5" fill="#ada393"/>
+    <!-- heart, centred on the group origin -->
+    <g transform="scale(4.2)">
+      <path transform="translate(-16 -16)" d="M23.6 2c-3.4 0-6.3 2.7-7.6 5.6C14.7 4.7 11.8 2 8.4 2 3.8 2 0 5.8 0 10.4 0 17 7.6 22.6 16 30c8.4-7.4 16-13 16-19.6C32 5.8 28.2 2 23.6 2z" fill="#e0855f"/>
+    </g>
+  </g>
+
+  <!-- ===== left text ===== -->
+  <rect x="96" y="116" width="56" height="4" rx="2" fill="#e0855f"/>
+  <text x="96" y="162" font-family="'Hanken Grotesk','Segoe UI',system-ui,sans-serif" font-size="19" font-weight="600" letter-spacing="4" fill="#e0855f">异常沉默 · 主动关怀</text>
+
+  <text x="93" y="280" font-family="'Fraunces',Georgia,'Times New Roman',serif" font-size="92" font-weight="600" fill="url(#title)">Keep Contact</text>
+
+  <text x="96" y="334" font-family="'Hanken Grotesk','Segoe UI',system-ui,sans-serif" font-size="26" font-weight="500" fill="#f4efe5">在无人察觉之前，先察觉沉默。</text>
+  <text x="96" y="370" font-family="'Hanken Grotesk','Segoe UI',system-ui,sans-serif" font-size="18" font-weight="400" fill="#ada393">Notices unusual silence before it becomes an emergency.</text>
+
+  <line x1="96" y1="412" x2="560" y2="412" stroke="#38332a" stroke-width="1"/>
+
+  <text x="96" y="452" font-family="'Hanken Grotesk','Segoe UI',system-ui,sans-serif" font-size="19" font-weight="500" fill="#c9bda9">本人<tspan fill="#e0855f" dx="8">→</tspan><tspan dx="8">Group</tspan><tspan fill="#e0855f" dx="8">→</tspan><tspan dx="8">Community</tspan><tspan fill="#e0855f" dx="8">→</tspan><tspan dx="8">救援触达</tspan></text>
+
+  <text x="96" y="560" font-family="'Hanken Grotesk','Segoe UI',system-ui,sans-serif" font-size="15" font-weight="400" fill="#8a8071">行为判断 100% 留在本机　·　隐私优先的 PWA　·　Android / iOS</text>
+</svg>

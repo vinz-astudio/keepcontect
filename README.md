@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/cover.svg" alt="Keep Contact —— 异常沉默主动关怀" width="100%">
+</p>
+
 # Keep Contact
 
 「异常沉默」主动关怀 App —— 在保护隐私的前提下被动感知独居/健康受限用户的"生命迹象"，
