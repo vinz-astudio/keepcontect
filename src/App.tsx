@@ -4,6 +4,7 @@ import { HomeScreen } from '@/features/relationships/HomeScreen'
 import { ErrorBoundary } from '@/features/common/ErrorBoundary'
 import { NativeAuthRedirectBridge } from '@/features/auth/NativeAuthRedirectBridge'
 import { I18nProvider, useI18n } from '@/lib/i18n'
+import { initialHadAuthTokens } from '@/lib/supabase'
 import {
   clearInviteFromUrl,
   parseInviteFromUrl,
@@ -11,7 +12,7 @@ import {
 } from '@/features/invites/inviteLink'
 import './App.css'
 
-// å¯åŠ¨å³æ•èŽ·é‚€è¯·é“¾æŽ¥å‚æ•°ï¼ˆç™»å½•å‰åŽéƒ½é€‚ç”¨ï¼‰ï¼Œæš‚å­˜åŽæ¸…ç†åœ°å€æ 
+// 启动即捕获邀请链接参数（登录前后都适用），暂存后清理地址栏
 const urlInvite = parseInviteFromUrl()
 if (urlInvite) {
   savePendingInvite(urlInvite)
@@ -19,10 +20,14 @@ if (urlInvite) {
 }
 
 function Gate() {
-  const { session, loading } = useAuth()
+  const { session, loading, hasStoredAuth } = useAuth()
   const { t } = useI18n()
 
-  if (loading) {
+  // 老用户：本地已有会话凭据 → 首帧直接进 watch，不等异步 getSession / 网络
+  if (session || (loading && hasStoredAuth)) return <HomeScreen />
+
+  // 仅在 OAuth 回跳、正用 URL 凭据换取会话时短暂等待
+  if (loading && initialHadAuthTokens) {
     return (
       <div className="app app--center">
         <p className="app__loading">{t('home.loading')}</p>
@@ -30,7 +35,8 @@ function Gate() {
     )
   }
 
-  return session ? <HomeScreen /> : <AuthScreen />
+  // 其余情况（无凭据 / 已确认未登录）直接进登录页，不显示全屏 loading
+  return <AuthScreen />
 }
 
 export default function App() {
@@ -45,5 +51,3 @@ export default function App() {
     </I18nProvider>
   )
 }
-
-

@@ -13,14 +13,40 @@ interface AuthState {
   session: Session | null
   user: User | null
   loading: boolean
+  /** 同步得知本地是否已存在会话凭据，供首帧乐观渲染用 */
+  hasStoredAuth: boolean
   signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined)
 
+/**
+ * 同步判断本地是否已有 Supabase 会话凭据（cookie 优先，localStorage 兜底）。
+ * 老用户开 App 时据此首帧直接进 watch，不必等异步 getSession 解析完。
+ */
+function readHasStoredAuth(): boolean {
+  try {
+    if (/(?:^|;\s*)sb-[^=;]*-auth-token(?:\.\d+)?=[^;\s]/.test(document.cookie)) {
+      return true
+    }
+  } catch {
+    /* document 不可用时忽略 */
+  }
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith('sb-') && k.includes('-auth-token')) return true
+    }
+  } catch {
+    /* localStorage 不可用时忽略 */
+  }
+  return false
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const hasStoredAuth = useMemo(() => readHasStoredAuth(), [])
 
   useEffect(() => {
     let mounted = true
@@ -63,11 +89,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user: session?.user ?? null,
       loading,
+      hasStoredAuth,
       signOut: async () => {
         await supabase.auth.signOut()
       },
     }),
-    [session, loading],
+    [session, loading, hasStoredAuth],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
