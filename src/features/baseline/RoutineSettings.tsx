@@ -19,6 +19,7 @@ import './LivenessCard.css'
 export function RoutineSettings() {
   const { t } = useI18n()
   const { config, reload, startPractice, startSetup } = useLivenessContext()
+  const [customD, setCustomD] = useState(0)
   const [customH, setCustomH] = useState(1)
   const [customM, setCustomM] = useState(0)
   const [sleepStart, setSleepStart] = useState('23:00')
@@ -67,13 +68,14 @@ export function RoutineSettings() {
     .filter(({ w }) => w.kind === 'oneoff')
 
   function durationLabel(totalMin: number): string {
-    const h = Math.floor(totalMin / 60)
+    const d = Math.floor(totalMin / 1440)
+    const h = Math.floor((totalMin % 1440) / 60)
     const m = totalMin % 60
-    const dur = m
-      ? h
-        ? t('live.dur.hm', { h, m })
-        : t('live.dur.m', { m })
-      : t('live.dur.h', { h })
+    const parts: string[] = []
+    if (d) parts.push(t('live.dur.d', { d }))
+    if (h) parts.push(t('live.dur.h', { h }))
+    if (m) parts.push(t('live.dur.m', { m }))
+    const dur = parts.length ? parts.join(' ') : t('live.dur.m', { m: 0 })
     return `${t('live.safeaway')} ${dur}`
   }
 
@@ -151,6 +153,15 @@ export function RoutineSettings() {
           <input
             type="number"
             min={0}
+            max={30}
+            value={customD}
+            onChange={(e) => setCustomD(Math.max(0, Math.min(30, +e.target.value)))}
+            aria-label={t('live.dur.d', { d: '' })}
+          />
+          <span>{t('live.dayUnit')}</span>
+          <input
+            type="number"
+            min={0}
             max={23}
             value={customH}
             onChange={(e) => setCustomH(Math.max(0, Math.min(23, +e.target.value)))}
@@ -168,8 +179,10 @@ export function RoutineSettings() {
           />
           <span>{t('live.minUnit')}</span>
           <button
-            disabled={customH * 60 + customM <= 0}
-            onClick={() => void addSafeWindow(customH * 60 + customM)}
+            disabled={customD * 1440 + customH * 60 + customM <= 0}
+            onClick={() =>
+              void addSafeWindow(customD * 1440 + customH * 60 + customM)
+            }
           >
             {t('live.safeaway.add')}
           </button>

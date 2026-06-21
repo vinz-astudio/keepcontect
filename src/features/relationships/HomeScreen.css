@@ -9,6 +9,27 @@
   overflow: hidden; /* 内容滚动交给 .home__page，底栏靠 flex 常驻底部 */
 }
 
+/* 桌面/平板：更宽的容器；watch(home) 页在大屏用双列网格，
+   表单类页(routine/profile/circles)保持易读的单列宽度。 */
+@media (min-width: 768px) {
+  .home {
+    max-width: 680px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home--home {
+    max-width: 980px;
+  }
+  .home--home .home__page {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: min-content;
+    align-items: start;
+    align-content: start;
+  }
+}
+
 .home__header,
 .home__hello,
 .home__error,

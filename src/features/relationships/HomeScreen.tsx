@@ -193,7 +193,7 @@ export function HomeScreen() {
 
   return (
     <LivenessProvider>
-    <div className="home">
+    <div className={`home home--${tab}`}>
       <PassivePingBoot />
       <AlertOverlay />
       <ToastHost />
