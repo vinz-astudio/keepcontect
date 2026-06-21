@@ -54,13 +54,40 @@ Deno.serve(async (req) => {
       { onConflict: 'user_id' },
     )
 
-  // Resolve silence/dark-device alerts for this user.
-  await supabase
+  // Becoming active again clears the false alarm: resolve open silence/
+  // dark-device alerts AND remove the now-moot notifications others received
+  // about this user (so they refresh away, not linger). SOS is never auto-
+  // cleared by a ping — it stays until a responder confirms safe.
+  const { data: stale } = await supabase
     .from('alerts')
-    .update({ status: 'resolved', resolved_at: now, resolved_by: uid, updated_at: now })
+    .select('id')
     .eq('user_id', uid)
     .eq('status', 'open')
     .in('cause', ['silence', 'dark_device'])
+  if (stale && stale.length) {
+    const ids = stale.map((a) => a.id as string)
+    await supabase
+      .from('alerts')
+      .update({
+        status: 'resolved',
+        resolved_at: now,
+        resolved_by: uid,
+        updated_at: now,
+      })
+      .in('id', ids)
+    await supabase
+      .from('alert_events')
+      .insert(ids.map((id) => ({ alert_id: id, actor_id: uid, kind: 'resolved' })))
+    // Clear the alarm notifications everyone received for these alerts.
+    await supabase.from('notifications').delete().in('alert_id', ids)
+  }
+
+  // Clear this user's own "please check in" nudges — they are active now.
+  await supabase
+    .from('notifications')
+    .delete()
+    .eq('recipient_id', uid)
+    .in('kind', ['self', 'concern'])
 
   // Keep roughly 35 days of passive pings.
   await supabase
