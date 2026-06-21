@@ -8,10 +8,7 @@ import {
 } from '@/features/install/installPrompt'
 import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
-
-// Android 直接发 APK（GitHub Releases 的稳定"最新"下载地址），不再走 PWA。
-const APK_URL =
-  'https://github.com/vinz-astudio/keepcontect/releases/latest/download/keep-contact.apk'
+import { APK_URL } from '@/features/install/apk'
 
 export function InstallCard({ compact = false }: { compact?: boolean }) {
   const { t } = useI18n()
@@ -20,10 +17,10 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => onInstallChange(() => setInstallable(canInstall())), [])
 
-  // 已在原生 App 内，或已作为独立 App 打开 → 无需任何安装引导
-  if (Capacitor.isNativePlatform() || isStandalone()) return null
+  // 已在原生 App 内 → 无需任何安装引导
+  if (Capacitor.isNativePlatform()) return null
 
-  // Android：提供 APK 下载渠道（替代 PWA 安装）
+  // Android：始终提供 APK（浏览器=安装，已装 PWA=升级到原生），作为「获取/升级 App」入口
   if (platform === 'android') {
     if (compact) {
       return (
@@ -48,6 +45,9 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
       </section>
     )
   }
+
+  // iOS / 桌面：已作为独立 App 安装则不再引导
+  if (isStandalone()) return null
 
   // iOS：无法用 JS 触发安装、也无法装 APK，给"添加到主屏"图文步骤
   if (platform === 'ios') {

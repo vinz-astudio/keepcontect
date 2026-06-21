@@ -34,6 +34,7 @@ import {
 import { GroupBoard } from '@/features/relationships/GroupBoard'
 import { StatusBoard } from '@/features/relationships/StatusBoard'
 import { InstallCard } from '@/features/install/InstallCard'
+import { ApkUpgradeNotice } from '@/features/install/ApkUpgradeNotice'
 import { EditableName } from '@/features/common/EditableName'
 import { Icon } from '@/features/common/Icon'
 import { setDisplayName } from '@/features/profile/profileApi'
@@ -219,6 +220,8 @@ export function HomeScreen() {
 
       {error && <p className="home__error">{error}</p>}
       {notice && <p className="home__notice">{notice}</p>}
+
+      <ApkUpgradeNotice />
 
       <main className="home__page">
       {tab === 'home' && (
