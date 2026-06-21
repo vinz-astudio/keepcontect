@@ -34,8 +34,12 @@ console.log(`→ versionCode ${nextCode}, versionName ${versionName}`)
 run('npm run build')
 run('npx cap sync android')
 
-// 3) 构建发布签名 APK(Windows 用 gradlew.bat;签名密钥来自 gitignore 的 keystore.properties)
-const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
+// 3) 构建发布签名 APK(Windows 用 gradlew.bat 绝对路径,避免 shell 找不到;
+//    签名密钥来自 gitignore 的 keystore.properties)
+const gradlew =
+  process.platform === 'win32'
+    ? `"${join(root, 'android', 'gradlew.bat')}"`
+    : './gradlew'
 run(`${gradlew} assembleRelease --console=plain`, { cwd: join(root, 'android') })
 
 // 4) 复制成稳定文件名 keep-contact.apk
