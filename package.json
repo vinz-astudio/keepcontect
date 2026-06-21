@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
-    "cap:sync": "cap sync"
+    "cap:sync": "cap sync",
+    "release:android": "node scripts/release-android.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.6",
