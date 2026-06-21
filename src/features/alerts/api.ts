@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { emitAlertChange } from '@/features/alerts/alertBus'
 import type { Tables } from '@/lib/database.types'
 
 export type AppNotification = Tables<'notifications'>
@@ -15,6 +16,7 @@ export async function sendHeartbeat(status: 'normal' | 'alert'): Promise<void> {
 export async function resolveMyAlert(): Promise<void> {
   const { error } = await supabase.rpc('resolve_my_alert')
   if (error) throw error
+  emitAlertChange()
 }
 
 export async function raiseSos(
@@ -37,11 +39,13 @@ export async function ackAlert(alertId: string, minutes = 30): Promise<void> {
     _minutes: minutes,
   })
   if (error) throw error
+  emitAlertChange()
 }
 
 export async function resolveAlert(alertId: string): Promise<void> {
   const { error } = await supabase.rpc('resolve_alert', { _alert_id: alertId })
   if (error) throw error
+  emitAlertChange()
 }
 
 // ---- 查询 ----

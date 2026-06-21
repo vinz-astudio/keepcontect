@@ -10,6 +10,8 @@ import {
   type GroupActivity,
 } from '@/features/relationships/groupActivity'
 import { GroupBoard } from '@/features/relationships/GroupBoard'
+import { onAlertChange } from '@/features/alerts/alertBus'
+import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import { translate, useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import './GroupBoard.css'
@@ -77,9 +79,18 @@ export function StatusBoard() {
       if (document.visibilityState === 'visible') void load()
     }
     document.addEventListener('visibilitychange', onVisible)
+    // 本机任一界面「确认安全/报平安」后立即刷新看板（联动）
+    const offBus = onAlertChange(() => void load())
+    // 其它设备/成员的告警变更经 realtime 通知后也刷新
+    let unsubscribe: (() => void) | undefined
+    void subscribeAlertSignals(() => void load()).then((fn) => {
+      unsubscribe = fn
+    })
     return () => {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
+      offBus()
+      unsubscribe?.()
     }
   }, [load])
 
