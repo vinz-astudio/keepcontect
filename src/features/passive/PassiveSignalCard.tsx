@@ -7,12 +7,26 @@ import {
   listRecentPings,
   pingUrl,
   shortcutImportUrl,
+  summaryUrl,
   type BehaviorPing,
 } from '@/features/passive/api'
-import { getPlatform } from '@/lib/platform'
+import { getDesktopOS, getPlatform } from '@/lib/platform'
+import { buildWindowsHookCmd } from '@/features/passive/windowsHook'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import './PassiveSignalCard.css'
+
+function downloadText(name: string, text: string): void {
+  const blob = new Blob([text], { type: 'application/octet-stream' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
 
 function ago(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -31,11 +45,13 @@ export function PassiveSignalCard() {
   const { t } = useI18n()
   const platform = getPlatform()
   const android = androidRuntime()
+  const desktopOS = platform === 'desktop' ? getDesktopOS() : null
   const [token, setToken] = useState<string | null>(null)
   const [pings, setPings] = useState<BehaviorPing[]>([])
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
+  const [hookConsent, setHookConsent] = useState(false)
 
   const refresh = useCallback(async () => {
     try {
@@ -118,6 +134,42 @@ export function PassiveSignalCard() {
         </p>
         <code className="psig__url">{url}</code>
       </div>
+
+      {desktopOS === 'windows' && (
+        <div className="psig__hook">
+          <p className="psig__hooktitle">{t('hook.win.title')}</p>
+          <p className="muted">{t('hook.win.desc')}</p>
+          <label className="psig__hookconsent">
+            <input
+              type="checkbox"
+              checked={hookConsent}
+              onChange={(e) => setHookConsent(e.target.checked)}
+            />
+            <span>{t('hook.win.consent')}</span>
+          </label>
+          <button
+            className="psig__import"
+            disabled={!token || !hookConsent}
+            onClick={() => {
+              if (!token) return
+              downloadText(
+                'KeepContact-Setup.cmd',
+                buildWindowsHookCmd(
+                  pingUrl(token),
+                  summaryUrl(token),
+                  window.location.origin,
+                ),
+              )
+            }}
+          >
+            {t('hook.win.download')}
+          </button>
+          <p className="muted psig__hooknote">{t('hook.win.note')}</p>
+        </div>
+      )}
+      {(desktopOS === 'mac' || desktopOS === 'linux') && (
+        <p className="muted psig__hook">{t('hook.other')}</p>
+      )}
 
       <p className="muted psig__triggers">{t('passive.triggers')}</p>
 

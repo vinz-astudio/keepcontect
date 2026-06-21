@@ -34,6 +34,12 @@ export function pingUrl(token: string): string {
   return `${SUPABASE_URL}/functions/v1/ping?${params.toString()}`
 }
 
+/** Token-authorized tiny summary (status/unread/today) for the desktop tray. */
+export function summaryUrl(token: string): string {
+  const params = new URLSearchParams({ token })
+  return `${SUPABASE_URL}/functions/v1/summary?${params.toString()}`
+}
+
 export function shortcutDownloadUrl(token: string): string {
   return `${SUPABASE_URL}/functions/v1/shortcut?${new URLSearchParams({
     token,

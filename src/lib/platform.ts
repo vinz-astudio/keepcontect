@@ -13,6 +13,15 @@ export function getPlatform(): Platform {
   return 'desktop'
 }
 
+/** 桌面操作系统细分（仅在 getPlatform() === 'desktop' 时有意义） */
+export function getDesktopOS(): 'windows' | 'mac' | 'linux' | 'other' {
+  const ua = navigator.userAgent || ''
+  if (/Windows/.test(ua)) return 'windows'
+  if (/Macintosh|Mac OS X/.test(ua)) return 'mac'
+  if (/Linux|X11/.test(ua)) return 'linux'
+  return 'other'
+}
+
 /** 是否以独立 App（已添加到主屏/已安装）方式打开 */
 export function isStandalone(): boolean {
   return (
