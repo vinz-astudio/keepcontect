@@ -137,8 +137,20 @@ export function PassiveSignalCard() {
 
       {desktopOS === 'windows' && (
         <div className="psig__hook">
+          {/* 选项一:零安装(推荐)——让 PWA 登录时自动启动 */}
+          <p className="psig__hooktitle">{t('hook.pwa.title')}</p>
+          <p className="muted">{t('hook.pwa.desc')}</p>
+          <ol className="psig__steps">
+            <li>{t('hook.pwa.s1')}</li>
+            <li>{t('hook.pwa.s2')}</li>
+            <li>{t('hook.pwa.s3')}</li>
+          </ol>
+
+          {/* 选项二:进阶——关掉窗口也后台 + 托盘小图标 */}
+          <div className="psig__hookdiv" />
           <p className="psig__hooktitle">{t('hook.win.title')}</p>
           <p className="muted">{t('hook.win.desc')}</p>
+          <p className="muted psig__hookwarn">{t('hook.win.smartscreen')}</p>
           <label className="psig__hookconsent">
             <input
               type="checkbox"

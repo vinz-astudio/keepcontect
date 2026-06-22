@@ -149,3 +149,23 @@ button.psig__import {
   font-size: 0.78rem;
   line-height: 1.5;
 }
+
+.psig__steps {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  line-height: 1.6;
+}
+
+.psig__hookdiv {
+  height: 1px;
+  background: var(--accent-line);
+  margin: 0.9rem 0;
+}
+
+.psig__hookwarn {
+  margin: 0.4rem 0 0.55rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
