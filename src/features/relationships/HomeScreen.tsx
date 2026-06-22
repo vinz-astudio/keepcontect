@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { EmergencyInfoCard } from '@/features/profile/EmergencyInfoCard'
 import { GuardiansCard } from '@/features/guardians/GuardiansCard'
-import { LivenessCard } from '@/features/baseline/LivenessCard'
+import { SafeAwayBar } from '@/features/baseline/SafeAwayBar'
 import { RoutineSettings } from '@/features/baseline/RoutineSettings'
 import { CheckinTasksCard } from '@/features/tasks/CheckinTasksCard'
 import { PassiveSignalCard } from '@/features/passive/PassiveSignalCard'
@@ -228,8 +228,8 @@ export function HomeScreen() {
       <main className="home__page">
       {tab === 'home' && (
         <>
+          <SafeAwayBar />
           <StatusBoard />
-          <LivenessCard />
           <NotificationsCard onChanged={refreshUnread} />
           <CheckinTasksCard />
         </>

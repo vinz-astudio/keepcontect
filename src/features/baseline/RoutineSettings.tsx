@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLivenessContext } from '@/features/baseline/LivenessProvider'
+import { LivenessStatusCard } from '@/features/baseline/LivenessStatusCard'
 import {
   addQuietWindow,
   removeQuietWindow,
@@ -92,6 +93,8 @@ export function RoutineSettings() {
   }
 
   return (
+    <>
+    <LivenessStatusCard />
     <section className="card">
       <h2 className="card__title">{t('tab.routine')}</h2>
       <p className="muted">{t('routine.desc')}</p>
@@ -221,5 +224,6 @@ export function RoutineSettings() {
         </div>
       </div>
     </section>
+    </>
   )
 }
