@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   ackAlert,
-  clearMyNotifications,
+  clearFinishedNotifications,
   deleteNotification,
   getAlert,
   getEmergencyInfoForUser,
@@ -307,6 +307,7 @@ export function NotificationsCard({
                   // 还没人认领：只给「我去联系」
                   <div className="resp__actions">
                     <button
+                      className="resp__reach"
                       disabled={busy}
                       onClick={() => act(() => ackAlert(alert.id))}
                     >
@@ -388,7 +389,9 @@ export function NotificationsCard({
           <button
             className="nfeed__clear"
             disabled={busy}
-            onClick={() => act(clearMyNotifications)}
+            onClick={() =>
+              act(() => clearFinishedNotifications(items.map((i) => i.alert.id)))
+            }
           >
             {t('notif.clearAll')}
           </button>

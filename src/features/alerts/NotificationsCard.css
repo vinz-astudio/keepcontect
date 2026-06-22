@@ -206,6 +206,12 @@
   border-color: var(--ok);
 }
 
+.resp__actions .resp__reach {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
 .resp__actions button:disabled {
   opacity: 0.5;
 }

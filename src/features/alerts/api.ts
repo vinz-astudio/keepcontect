@@ -86,6 +86,25 @@ export async function clearMyNotifications(): Promise<void> {
   if (error) throw error
 }
 
+/**
+ * 清除「已完成」的通知,保留仍需我处理的——即对应仍 open 的告警、
+ * 带「我去联系 / 确认安全」按键的那些(keepAlertIds 为这些 open 告警的 id)。
+ */
+export async function clearFinishedNotifications(
+  keepAlertIds: string[],
+): Promise<void> {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) return
+  let q = supabase.from('notifications').delete().eq('recipient_id', uid)
+  if (keepAlertIds.length > 0) {
+    // 删除:alert_id 为空 或 不在 keep 列表里的;= 保留 keep 列表对应的开放告警通知
+    q = q.or(`alert_id.is.null,alert_id.not.in.(${keepAlertIds.join(',')})`)
+  }
+  const { error } = await q
+  if (error) throw error
+}
+
 /** 我自己当前是否有 open 告警（驱动本机自证界面的服务器侧确认） */
 export async function getMyOpenAlert(): Promise<Alert | null> {
   const { data: u } = await supabase.auth.getUser()
