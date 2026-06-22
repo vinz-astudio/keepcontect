@@ -13,6 +13,8 @@ export function buildWindowsHookCmd(
   pingUrl: string,
   summaryUrl: string,
   homeUrl: string,
+  versionUrl: string,
+  appVersion: string,
 ): string {
   const body = `@echo off
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%~f0';$c=[IO.File]::ReadAllText($p);$i=$c.IndexOf([char]35+'KCPS');iex $c.Substring($i+5)"
@@ -30,6 +32,8 @@ Add-Type 'using System;using System.Runtime.InteropServices;public static class 
 $ping='__PING__'
 $summary='__SUMMARY__'
 $appUrl='__HOME__'
+$verUrl='__VERURL__'
+$appVer='__APPVER__'
 $bmp=New-Object System.Drawing.Bitmap 16,16
 $g=[System.Drawing.Graphics]::FromImage($bmp)
 $g.SmoothingMode='AntiAlias'
@@ -40,6 +44,7 @@ $ni.Icon=[System.Drawing.Icon]::FromHandle($bmp.GetHicon())
 $ni.Visible=$true
 $ni.Text='Keep Contact'
 $script:last=$null
+$script:verDay=''
 $menu=New-Object System.Windows.Forms.ContextMenuStrip
 [void]$menu.Items.Add('Open Keep Contact',$null,{ Start-Process $appUrl })
 [void]$menu.Items.Add('Check in now',$null,{ try{Invoke-RestMethod -Method Post -Uri $ping -TimeoutSec 15 | Out-Null}catch{} })
@@ -54,6 +59,13 @@ $tick={
     if($t.Length -gt 63){$t=$t.Substring(0,63)}
     $ni.Text=$t
   }
+  try{
+    $v=Invoke-RestMethod -Uri $verUrl -TimeoutSec 15
+    if($v.version -and ($v.version -ne $appVer)){
+      $d=(Get-Date).ToString('yyyy-MM-dd')
+      if($script:verDay -ne $d){ $script:verDay=$d; $ni.ShowBalloonTip(6000,'Keep Contact',('New version '+$v.version+' available - open the app to update.'),[System.Windows.Forms.ToolTipIcon]::Info) }
+    }
+  }catch{}
 }
 $ni.add_MouseClick({ param($s,$e)
   if($e.Button -eq [System.Windows.Forms.MouseButtons]::Left){
@@ -72,7 +84,7 @@ $timer.add_Tick($tick)
 $timer.Start()
 [System.Windows.Forms.Application]::Run()
 '@
-$tray=$tray.Replace('__PING__','${pingUrl}').Replace('__SUMMARY__','${summaryUrl}').Replace('__HOME__','${homeUrl}')
+$tray=$tray.Replace('__PING__','${pingUrl}').Replace('__SUMMARY__','${summaryUrl}').Replace('__HOME__','${homeUrl}').Replace('__VERURL__','${versionUrl}').Replace('__APPVER__','${appVersion}')
 $trayFile=Join-Path $dir 'kc-tray.ps1'
 Set-Content -LiteralPath $trayFile -Value $tray -Encoding UTF8
 $startup=[Environment]::GetFolderPath('Startup')

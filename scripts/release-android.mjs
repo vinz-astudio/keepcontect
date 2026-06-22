@@ -30,6 +30,17 @@ gradle = gradle
 writeFileSync(gradlePath, gradle)
 console.log(`→ versionCode ${nextCode}, versionName ${versionName}`)
 
+// 1b) 同步产品版本号:src/lib/version.ts 的 APP_VERSION 与 public/version.json
+const verTsPath = join(root, 'src/lib/version.ts')
+let verTs = readFileSync(verTsPath, 'utf8')
+verTs = verTs.replace(/APP_VERSION\s*=\s*'[^']*'/, `APP_VERSION = '${versionName}'`)
+writeFileSync(verTsPath, verTs)
+const verJsonPath = join(root, 'public/version.json')
+const verJson = JSON.parse(readFileSync(verJsonPath, 'utf8'))
+verJson.version = versionName
+writeFileSync(verJsonPath, JSON.stringify(verJson, null, 2) + '\n')
+console.log(`→ APP_VERSION & version.json = ${versionName}`)
+
 // 2) 构建 Web 产物并同步进原生工程
 run('npm run build')
 run('npx cap sync android')

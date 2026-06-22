@@ -3,6 +3,7 @@ import { AuthScreen } from '@/features/auth/AuthScreen'
 import { HomeScreen } from '@/features/relationships/HomeScreen'
 import { ErrorBoundary } from '@/features/common/ErrorBoundary'
 import { NativeAuthRedirectBridge } from '@/features/auth/NativeAuthRedirectBridge'
+import { UpdateNotice } from '@/features/update/UpdateNotice'
 import { I18nProvider, useI18n } from '@/lib/i18n'
 import { initialHadAuthTokens } from '@/lib/supabase'
 import {
@@ -43,6 +44,7 @@ export default function App() {
   return (
     <I18nProvider>
       <NativeAuthRedirectBridge />
+      <UpdateNotice />
       <ErrorBoundary>
         <AuthProvider>
           <Gate />

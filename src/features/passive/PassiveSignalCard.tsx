@@ -12,6 +12,7 @@ import {
 } from '@/features/passive/api'
 import { getDesktopOS, getPlatform } from '@/lib/platform'
 import { buildWindowsHookCmd } from '@/features/passive/windowsHook'
+import { APP_VERSION, LATEST_URL } from '@/lib/version'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import './PassiveSignalCard.css'
@@ -170,6 +171,8 @@ export function PassiveSignalCard() {
                   pingUrl(token),
                   summaryUrl(token),
                   window.location.origin,
+                  LATEST_URL,
+                  APP_VERSION,
                 ),
               )
             }}
