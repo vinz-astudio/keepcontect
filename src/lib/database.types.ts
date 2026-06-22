@@ -554,6 +554,10 @@ export type Database = {
         Args: { _community: string; _name: string }
         Returns: undefined
       }
+      report_client: {
+        Args: { _client_id: string; _platform: string; _version: string }
+        Returns: undefined
+      }
       resolve_alert: { Args: { _alert_id: string }; Returns: undefined }
       resolve_my_alert: { Args: never; Returns: undefined }
       send_heartbeat: { Args: { _status: string }; Returns: undefined }

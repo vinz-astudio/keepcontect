@@ -14,6 +14,7 @@ import { TabBar, type Tab } from '@/features/nav/TabBar'
 import { listMyNotifications, raiseSos } from '@/features/alerts/api'
 import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import { setBadge } from '@/lib/badge'
+import { reportClient } from '@/lib/clientReport'
 import { toast } from '@/lib/toast'
 import { ToastHost } from '@/features/common/ToastHost'
 import {
@@ -148,6 +149,7 @@ export function HomeScreen() {
 
   useEffect(() => {
     void ensurePushSubscription() // 已授权过的设备登录后静默续订推送
+    void reportClient() // 上报客户端版本/平台(供运营查看)
   }, [])
 
   useEffect(() => {
