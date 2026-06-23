@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Capacitor } from '@capacitor/core'
+import { Browser } from '@capacitor/browser'
 import { useUpdateStatus } from '@/features/update/versionCheck'
 import { useI18n } from '@/lib/i18n'
 import { isTauri } from '@/lib/platform'
@@ -46,7 +47,10 @@ export function UpdateNotice() {
         setBusy(false)
       }
     } else if (Capacitor.isNativePlatform() && latest?.apkUrl) {
-      window.open(latest.apkUrl, '_blank')
+      void Browser.open({ url: latest.apkUrl }).catch((err) => {
+        console.error('Failed to open APK URL with Capacitor Browser:', err)
+        window.open(latest.apkUrl, '_blank')
+      })
     } else {
       window.location.reload()
     }

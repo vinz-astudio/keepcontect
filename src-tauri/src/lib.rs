@@ -94,7 +94,7 @@ async fn download_and_install(url: String) -> Result<(), String> {
           "-NoProfile",
           "-WindowStyle", "Hidden",
           "-Command",
-          &format!("Start-Process '{}'", installer_path.display())
+          &format!("Start-Process '{}' -ArgumentList '/S'", installer_path.display())
         ])
         .spawn()
         .map_err(|e| e.to_string())?;

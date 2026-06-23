@@ -80,11 +80,17 @@ export function useUpdateStatus(): { latest: LatestInfo | null; outdated: boolea
     const onVisible = () => {
       if (document.visibilityState === 'visible') void check()
     }
+    const onFocus = () => void check()
+    const onOnline = () => void check()
+
     document.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('focus', () => void check())
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('online', onOnline)
     const timer = window.setInterval(() => void check(), 6 * 3_600_000)
     return () => {
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('online', onOnline)
       window.clearInterval(timer)
     }
   }, [check])
