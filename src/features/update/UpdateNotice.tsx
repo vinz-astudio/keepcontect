@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { Browser } from '@capacitor/browser'
 import { useUpdateStatus } from '@/features/update/versionCheck'
@@ -27,12 +27,37 @@ export function UpdateNotice() {
   const [snoozedUntil, setSnoozedUntil] = useState<number>(readSnooze)
   const [dismissed, setDismissed] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null
+    const setupListener = async () => {
+      try {
+        const internals = (window as any).__TAURI_INTERNALS__
+        if (internals && typeof internals.listen === 'function') {
+          unlisten = (await internals.listen('download-progress', (event: any) => {
+            const val = typeof event.payload === 'number' ? event.payload : parseInt(event.payload, 10)
+            if (!isNaN(val)) {
+              setProgress(val)
+            }
+          })) as () => void
+        }
+      } catch (err) {
+        console.error('Failed to listen to download-progress:', err)
+      }
+    }
+    setupListener()
+    return () => {
+      if (unlisten) unlisten()
+    }
+  }, [])
 
   if (!outdated || dismissed || Date.now() < snoozedUntil) return null
 
   const upgrade = async () => {
     if (isTauri() && latest?.exeUrl) {
       setBusy(true)
+      setProgress(0)
       try {
         const internals = (window as any).__TAURI_INTERNALS__
         if (internals && typeof internals.invoke === 'function') {
@@ -45,6 +70,7 @@ export function UpdateNotice() {
         window.open(latest.exeUrl, '_blank')
       } finally {
         setBusy(false)
+        setProgress(null)
       }
     } else if (Capacitor.isNativePlatform() && latest?.apkUrl) {
       void Browser.open({ url: latest.apkUrl }).catch((err) => {
@@ -71,17 +97,29 @@ export function UpdateNotice() {
         <strong>{t('update.title')}</strong>
         <span>{t('update.body', { v: latest?.version ?? '' })}</span>
       </div>
-      <div className="updnotice__actions">
-        <button className="updnotice__go" onClick={upgrade} disabled={busy}>
-          {busy ? (lang === 'zh' ? '正在下载更新...' : 'Downloading...') : t('update.now')}
-        </button>
-        <button className="updnotice__keep" onClick={() => setDismissed(true)}>
-          {t('update.keep')}
-        </button>
-        <button className="updnotice__snooze" onClick={snooze}>
-          {t('update.snooze')}
-        </button>
-      </div>
+      {progress !== null ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', marginTop: '6px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', opacity: 0.9 }}>
+            <span>{progress >= 100 ? (lang === 'zh' ? '正在准备安装...' : 'Preparing installation...') : (lang === 'zh' ? '正在下载更新...' : 'Downloading update...')}</span>
+            <span>{progress}%</span>
+          </div>
+          <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--line)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--accent)', transition: 'width 0.1s ease-out' }} />
+          </div>
+        </div>
+      ) : (
+        <div className="updnotice__actions">
+          <button className="updnotice__go" onClick={upgrade} disabled={busy}>
+            {busy ? (lang === 'zh' ? '正在下载更新...' : 'Downloading...') : t('update.now')}
+          </button>
+          <button className="updnotice__keep" onClick={() => setDismissed(true)}>
+            {t('update.keep')}
+          </button>
+          <button className="updnotice__snooze" onClick={snooze}>
+            {t('update.snooze')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

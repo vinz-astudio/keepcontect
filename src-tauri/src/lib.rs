@@ -72,20 +72,41 @@ fn get_system_idle_time_ms() -> Option<u32> {
 }
 
 #[tauri::command]
-async fn download_and_install(url: String) -> Result<(), String> {
+async fn download_and_install(window: tauri::Window, url: String) -> Result<(), String> {
   tauri::async_runtime::spawn_blocking(move || {
+    use std::io::{Read, Write};
     let temp_dir = std::env::temp_dir();
     let installer_path = temp_dir.join("KeepContact-Setup.exe");
 
     let response = ureq::get(&url)
       .call()
       .map_err(|e| e.to_string())?;
+
+    let total_size = response
+      .header("Content-Length")
+      .and_then(|v| v.parse::<u64>().ok())
+      .unwrap_or(0);
       
+    let mut reader = response.into_reader();
     let mut file = std::fs::File::create(&installer_path)
       .map_err(|e| e.to_string())?;
-      
-    std::io::copy(&mut response.into_reader(), &mut file)
-      .map_err(|e| e.to_string())?;
+
+    let mut buffer = [0; 8192];
+    let mut downloaded = 0;
+
+    loop {
+      let bytes_read = reader.read(&mut buffer).map_err(|e| e.to_string())?;
+      if bytes_read == 0 {
+        break;
+      }
+      file.write_all(&buffer[..bytes_read]).map_err(|e| e.to_string())?;
+      downloaded += bytes_read as u64;
+
+      if total_size > 0 {
+        let percent = (downloaded as f64 / total_size as f64 * 100.0) as u32;
+        let _ = window.emit("download-progress", percent);
+      }
+    }
 
     #[cfg(target_os = "windows")]
     {
@@ -96,7 +117,7 @@ async fn download_and_install(url: String) -> Result<(), String> {
           "-WindowStyle", "Hidden",
           "-Command",
           &format!(
-            "Start-Sleep -Seconds 2; Start-Process '{}' -ArgumentList '/S' -Wait; Start-Process '{}'",
+            "Start-Sleep -Seconds 2; Start-Process '{}' -ArgumentList '/S'; Start-Sleep -Seconds 2; while (Get-Process -Name 'KeepContact-Setup' -ErrorAction SilentlyContinue) {{ Start-Sleep -Seconds 1 }}; Start-Process '{}'",
             installer_path.display(),
             current_exe.display()
           )

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { isTauri, getPlatform } from '@/lib/platform'
 import { APP_VERSION } from '@/lib/version'
@@ -13,6 +13,30 @@ export function UpdatesCard() {
   const [hasNewUpdate, setHasNewUpdate] = useState(false)
   const [newVersion, setNewVersion] = useState('')
   const [updateUrls, setUpdateUrls] = useState<{ apkUrl?: string; exeUrl?: string }>({})
+  const [progress, setProgress] = useState<number | null>(null)
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null
+    const setupListener = async () => {
+      try {
+        const internals = (window as any).__TAURI_INTERNALS__
+        if (internals && typeof internals.listen === 'function') {
+          unlisten = (await internals.listen('download-progress', (event: any) => {
+            const val = typeof event.payload === 'number' ? event.payload : parseInt(event.payload, 10)
+            if (!isNaN(val)) {
+              setProgress(val)
+            }
+          })) as () => void
+        }
+      } catch (err) {
+        console.error('Failed to listen to download-progress:', err)
+      }
+    }
+    setupListener()
+    return () => {
+      if (unlisten) unlisten()
+    }
+  }, [])
 
   const android = (() => {
     if (getPlatform() !== 'android') return null
@@ -53,6 +77,7 @@ export function UpdatesCard() {
   async function handleTriggerUpdate() {
     if (isTauri() && updateUrls.exeUrl) {
       setUpdBusy(true)
+      setProgress(0)
       try {
         const internals = (window as any).__TAURI_INTERNALS__
         if (internals && typeof internals.invoke === 'function') {
@@ -74,6 +99,7 @@ export function UpdatesCard() {
         }
       } finally {
         setUpdBusy(false)
+        setProgress(null)
       }
     } else if (Capacitor.isNativePlatform() && updateUrls.apkUrl) {
       window.open(updateUrls.apkUrl, '_blank')
@@ -123,16 +149,28 @@ export function UpdatesCard() {
             <p className="psig__status-text psig__status-text--warn" style={{ fontSize: '0.82rem', color: 'var(--warning)', fontWeight: '600', margin: 0 }}>
               {t('update.found').replace('{v}', newVersion)}
             </p>
-            <button 
-              className="share" 
-              style={{ width: '100%', padding: '8px', background: 'var(--accent)', color: 'var(--bg)' }}
-              disabled={updBusy}
-              onClick={() => void handleTriggerUpdate()}
-            >
-              {updBusy 
-                ? (lang === 'zh' ? '正在安装...' : 'Installing...') 
-                : (isTauri() ? (lang === 'zh' ? '立即更新安装' : 'Update & Install') : (lang === 'zh' ? '下载新版本' : 'Download Update'))}
-            </button>
+            {progress !== null ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', marginTop: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', opacity: 0.9 }}>
+                  <span>{progress >= 100 ? (lang === 'zh' ? '正在准备安装...' : 'Preparing installation...') : (lang === 'zh' ? '正在下载更新...' : 'Downloading update...')}</span>
+                  <span>{progress}%</span>
+                </div>
+                <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--line)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--accent)', transition: 'width 0.1s ease-out' }} />
+                </div>
+              </div>
+            ) : (
+              <button 
+                className="share" 
+                style={{ width: '100%', padding: '8px', background: 'var(--accent)', color: 'var(--bg)' }}
+                disabled={updBusy}
+                onClick={() => void handleTriggerUpdate()}
+              >
+                {updBusy 
+                  ? (lang === 'zh' ? '正在安装...' : 'Installing...') 
+                  : (isTauri() ? (lang === 'zh' ? '立即更新安装' : 'Update & Install') : (lang === 'zh' ? '下载新版本' : 'Download Update'))}
+              </button>
+            )}
           </div>
         )}
       </div>
