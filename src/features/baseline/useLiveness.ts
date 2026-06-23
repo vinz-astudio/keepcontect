@@ -47,8 +47,11 @@ export function useLiveness(): LivenessState {
   const recompute = useCallback(() => {
     const cfg = getConfig()
     setConfig(cfg)
+    const effectiveInstalledAt = eventsRef.current.length > 0
+      ? Math.max(installedAt, Math.min(...eventsRef.current.map((e) => e.t)))
+      : installedAt
     setEvaluation(
-      evaluate(eventsRef.current, Date.now(), cfg, installedAt),
+      evaluate(eventsRef.current, Date.now(), cfg, effectiveInstalledAt),
     )
   }, [installedAt])
 

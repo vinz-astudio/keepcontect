@@ -21,9 +21,132 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="KeepContact" />
     <title>Keep Contact</title>
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('kc.theme');
+          if (t === 'light') {
+            document.documentElement.classList.add('light-theme');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="splash">
+        <div class="splash__content">
+          <div class="splash__logo">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="4" fill="currentColor" />
+            </svg>
+          </div>
+          <h1 class="splash__title">Keep Contact</h1>
+          <div class="splash__bar">
+            <div class="splash__progress"></div>
+          </div>
+          <p class="splash__status" id="splash-status">Loading...</p>
+        </div>
+      </div>
+      <script>
+        try {
+          var lang = localStorage.getItem('kc.lang');
+          if (lang === 'zh') {
+            document.getElementById('splash-status').innerText = '正在加载...';
+          }
+        } catch (e) {}
+      </script>
+      <style>
+        /* Default dark theme */
+        :root {
+          --splash-bg: #15130e;
+          --splash-fg: #f4efe5;
+          --splash-accent: #e0855f;
+          --splash-line: #38332a;
+        }
+        /* Light theme override */
+        .light-theme {
+          --splash-bg: #fcfbf8;
+          --splash-fg: #2c2820;
+          --splash-accent: #cb6f49;
+          --splash-line: #e5dec9;
+        }
+        
+        .splash {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          height: 100dvh;
+          background: var(--splash-bg);
+          color: var(--splash-fg);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Hanken Grotesk', system-ui, sans-serif;
+          z-index: 99999;
+          background-image: radial-gradient(
+            120% 80% at 50% -10%,
+            rgba(224, 133, 95, 0.06),
+            transparent 60%
+          );
+        }
+        .splash__content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 1.5rem;
+          text-align: center;
+        }
+        .splash__logo {
+          color: var(--splash-accent);
+          animation: splash-pulse 2s infinite ease-in-out;
+        }
+        .splash__title {
+          font-family: 'Fraunces', Georgia, serif;
+          font-size: 2rem;
+          font-weight: 600;
+          margin: 0;
+          letter-spacing: -0.02em;
+        }
+        .splash__bar {
+          width: 160px;
+          height: 4px;
+          background: var(--splash-line);
+          border-radius: 2px;
+          overflow: hidden;
+          position: relative;
+        }
+        .splash__progress {
+          position: absolute;
+          top: 0;
+          left: 0;
+          height: 100%;
+          width: 30%;
+          background: var(--splash-accent);
+          border-radius: 2px;
+          animation: splash-loading 1.6s infinite linear;
+        }
+        .splash__status {
+          font-size: 0.85rem;
+          color: var(--splash-fg);
+          opacity: 0.5;
+          margin: 0;
+        }
+        
+        @keyframes splash-pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.08); opacity: 0.85; }
+        }
+        @keyframes splash-loading {
+          0% { left: -30%; width: 30%; }
+          50% { width: 40%; }
+          100% { left: 100%; width: 30%; }
+        }
+      </style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

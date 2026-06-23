@@ -123,7 +123,12 @@ export function RoutineInsights() {
       ? new Date(user.created_at).getTime()
       : getInstalledAt()
   }, [user?.created_at])
-  const learnedDays = Math.max(0, Math.floor((Date.now() - installedAt) / DAY))
+  const effectiveInstalledAt = useMemo(() => {
+    return events.length > 0
+      ? Math.max(installedAt, Math.min(...events.map((e) => e.t)))
+      : installedAt
+  }, [installedAt, events])
+  const learnedDays = Math.max(0, Math.floor((Date.now() - effectiveInstalledAt) / DAY))
   const inLearning = learnedDays < config.learningDays
 
   const nowHour = new Date().getHours()
