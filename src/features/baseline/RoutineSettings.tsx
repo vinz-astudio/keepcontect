@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useLivenessContext } from '@/features/baseline/LivenessProvider'
-import { LivenessStatusCard } from '@/features/baseline/LivenessStatusCard'
 import { RoutineInsights } from '@/features/baseline/RoutineInsights'
 import {
   addQuietWindow,
@@ -95,7 +94,6 @@ export function RoutineSettings() {
 
   return (
     <div className="routine-grid">
-      <LivenessStatusCard />
       <RoutineInsights />
       <section className="card">
         <h2 className="card__title">{t('tab.routine')}</h2>

@@ -329,3 +329,47 @@
   border-radius: var(--r-md);
   padding: 0.6rem 0.7rem;
 }
+
+/* —— 守望状态 + 活跃节律 合并卡 —— */
+.routine-hero__status {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  text-align: left;
+}
+
+.routine-hero__status .status__dot {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.routine-hero__label {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.routine-hero__hint {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  line-height: 1.45;
+}
+
+.routine-hero__desc {
+  margin: 0.9rem 0 0.2rem;
+  font-size: 0.8rem;
+}
+
+/* 桌面端:合并卡横跨两列,但热力图本身不无限拉伸 */
+.routine-hero .rhythm {
+  max-width: 680px;
+}
+
+@media (min-width: 768px) {
+  .routine-hero {
+    grid-column: 1 / -1;
+  }
+}

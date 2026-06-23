@@ -3,12 +3,35 @@ import { useLivenessContext } from '@/features/baseline/LivenessProvider'
 import { buildBaseline } from '@/features/baseline/engine'
 import { getInstalledAt } from '@/features/baseline/configStore'
 import { getAllSignals } from '@/features/signals/store'
-import { SENSITIVITY_PRESETS, type SignalEvent } from '@/features/baseline/types'
-import { translate, useI18n } from '@/lib/i18n'
+import {
+  SENSITIVITY_PRESETS,
+  type LivenessStatus,
+  type SignalEvent,
+} from '@/features/baseline/types'
+import { translate, useI18n, type I18nKey } from '@/lib/i18n'
 import './LivenessCard.css'
 
 const DAY = 86_400_000
 const DAYS = 7
+
+const STATUS_CLS: Record<LivenessStatus, string> = {
+  normal: 'status--normal',
+  learning: 'status--learning',
+  alert: 'status--alert',
+  safe_window: 'status--normal',
+}
+const STATUS_KEY: Record<LivenessStatus, I18nKey> = {
+  normal: 'live.normal',
+  learning: 'live.learning',
+  alert: 'live.alert',
+  safe_window: 'live.safe',
+}
+const HINT_KEY: Record<LivenessStatus, I18nKey> = {
+  normal: 'live.hint.normal',
+  learning: 'live.hint.learning',
+  alert: 'live.hint.alert',
+  safe_window: 'live.safe',
+}
 
 /** 时长(ms)→本地化人话,复用 live.* 文案 */
 function fmtDur(ms: number | null | undefined): string {
@@ -32,12 +55,13 @@ function level(count: number, max: number): number {
 }
 
 /**
- * 作息可视化 + 异常沉默判断依据。
+ * 守望状态 + 作息可视化 + 异常沉默判断依据。
+ * 状态(原"learning your routine")与活跃节律图合并为一张卡,桌面端横跨两列。
  * 全部在端上由本地行为时序(IndexedDB)计算,绝不上传——与"判断完全线下"一致。
  */
 export function RoutineInsights() {
   const { t } = useI18n()
-  const { evaluation, config } = useLivenessContext()
+  const { evaluation, config, loading } = useLivenessContext()
   const [events, setEvents] = useState<SignalEvent[]>([])
 
   useEffect(() => {
@@ -70,7 +94,6 @@ export function RoutineInsights() {
     for (const e of events) {
       if (e.t < from) continue
       const dt = new Date(e.t)
-      // 找事件所属日列(midnight 升序,落在 [start, next) 内)
       let day = -1
       for (let k = 0; k < DAYS; k++) {
         const end = k < DAYS - 1 ? dayStarts[k + 1] : from + DAYS * DAY
@@ -90,27 +113,44 @@ export function RoutineInsights() {
   )
   const hasData = maxCell > 0
 
-  // 基线模型(与判定引擎同一函数)+ 学习进度
   const model = useMemo(() => buildBaseline(events), [events])
   const installedAt = useMemo(() => getInstalledAt(), [])
-  const learnedDays = Math.max(
-    0,
-    Math.floor((Date.now() - installedAt) / DAY),
-  )
+  const learnedDays = Math.max(0, Math.floor((Date.now() - installedAt) / DAY))
   const inLearning = learnedDays < config.learningDays
 
-  // 此刻所在时段的常态间隔(样本不足时引擎已回退到全局)
   const nowHour = new Date().getHours()
   const baselineMs =
     model.sampleCount > 0 ? model.expectedGapByHour[nowHour] : null
 
   const preset = SENSITIVITY_PRESETS[config.sensitivity]
 
+  const status: LivenessStatus = evaluation?.status ?? 'learning'
+  const statusHint = loading
+    ? t('live.hint.loading')
+    : status === 'safe_window'
+      ? (evaluation?.reason ?? t(HINT_KEY[status]))
+      : t(HINT_KEY[status])
+
   return (
     <>
-      <section className="card">
-        <h2 className="card__title">{t('routine.insights.title')}</h2>
-        <p className="muted">{t('routine.insights.desc')}</p>
+      <section className="card routine-hero">
+        <div className={`routine-hero__status ${STATUS_CLS[status]}`}>
+          <span className="status__dot" aria-hidden />
+          <div className="routine-hero__statustext">
+            <p className="routine-hero__label">{t(STATUS_KEY[status])}</p>
+            <p className="routine-hero__hint">
+              {statusHint}
+              {evaluation && status !== 'safe_window' && (
+                <span className="liveness__gap">
+                  {' '}
+                  · {t('live.gap', { gap: fmtDur(evaluation.currentGapMs) })}
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <p className="muted routine-hero__desc">{t('routine.insights.desc')}</p>
 
         {hasData ? (
           <>

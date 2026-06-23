@@ -5,7 +5,14 @@ export interface GmClient {
   name: string
   platform: string | null
   app_version: string | null
+  first_seen_at?: string | null
   last_seen_at: string | null
+  /** 真实存活信号(device_state),与群组看板同源;缺失时回退 last_seen_at */
+  last_heartbeat_at?: string | null
+  /** 是否有已升级到 group+ 的 open 告警 */
+  alerted?: boolean
+  /** 网页会话折叠后代表的会话数(仅 *-web 折叠时 >1) */
+  web_count?: number
 }
 
 /** 当前用户是否 GM(决定是否显示 GM 页) */

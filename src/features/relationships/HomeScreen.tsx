@@ -36,7 +36,6 @@ import {
 } from '@/features/relationships/api'
 import { GroupBoard } from '@/features/relationships/GroupBoard'
 import { StatusBoard } from '@/features/relationships/StatusBoard'
-import { InstallCard } from '@/features/install/InstallCard'
 import { ApkUpgradeNotice } from '@/features/install/ApkUpgradeNotice'
 import { EditableName } from '@/features/common/EditableName'
 import { Icon } from '@/features/common/Icon'

@@ -224,7 +224,7 @@ export function PassiveSignalCard() {
               refresh_token: session.refresh_token
             }
           })
-          toast(t('profile.scan.success'), 'success')
+          toast(t('profile.scan.success'), 'ok')
           setTimeout(() => {
             void supabase.removeChannel(channel)
           }, 2000)

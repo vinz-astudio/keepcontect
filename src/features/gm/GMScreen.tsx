@@ -17,78 +17,129 @@ interface UserRow {
   user_id: string
   name: string
   clients: GmClient[]
+  /** 真实存活信号(device_state),与群组看板同源 */
+  last_heartbeat_at: string | null
+  /** 是否有 group+ open 告警 */
+  alerted: boolean
 }
 
-const PLAT_MAP: Record<string, string> = {
-  ios: 'iOS',
-  android: 'Android',
-  windows: 'Win',
-  tauri: 'Win',
-  mac: 'Mac',
-  linux: 'Linux',
+// 设备在用判定:30 天内有上报才算"目前在用"
+const RECENCY_MS = 30 * 86_400_000
+
+const BASE_LABEL: Record<string, Record<string, string>> = {
+  zh: { ios: 'iOS', android: 'Android', desktop: '桌面' },
+  en: { ios: 'iOS', android: 'Android', desktop: 'Desktop' },
+}
+const KIND_LABEL: Record<string, Record<string, string>> = {
+  zh: { pwa: 'PWA', app: 'App', apk: 'APK', web: '网页' },
+  en: { pwa: 'PWA', app: 'App', apk: 'APK', web: 'Web' },
+}
+
+// 渠道形如 {ios|android|desktop}-{pwa|app|apk|web}
+function platBase(p: string | null | undefined): string {
+  return (p ?? '').toLowerCase().split('-')[0]
+}
+function platKind(p: string | null | undefined): string {
+  return (p ?? '').toLowerCase().split('-')[1] ?? ''
+}
+
+function latestSeen(clients: GmClient[]): number {
+  let m = 0
+  for (const c of clients) {
+    const t = c.last_seen_at ? new Date(c.last_seen_at).getTime() : 0
+    if (t > m) m = t
+  }
+  return m
+}
+
+/**
+ * 折叠"已删除/一次性"的旧设备,得到目前实际在用的设备:
+ * - 仅保留 30 天内有上报的(更早的视为已不再使用)。
+ * - 网页会话(*-web)清空 localStorage / 隐身 / 换浏览器都会换 id,属一次性会话:
+ *   按平台折叠成一条,显示最近一次 + 会话数,不再每次都堆一行。
+ * - 已安装客户端(pwa/app/apk)的 id 在该安装内稳定,各自单独列出。
+ */
+function liveDevices(clients: GmClient[]): GmClient[] {
+  const now = Date.now()
+  const recent = clients.filter(
+    (c) =>
+      c.last_seen_at && now - new Date(c.last_seen_at).getTime() < RECENCY_MS,
+  )
+  const installed: GmClient[] = []
+  const webByBase = new Map<string, GmClient[]>()
+  for (const c of recent) {
+    if (platKind(c.platform) === 'web') {
+      const b = platBase(c.platform)
+      const arr = webByBase.get(b) ?? []
+      arr.push(c)
+      webByBase.set(b, arr)
+    } else {
+      installed.push(c)
+    }
+  }
+  const out = [...installed]
+  for (const [, arr] of webByBase) {
+    const latest = arr.reduce((a, b) =>
+      new Date(a.last_seen_at!).getTime() >= new Date(b.last_seen_at!).getTime()
+        ? a
+        : b,
+    )
+    out.push({ ...latest, web_count: arr.length })
+  }
+  out.sort(
+    (a, b) =>
+      new Date(b.last_seen_at ?? 0).getTime() -
+      new Date(a.last_seen_at ?? 0).getTime(),
+  )
+  return out
+}
+
+/** 单设备标签;平台无法识别时不编造设备类型,只显示版本 */
+function deviceLabel(c: GmClient, lang: string): string {
+  const baseLabel = (BASE_LABEL[lang] ?? BASE_LABEL.en)[platBase(c.platform)]
+  const kindLabel = (KIND_LABEL[lang] ?? KIND_LABEL.en)[platKind(c.platform)]
+  const ver = c.app_version ? `v${c.app_version}` : '?'
+  const count = c.web_count && c.web_count > 1 ? ` ×${c.web_count}` : ''
+  if (!baseLabel) return `${ver}${count}`
+  return `${baseLabel}${kindLabel ? ` ${kindLabel}` : ''} ${ver}${count}`
 }
 
 function formatDevices(clients: GmClient[], lang: string): string {
-  if (!clients.length) {
-    return lang === 'zh' ? '未上报版本' : 'No version reported'
-  }
-  let mobileCount = 0
-  let desktopCount = 0
-  const parts = clients.map((c) => {
-    const platLower = (c.platform ?? '').toLowerCase()
-    const isMobile = platLower === 'ios' || platLower === 'android'
-    let prefix = ''
-    if (isMobile) {
-      mobileCount++
-      const char = String.fromCharCode(64 + mobileCount)
-      prefix = `Mobile ${char}`
-    } else {
-      desktopCount++
-      const char = String.fromCharCode(64 + desktopCount)
-      prefix = `Desktop ${char}`
-    }
-    const plat = PLAT_MAP[platLower] || c.platform || '?'
-    const ver = c.app_version ? `v${c.app_version}` : '?'
-    return `${prefix}: ${plat} ${ver}`
-  })
-  return parts.join(' | ')
+  const live = liveDevices(clients)
+  if (!live.length) return lang === 'zh' ? '无在用设备' : 'No active device'
+  return live.map((c) => deviceLabel(c, lang)).join(' | ')
 }
 
 function renderDevicesList(clients: GmClient[], lang: string) {
-  if (!clients.length) {
-    return <span className="gm__device-empty" style={{ opacity: 0.5 }}>{lang === 'zh' ? '未上报版本' : 'No version reported'}</span>
-  }
-  let mobileCount = 0
-  let desktopCount = 0
-  return clients.map((c, i) => {
-    const platLower = (c.platform ?? '').toLowerCase()
-    const isMobile = platLower === 'ios' || platLower === 'android'
-    let prefix = ''
-    if (isMobile) {
-      mobileCount++
-      const char = String.fromCharCode(64 + mobileCount)
-      prefix = `Mobile ${char}`
-    } else {
-      desktopCount++
-      const char = String.fromCharCode(64 + desktopCount)
-      prefix = `Desktop ${char}`
-    }
-    const plat = PLAT_MAP[platLower] || c.platform || '?'
-    const ver = c.app_version ? `v${c.app_version}` : '?'
+  const live = liveDevices(clients)
+  if (!live.length) {
     return (
-      <div key={i} className="gm__device-line" style={{ display: 'block', whiteSpace: 'nowrap' }}>
-        {prefix}: {plat} {ver}
-      </div>
+      <span className="gm__device-empty" style={{ opacity: 0.5 }}>
+        {lang === 'zh' ? '无在用设备' : 'No active device'}
+      </span>
     )
-  })
+  }
+  return live.map((c, i) => (
+    <div
+      key={i}
+      className="gm__device-line"
+      style={{ display: 'block', whiteSpace: 'nowrap' }}
+    >
+      {deviceLabel(c, lang)}
+    </div>
+  ))
 }
 
-function getStatus(clients: GmClient[]) {
-  if (!clients.length || !clients[0].last_seen_at) return 'never'
-  const lastSeen = new Date(clients[0].last_seen_at).getTime()
-  const diffHours = (Date.now() - lastSeen) / 3600000
-  if (diffHours < 2) return 'active'
-  if (diffHours < 24) return 'quiet'
+/** 与群组看板同源:device_state 心跳 6h/24h + open 告警;心跳缺失时回退 last_seen */
+function getStatus(r: UserRow): 'alert' | 'active' | 'quiet' | 'silent' | 'never' {
+  if (r.alerted) return 'alert'
+  const ts = r.last_heartbeat_at
+    ? new Date(r.last_heartbeat_at).getTime()
+    : latestSeen(r.clients)
+  if (!ts) return 'never'
+  const diffH = (Date.now() - ts) / 3_600_000
+  if (diffH < 6) return 'active'
+  if (diffH < 24) return 'quiet'
   return 'silent'
 }
 
@@ -111,8 +162,22 @@ export function GMScreen() {
       const map = new Map<string, UserRow>()
       for (const c of list) {
         const r =
-          map.get(c.user_id) ?? { user_id: c.user_id, name: c.name, clients: [] }
+          map.get(c.user_id) ??
+          {
+            user_id: c.user_id,
+            name: c.name,
+            clients: [],
+            last_heartbeat_at: null,
+            alerted: false,
+          }
         if (c.platform || c.app_version) r.clients.push(c)
+        if (
+          c.last_heartbeat_at &&
+          (!r.last_heartbeat_at || c.last_heartbeat_at > r.last_heartbeat_at)
+        ) {
+          r.last_heartbeat_at = c.last_heartbeat_at
+        }
+        if (c.alerted) r.alerted = true
         map.set(c.user_id, r)
       }
       setRows([...map.values()])
@@ -209,9 +274,11 @@ export function GMScreen() {
       return a.name.localeCompare(b.name)
     }
     if (sortBy === 'seen') {
-      const aTime = a.clients[0]?.last_seen_at ? new Date(a.clients[0].last_seen_at).getTime() : 0
-      const bTime = b.clients[0]?.last_seen_at ? new Date(b.clients[0].last_seen_at).getTime() : 0
-      return bTime - aTime
+      const at = (r: UserRow) =>
+        r.last_heartbeat_at
+          ? new Date(r.last_heartbeat_at).getTime()
+          : latestSeen(r.clients)
+      return at(b) - at(a)
     }
     if (sortBy === 'version') {
       const aOutdated = a.clients.length === 0 || a.clients.some((c) => c.app_version ? isNewer(APP_VERSION, c.app_version) : true)
@@ -294,7 +361,7 @@ export function GMScreen() {
               </tr>
             ) : (
               sorted.map((r) => {
-                const status = getStatus(r.clients)
+                const status = getStatus(r)
                 const isOutdated = r.clients.length === 0 || r.clients.some((c) => c.app_version ? isNewer(APP_VERSION, c.app_version) : true)
                 return (
                   <tr key={r.user_id} className={isOutdated ? 'is-outdated-row' : ''}>
@@ -302,10 +369,11 @@ export function GMScreen() {
                       <span
                         className={`gm__status-dot is-${status}`}
                         title={
-                          status === 'active' ? (lang === 'zh' ? '近期活跃 (<2小时)' : 'Active (<2h)') :
-                          status === 'quiet' ? (lang === 'zh' ? '离线 (<24小时)' : 'Quiet (<24h)') :
+                          status === 'alert' ? (lang === 'zh' ? '异常告警 · 需关注' : 'Alert · needs attention') :
+                          status === 'active' ? (lang === 'zh' ? '近期活跃 (<6小时)' : 'Active (<6h)') :
+                          status === 'quiet' ? (lang === 'zh' ? '安静 (<24小时)' : 'Quiet (<24h)') :
                           status === 'silent' ? (lang === 'zh' ? '长时间未活跃 (>24小时)' : 'Silent (>24h)') :
-                          (lang === 'zh' ? '从未活跃' : 'Never seen')
+                          (lang === 'zh' ? '暂无数据' : 'No data')
                         }
                       />
                     </td>

@@ -183,6 +183,25 @@
   opacity: 0.5;
 }
 
+/* is-silent 与 is-alert 都偏红:alert 是 open 告警,用脉冲区分静默 */
+.gm__status-dot.is-alert {
+  background: var(--danger);
+  box-shadow: 0 0 8px var(--danger);
+  animation: gm-alert-pulse 1s infinite;
+}
+
+@keyframes gm-alert-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.6;
+  }
+}
+
 /* 短 ID 样式 */
 .gm__short-id {
   font-family: ui-monospace, monospace;
