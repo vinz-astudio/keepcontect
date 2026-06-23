@@ -11,6 +11,7 @@ import {
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
 import './LivenessCard.css'
 
+const HOUR = 3_600_000
 const DAY = 86_400_000
 const DAYS = 7
 
