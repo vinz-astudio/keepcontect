@@ -5,6 +5,8 @@
   flex-direction: column;
   max-width: 520px;
   width: 100%;
+  height: 100%;
+  height: 100dvh;
   margin: 0 auto;
   overflow: hidden; /* 内容滚动交给 .home__page，底栏靠 flex 常驻底部 */
 }
