@@ -43,6 +43,7 @@ console.log(`→ APP_VERSION & version.json = ${versionName}`)
 
 // 2) 构建 Web 产物并同步进原生工程
 run('npm run build')
+run('node scripts/clean-tauri-dist.js')
 run('npx cap sync android')
 
 // 3) 构建发布签名 APK(Windows 用 gradlew.bat 绝对路径,避免 shell 找不到;
@@ -53,20 +54,30 @@ const gradlew =
     : './gradlew'
 run(`${gradlew} assembleRelease --console=plain`, { cwd: join(root, 'android') })
 
-// 4) 复制成稳定文件名 keep-contact.apk
+// 4) 复制成稳定文件名 keep-contact.apk (包括复制到 public 文件夹，供 Vercel 静态分发)
 const built = join(root, 'android/app/build/outputs/apk/release/app-release.apk')
 const asset = join(root, 'android/app/build/outputs/apk/release/keep-contact.apk')
+const publicAsset = join(root, 'public/keep-contact.apk')
+
 copyFileSync(built, asset)
+copyFileSync(built, publicAsset)
+console.log(`✓ 已成功复制 APK 至: ${publicAsset}`)
 
 // 5) 创建 GitHub Release 并标记 latest(用对该仓库有写权限的账号 token,不打印)
-const token = execSync(`gh auth token -u vinz-astudio`, { cwd: root })
-  .toString()
-  .trim()
-const notes = `Release-signed Android build. 下载 keep-contact.apk 安装即可。`
-run(
-  `gh release create ${tag} "${asset}" --repo ${REPO} --title "Keep Contact ${tag} — Android" --latest --notes "${notes}"`,
-  { env: { ...process.env, GH_TOKEN: token } },
-)
+try {
+  console.log('正在尝试推送到 GitHub Release...')
+  const token = execSync(`gh auth token -u vinz-astudio`, { cwd: root })
+    .toString()
+    .trim()
+  const notes = `Release-signed Android build. 下载 keep-contact.apk 安装即可。`
+  run(
+    `gh release create ${tag} "${asset}" --repo ${REPO} --title "Keep Contact ${tag} — Android" --latest --notes "${notes}"`,
+    { env: { ...process.env, GH_TOKEN: token } },
+  )
+  console.log(`✓ 已发布 GitHub Release ${tag}`)
+} catch (e) {
+  console.warn('⚠️ GitHub Release 发布失败 (可能因为未安装 gh cli 或未登录)。本地 APK 构建已完成，不受影响。')
+}
 
 console.log(`\n✓ 已发布 ${tag}`)
 console.log('  记得提交版本号变更: git commit -am "chore(android): release ' + tag + '"')

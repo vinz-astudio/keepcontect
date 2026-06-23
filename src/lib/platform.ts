@@ -29,3 +29,9 @@ export function isStandalone(): boolean {
     (navigator as unknown as { standalone?: boolean }).standalone === true
   )
 }
+
+/** Whether the app is currently running inside Tauri */
+export function isTauri(): boolean {
+  return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+}
+

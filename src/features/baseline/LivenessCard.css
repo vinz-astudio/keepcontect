@@ -172,3 +172,160 @@
   padding: 0.2rem 0.55rem;
   cursor: pointer;
 }
+
+/* —— 作息活跃节律热力图 —— */
+.rhythm {
+  margin-top: 0.85rem;
+}
+
+.rhythm__grid {
+  display: grid;
+  grid-template-columns: 1.9rem repeat(24, 1fr);
+  gap: 2px;
+  align-items: center;
+}
+
+.rhythm__daylabel {
+  font-size: 0.62rem;
+  line-height: 1;
+  color: var(--fg-muted);
+  text-align: right;
+  padding-right: 0.35rem;
+  white-space: nowrap;
+}
+
+.rhythm__daylabel.is-today {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.rhythm__cell {
+  aspect-ratio: 1 / 1;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.rhythm__cell.is-on {
+  background: var(--accent);
+}
+
+.rhythm__cell.l1 {
+  opacity: 0.32;
+}
+.rhythm__cell.l2 {
+  opacity: 0.55;
+}
+.rhythm__cell.l3 {
+  opacity: 0.78;
+}
+.rhythm__cell.l4 {
+  opacity: 1;
+}
+
+.rhythm__hours {
+  display: grid;
+  grid-template-columns: 1.9rem repeat(24, 1fr);
+  margin-top: 3px;
+  font-size: 0.58rem;
+  color: var(--fg-muted);
+}
+
+.rhythm__hours span {
+  text-align: left;
+}
+
+.rhythm__legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 0.7rem;
+  font-size: 0.62rem;
+  color: var(--fg-muted);
+}
+
+.rhythm__legend .rhythm__cell {
+  width: 0.7rem;
+  height: 0.7rem;
+  aspect-ratio: auto;
+}
+
+.rhythm__progress {
+  margin-top: 0.9rem;
+}
+
+.rhythm__bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.rhythm__bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.rhythm__progress p {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+}
+
+/* —— 异常沉默判断依据 —— */
+.basis {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.basis__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.basis__row:last-child {
+  border-bottom: none;
+}
+
+.basis__row > span {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.basis__row > strong {
+  font-size: 0.92rem;
+  text-align: right;
+}
+
+.basis__sub {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.74rem;
+  color: var(--fg-muted);
+}
+
+.basis__note {
+  margin: 0.75rem 0 0;
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+}
+
+.basis__tune {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 0.6rem 0.7rem;
+}

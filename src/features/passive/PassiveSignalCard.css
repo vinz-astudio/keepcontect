@@ -169,3 +169,184 @@ button.psig__import {
   font-size: 0.8rem;
   line-height: 1.5;
 }
+
+/* Global Status Box styles */
+.psig__status-box {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  padding: 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.psig__status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.8rem;
+  font-size: 0.9rem;
+}
+
+.psig__status-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.psig__status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.psig__status-cell {
+  background: var(--bg);
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.psig__status-label {
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+}
+
+.psig__status-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.psig__status-value--time {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.psig__status-url-area {
+  border-top: 1px dashed var(--line);
+  padding-top: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.psig__status-url-title {
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+  margin-bottom: 0.35rem;
+}
+
+.psig__status-url-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.psig__status-code {
+  flex: 1;
+  font-family: ui-monospace, monospace;
+  font-size: 0.68rem;
+  color: var(--fg-muted);
+  background: var(--bg);
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.psig__status-copy-btn {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.psig__status-copy-btn:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* Accordion Accordion Panels */
+.psig__accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.psig__panel {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.psig__panel.is-current {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 8px rgba(224, 133, 95, 0.08);
+}
+
+.psig__panel-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.9rem;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.psig__panel-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.psig__panel-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.psig__panel-badge {
+  font-size: 0.65rem;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.psig__panel-arrow {
+  font-size: 0.7rem;
+  color: var(--fg-muted);
+}
+
+.psig__panel-content {
+  padding: 0.7rem 0.9rem 0.9rem;
+  border-top: 1px dashed var(--line);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  background: var(--bg);
+}
+

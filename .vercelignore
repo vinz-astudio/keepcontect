@@ -1,0 +1,17 @@
+node_modules/
+src-tauri/target/
+src-tauri/src/
+src-tauri/src-tauri/
+src-tauri/Cargo.lock
+src-tauri/Cargo.toml
+src-tauri/tauri.conf.json
+src-tauri/capabilities/
+android/
+ios/
+.gradle/
+.git/
+.mcp.json
+.claude/
+.codex/
+.remember/
+supabase/

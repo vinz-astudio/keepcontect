@@ -1,82 +1,281 @@
-.gm__list {
-  list-style: none;
-  margin: 0 0 0.75rem;
-  padding: 0;
+/* GM 控制台主卡片 */
+.gm-panel {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* 顶部搜索、过滤与一键操作控制栏 */
+.gm__controls {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.8rem;
+  margin-bottom: 1.2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
 }
 
-.gm__item {
+.gm__search-row {
+  display: flex;
+  gap: 0.8rem;
+  width: 100%;
+}
+
+.gm__search {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.9rem;
+  color: var(--fg);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 0.7rem;
-  padding: 0.6rem 0.75rem;
+  border-radius: var(--r-sm);
+  outline: none;
 }
 
-.gm__head {
+.gm__search:focus {
+  border-color: var(--accent);
+}
+
+.gm__sort {
+  width: 160px;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.9rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  outline: none;
+}
+
+.gm__sort:focus {
+  border-color: var(--accent);
+}
+
+.gm__actions-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
+  gap: 1rem;
   flex-wrap: wrap;
-  gap: 0.3rem 0.6rem;
 }
 
-.gm__name {
-  font-size: 0.95rem;
-}
-
-.gm__ver {
-  font-size: 0.78rem;
-  color: var(--fg-muted);
-  font-family: ui-monospace, monospace;
-}
-
-.gm__seen {
-  display: block;
-  margin-top: 0.15rem;
-  font-size: 0.72rem;
-  color: var(--fg-muted);
-}
-
-.gm__actions {
+.gm__filter-label {
   display: flex;
+  align-items: center;
   gap: 0.4rem;
-  margin-top: 0.5rem;
-  flex-wrap: wrap;
+  font-size: 0.88rem;
+  color: var(--fg-muted);
+  cursor: pointer;
+  user-select: none;
 }
 
-.gm__actions button {
-  flex: 1;
-  min-width: 7rem;
-  padding: 0.4rem 0.6rem;
-  font-size: 0.82rem;
+.gm__filter-label input {
+  cursor: pointer;
+}
+
+.gm__bulk-nudge {
+  padding: 0.55rem 1rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--bg);
   background: var(--accent);
   border: none;
-  border-radius: 0.55rem;
+  border-radius: var(--r-sm);
   cursor: pointer;
+  transition: opacity 0.2s ease;
 }
 
-.gm__actions button:last-child {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border: 1px solid var(--accent-line);
+.gm__bulk-nudge:hover {
+  opacity: 0.9;
 }
 
-.gm__actions button:disabled {
+.gm__bulk-nudge:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
+/* 响应式表格外包装 (横向滚动支持) */
+.gm__table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--bg);
+}
+
+.gm__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  text-align: left;
+  min-width: 680px; /* 保证列间距在大屏/滚动下合理 */
+}
+
+.gm__table th,
+.gm__table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.gm__table th {
+  background: var(--surface-2);
+  color: var(--fg);
+  font-weight: 600;
+  border-bottom: 2px solid var(--line-strong);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.gm__table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.gm__table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.gm__table tbody tr:hover {
+  background: rgba(224, 133, 95, 0.04);
+}
+
+/* 未升级用户行强调背景 */
+.gm__table tbody tr.is-outdated-row {
+  background: rgba(232, 100, 90, 0.025);
+}
+
+.gm__table tbody tr.is-outdated-row:hover {
+  background: rgba(232, 100, 90, 0.05);
+}
+
+.gm__table-empty {
+  text-align: center;
+  color: var(--fg-muted);
+  font-style: italic;
+  padding: 2rem !important;
+}
+
+/* 活跃状态圆点 */
+.gm__status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.gm__status-dot.is-active {
+  background: var(--ok);
+  box-shadow: 0 0 8px var(--ok);
+}
+
+.gm__status-dot.is-quiet {
+  background: var(--warn);
+  box-shadow: 0 0 8px var(--warn);
+}
+
+.gm__status-dot.is-silent {
+  background: var(--danger);
+  box-shadow: 0 0 8px var(--danger);
+}
+
+.gm__status-dot.is-never {
+  background: var(--fg-muted);
+  opacity: 0.5;
+}
+
+/* 短 ID 样式 */
+.gm__short-id {
+  font-family: ui-monospace, monospace;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  cursor: help;
+  border-bottom: 1px dashed var(--line);
+}
+
+.gm__table-name {
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.gm__table-device {
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  max-width: 260px;
+  overflow: hidden;
+}
+
+.gm__device-line {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: 0.2rem;
+}
+
+.gm__device-line:last-child {
+  margin-bottom: 0;
+}
+
+/* 表格内操作按钮组 */
+.gm__table-actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.gm__row-btn {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--fg);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.gm__row-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Ban 按钮专用警示色 */
+.gm__row-btn.ban {
+  border-color: var(--line);
+  color: var(--fg-muted);
+}
+
+.gm__row-btn.ban:hover {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.gm__row-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  border-color: var(--line) !important;
+  color: var(--fg-muted) !important;
+}
+
 .gm__refresh {
   width: 100%;
-  padding: 0.5rem;
-  font-size: 0.85rem;
+  padding: 0.6rem;
+  font-size: 0.88rem;
   color: var(--fg-muted);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 0.6rem;
+  border-radius: var(--r-md);
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gm__refresh:hover {
+  color: var(--fg);
+  border-color: var(--line-strong);
+  background: var(--surface-2);
 }

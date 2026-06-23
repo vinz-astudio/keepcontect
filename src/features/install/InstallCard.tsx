@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
-import { getPlatform, isStandalone } from '@/lib/platform'
+import { getPlatform, isStandalone, isTauri } from '@/lib/platform'
 import {
   canInstall,
   onInstallChange,
@@ -16,6 +16,9 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
   const [installable, setInstallable] = useState(canInstall())
 
   useEffect(() => onInstallChange(() => setInstallable(canInstall())), [])
+
+  // 已在桌面原生 App 内 → 无需任何安装引导
+  if (isTauri()) return null
 
   // 已在原生 App 内 → 无需任何安装引导
   if (Capacitor.isNativePlatform()) return null
@@ -74,18 +77,30 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
     )
   }
 
-  // 桌面：可直接触发 PWA 安装
+  // 桌面：提供原生 Windows 安装包下载 + PWA 安装
+  const lang = useI18n().lang
   if (compact) {
-    return installable ? (
-      <div className="install__compact">
-        <button
+    return (
+      <div className="install__compact" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <a
           className="install__compactbtn"
-          onClick={() => void promptInstall()}
+          href="/desktop/KeepContact-Setup.exe"
+          download
+          style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          {t('install.get')}
-        </button>
+          {lang === 'zh' ? '下载 EXE 安装包' : 'Download EXE'}
+        </a>
+        {installable && (
+          <button
+            className="install__compactbtn"
+            onClick={() => void promptInstall()}
+            style={{ backgroundColor: 'var(--surface-2)' }}
+          >
+            {t('install.get')} (PWA)
+          </button>
+        )}
       </div>
-    ) : null
+    )
   }
   return (
     <section className="card">
@@ -93,13 +108,40 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
         <Icon name="download" />
         {t('install.title')}
       </h2>
-      <p className="muted">{t('install.android.desc')}</p>
-      {installable ? (
-        <button className="ei__save" onClick={() => void promptInstall()}>
-          {t('install.get')}
-        </button>
-      ) : (
-        <p className="muted">{t('install.android.hint')}</p>
+      <p className="muted">
+        {lang === 'zh'
+          ? '直接安装 Keep Contact 原生桌面版，支持托盘后台运行、开机自启和更稳定的被动报平安。'
+          : 'Install the native Keep Contact desktop app for background tray running, auto-start at login, and more reliable passive check-ins.'}
+      </p>
+
+      <div style={{ display: 'flex', gap: '12px', marginTop: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <a
+          className="ei__save"
+          href="/desktop/KeepContact-Setup.exe"
+          download
+          style={{ textDecoration: 'none', textAlign: 'center', display: 'inline-block' }}
+        >
+          {lang === 'zh' ? '下载 Windows 安装包 (.exe)' : 'Download Windows Setup (.exe)'}
+        </a>
+        <a
+          className="ei__save"
+          href="/desktop/KeepContact.msi"
+          download
+          style={{ textDecoration: 'none', textAlign: 'center', display: 'inline-block', backgroundColor: '#5c6bc0' }}
+        >
+          {lang === 'zh' ? '下载 MSI 安装包' : 'Download MSI Package'}
+        </a>
+      </div>
+
+      {installable && (
+        <div style={{ borderTop: '1px dashed var(--line)', paddingTop: '12px', marginTop: '12px' }}>
+          <p className="muted" style={{ marginBottom: '8px' }}>
+            {lang === 'zh' ? '或者，你也可以选择一键安装轻量 PWA 网页版：' : 'Or, you can install the lightweight PWA web app:'}
+          </p>
+          <button className="ei__save" onClick={() => void promptInstall()} style={{ backgroundColor: 'var(--surface-2)', color: 'var(--fg)' }}>
+            {lang === 'zh' ? '安装 PWA 网页版' : 'Install PWA Web App'}
+          </button>
+        </div>
       )}
     </section>
   )

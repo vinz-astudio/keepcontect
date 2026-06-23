@@ -49,6 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasStoredAuth = useMemo(() => readHasStoredAuth(), [])
 
   useEffect(() => {
+    if (session && window.location.pathname !== '/') {
+      window.history.replaceState({}, '', '/')
+    }
+  }, [session])
+
+  useEffect(() => {
     let mounted = true
 
     supabase.auth.getSession().then(({ data }) => {

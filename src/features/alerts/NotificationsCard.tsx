@@ -24,6 +24,8 @@ import {
   sendTestUnlock,
   type PushStatus,
 } from '@/features/push/pushApi'
+import { isTauri } from '@/lib/platform'
+import { Capacitor } from '@capacitor/core'
 import './NotificationsCard.css'
 
 interface ResponderItem {
@@ -77,9 +79,10 @@ export function NotificationsCard({
 }: {
   onChanged?: () => void
 } = {}) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { user } = useAuth()
   const [notifs, setNotifs] = useState<AppNotification[]>([])
+  const [updBusy, setUpdBusy] = useState<string | null>(null)
   const [items, setItems] = useState<ResponderItem[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -362,6 +365,42 @@ export function NotificationsCard({
                 }}
               >
                 <span className="nfeed__body">{renderNotif(n)}</span>
+                {n.kind === 'update' && (
+                  <div className="nfeed__update-action">
+                    <button
+                      className="nfeed__update-btn"
+                      disabled={busy || updBusy === n.id}
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        if (!n.read_at) {
+                          void markNotificationRead(n.id).then(refresh)
+                        }
+                        if (isTauri()) {
+                          setUpdBusy(n.id)
+                          try {
+                            const internals = (window as any).__TAURI_INTERNALS__
+                            if (internals && typeof internals.invoke === 'function') {
+                              await internals.invoke('download_and_install', { url: 'https://keep-contact-mauve.vercel.app/desktop/KeepContact-Setup.exe' })
+                            } else {
+                              window.open('https://keep-contact-mauve.vercel.app/desktop/KeepContact-Setup.exe', '_blank')
+                            }
+                          } catch (err) {
+                            console.error('Tauri update failed:', err)
+                            window.open('https://keep-contact-mauve.vercel.app/desktop/KeepContact-Setup.exe', '_blank')
+                          } finally {
+                            setUpdBusy(null)
+                          }
+                        } else if (Capacitor.isNativePlatform()) {
+                          window.open('https://keep-contact-mauve.vercel.app/keep-contact.apk', '_blank')
+                        } else {
+                          window.location.reload()
+                        }
+                      }}
+                    >
+                      {updBusy === n.id ? (lang === 'zh' ? '正在下载更新...' : 'Downloading...') : t('update.now')}
+                    </button>
+                  </div>
+                )}
                 <span className="nfeed__time">{ago(n.created_at)}</span>
               </div>
               <button

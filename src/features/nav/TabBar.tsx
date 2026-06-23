@@ -1,11 +1,12 @@
 import { useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { toast } from '@/lib/toast'
-import { useI18n } from '@/lib/i18n'
+import { useI18n, LangToggle } from '@/lib/i18n'
+import { useAuth } from '@/features/auth/AuthProvider'
 import './TabBar.css'
 
 export type Tab = 'home' | 'routine' | 'circles' | 'profile' | 'gm'
 
-const ICONS: Record<Tab, ReactNode> = {
+export const ICONS: Record<Tab, ReactNode> = {
   gm: (
     <>
       <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
@@ -69,6 +70,16 @@ export function TabBar({
   const left = tabs.slice(0, 2)
   const right = tabs.slice(2)
 
+  let authContext: any = null
+  try {
+    authContext = useAuth()
+  } catch {
+    /* 忽略可能没有 context 的测试/错误场景 */
+  }
+  const user = authContext?.user
+  const signOut = authContext?.signOut ?? (async () => {})
+  const username = (user?.user_metadata?.display_name as string | undefined) ?? user?.email ?? ''
+
   function stopRaf() {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     rafRef.current = null
@@ -128,30 +139,100 @@ export function TabBar({
   )
 
   return (
-    <nav className="tabbar" aria-label="主导航">
-      {left.map(btn)}
-      <button
-        className={`tabbar__sos${hold > 0 ? ' is-holding' : ''}`}
-        aria-label={t('sos.aria')}
-        title={t('sos.hold')}
-        disabled={sosBusy}
-        onPointerDown={startHold}
-        onPointerUp={endHold}
-        onPointerLeave={cancelHold}
-        onPointerCancel={cancelHold}
-      >
-        <svg className="tabbar__sosring" viewBox="0 0 44 44" aria-hidden="true">
-          <circle
-            cx="22"
-            cy="22"
-            r="20"
-            pathLength={1}
-            style={{ strokeDasharray: 1, strokeDashoffset: 1 - hold }}
-          />
-        </svg>
-        <span className="tabbar__soslabel">{sosBusy ? '…' : t('sos')}</span>
-      </button>
-      {right.map(btn)}
-    </nav>
+    <>
+      {/* 移动端底部 Tab Bar (在大屏下通过 CSS 隐藏) */}
+      <nav className="tabbar tabbar--mobile" aria-label="主导航">
+        {left.map(btn)}
+        <button
+          className={`tabbar__sos${hold > 0 ? ' is-holding' : ''}`}
+          aria-label={t('sos.aria')}
+          title={t('sos.hold')}
+          disabled={sosBusy}
+          onPointerDown={startHold}
+          onPointerUp={endHold}
+          onPointerLeave={cancelHold}
+          onPointerCancel={cancelHold}
+        >
+          <svg className="tabbar__sosring" viewBox="0 0 44 44" aria-hidden="true">
+            <circle
+              cx="22"
+              cy="22"
+              r="20"
+              pathLength={1}
+              style={{ strokeDasharray: 1, strokeDashoffset: 1 - hold }}
+            />
+          </svg>
+          <span className="tabbar__soslabel">{sosBusy ? '…' : t('sos')}</span>
+        </button>
+        {right.map(btn)}
+      </nav>
+
+      {/* 桌面端侧边栏 Sidenav (在小屏下通过 CSS 隐藏) */}
+      <aside className="sidenav" aria-label="侧边导航">
+        <div className="sidenav__brand">
+          <span className="sidenav__logo" aria-hidden>◉</span>
+          <span className="sidenav__appname">Keep Contact</span>
+        </div>
+
+        {user && (
+          <div className="sidenav__user">
+            <span className="sidenav__avatar">{username.slice(0, 2).toUpperCase()}</span>
+            <div className="sidenav__userinfo">
+              <span className="sidenav__hello">{t('home.hello')}</span>
+              <span className="sidenav__username" title={username}>{username}</span>
+            </div>
+          </div>
+        )}
+
+        <nav className="sidenav__menu">
+          {tabs.map((tabKey) => (
+            <button
+              key={tabKey}
+              className={`sidenav__menuitem${active === tabKey ? ' is-active' : ''}`}
+              onClick={() => onChange(tabKey)}
+              aria-current={active === tabKey ? 'page' : undefined}
+            >
+              <svg className="sidenav__icon" viewBox="0 0 24 24" aria-hidden="true">
+                {ICONS[tabKey]}
+              </svg>
+              <span className="sidenav__label">{t(`tab.${tabKey}`)}</span>
+              {tabKey === 'home' && alerts > 0 && (
+                <span className="sidenav__badge">{alerts > 99 ? '99+' : alerts}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidenav__sos-box">
+          <button
+            className={`sidenav__sos${hold > 0 ? ' is-holding' : ''}`}
+            disabled={sosBusy}
+            onPointerDown={startHold}
+            onPointerUp={endHold}
+            onPointerLeave={cancelHold}
+            onPointerCancel={cancelHold}
+          >
+            <svg className="sidenav__sosring" viewBox="0 0 44 44" aria-hidden="true">
+              <circle
+                cx="22"
+                cy="22"
+                r="20"
+                pathLength={1}
+                style={{ strokeDasharray: 1, strokeDashoffset: 1 - hold }}
+              />
+            </svg>
+            <span className="sidenav__soslabel">{sosBusy ? '…' : t('sos')}</span>
+          </button>
+          <p className="sidenav__sos-hint">{t('sos.hold')}</p>
+        </div>
+
+        <div className="sidenav__footer">
+          <LangToggle className="sidenav__footbtn" />
+          <button className="sidenav__footbtn" onClick={() => void signOut()}>
+            {t('header.signout')}
+          </button>
+        </div>
+      </aside>
+    </>
   )
 }

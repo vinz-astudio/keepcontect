@@ -19,6 +19,8 @@ import {
   getServerSensitivity,
   getSleepWindow,
   setSleepWindow,
+  getServerPatternHash,
+  setServerPatternHash,
 } from '@/features/baseline/settingsApi'
 import { getConfig, setConfig } from '@/features/baseline/configStore'
 import { hasPattern } from '@/features/pattern/patternStore'
@@ -75,18 +77,47 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     (serverAlert.cause === 'silence' || serverAlert.cause === 'dark_device')
   const realAlert = serverNeedsConfirm || status === 'alert'
 
-  // 首次进入且本机还没设过手势：自动弹出"设置手势"引导（可"以后再说"关闭）
+  // 首次进入且本机还没设过手势：自动同步服务器，若无则弹出"设置手势"引导
   const promptedRef = useRef(false)
   useEffect(() => {
     if (promptedRef.current) return
     promptedRef.current = true
     primeAlarm() // 解锁应用内告警声（iOS 需首个手势）
-    // 冷启动若是从通知点开（SW openWindow('/?from=notif')）：立刻顶出解锁界面
+    
+    // 冷启动从通知点开（SW openWindow('/?from=notif')）：清掉参数，但不盲目设 alertHint，仅在真有告警时才弹
     if (new URLSearchParams(window.location.search).get('from') === 'notif') {
-      setAlertHint(true)
       window.history.replaceState(null, '', window.location.pathname) // 清掉参数，避免刷新再触发
     }
-    if (!hasPattern()) setMode('setup')
+
+    const syncPattern = async () => {
+      try {
+        if (hasPattern()) {
+          // 本地有，同步给服务器（如果服务器还没有）
+          const localHash = localStorage.getItem('kc.patternHash')
+          if (localHash) {
+            const serverHash = await getServerPatternHash()
+            if (!serverHash) {
+              await setServerPatternHash(localHash)
+            }
+          }
+        } else {
+          // 本地没有，查服务器
+          const serverHash = await getServerPatternHash()
+          if (serverHash) {
+            localStorage.setItem('kc.patternHash', serverHash)
+          } else {
+            // 服务器和本地都没有，说明是新用户首次登录，展示设置手势引导
+            setMode('setup')
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync pattern with server:', err)
+        if (!hasPattern()) {
+          setMode('setup')
+        }
+      }
+    }
+    void syncPattern()
   }, [])
 
   const refreshAlert = useCallback(async () => {

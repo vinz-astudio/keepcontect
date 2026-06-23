@@ -87,3 +87,27 @@ export async function clearSleepWindow(): Promise<void> {
   })
   if (error) throw error
 }
+
+export async function getServerPatternHash(): Promise<string | null> {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) return null
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('pattern_hash')
+    .eq('user_id', uid)
+    .maybeSingle()
+  if (error) throw error
+  return data?.pattern_hash || null
+}
+
+export async function setServerPatternHash(hash: string): Promise<void> {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) return
+  const { error } = await supabase
+    .from('user_settings')
+    .update({ pattern_hash: hash })
+    .eq('user_id', uid)
+  if (error) throw error
+}

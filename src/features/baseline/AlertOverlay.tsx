@@ -11,6 +11,7 @@ import { raiseSos } from '@/features/alerts/api'
 import { triggerPushDispatch } from '@/features/push/pushApi'
 import { getCurrentCoords } from '@/lib/geo'
 import { useI18n } from '@/lib/i18n'
+import { setServerPatternHash } from '@/features/baseline/settingsApi'
 import './AlertOverlay.css'
 
 export function AlertOverlay() {
@@ -72,6 +73,10 @@ export function AlertOverlay() {
     try {
       if (needSetup) {
         await setPattern(seq)
+        const localHash = localStorage.getItem('kc.patternHash')
+        if (localHash) {
+          await setServerPatternHash(localHash)
+        }
         await confirmSafe()
       } else if (await verifyPattern(seq)) {
         await confirmSafe()

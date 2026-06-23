@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { APP_VERSION, LATEST_URL } from '@/lib/version'
+import { translate } from '@/lib/i18n'
 
 export interface LatestInfo {
   version: string
   apkUrl?: string
+  exeUrl?: string
 }
 
 const NOTIFIED_DAY_KEY = 'kc.update.notifiedDay'
@@ -32,7 +34,7 @@ export async function fetchLatest(): Promise<LatestInfo | null> {
     if (!r.ok) return null
     const j = (await r.json()) as Partial<LatestInfo>
     if (typeof j.version === 'string') {
-      return { version: j.version, apkUrl: j.apkUrl }
+      return { version: j.version, apkUrl: j.apkUrl, exeUrl: j.exeUrl }
     }
   } catch {
     /* 离线/跨域/预览环境等:静默忽略,不打扰 */
@@ -90,7 +92,7 @@ export function useUpdateStatus(): { latest: LatestInfo | null; outdated: boolea
   const outdated = latest ? isNewer(latest.version, APP_VERSION) : false
 
   useEffect(() => {
-    if (outdated) void maybeNotifyOnce('Keep Contact 有新版本可用,打开 App 升级。')
+    if (outdated) void maybeNotifyOnce(translate('update.notify'))
   }, [outdated])
 
   return { latest, outdated }

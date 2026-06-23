@@ -21,10 +21,12 @@ import { authRedirectUrl } from '@/features/auth/authRedirect'
 import { LangToggle, useI18n } from '@/lib/i18n'
 import './AuthScreen.css'
 
+import { APP_VERSION } from '@/lib/version'
+
 type Mode = 'signin' | 'signup'
 type SocialProvider = 'google' | 'apple' | 'facebook'
 
-const BUILD_TAG = 'v0.4.0'
+const BUILD_TAG = `v${APP_VERSION}`
 
 /** 网络探针：fetch 与 XHR 双通道分别测 */
 async function probeNetwork(): Promise<string> {
@@ -234,14 +236,19 @@ export function AuthScreen() {
       setBusy(false)
     }
   }
-
   async function social(provider: SocialProvider) {
     setError(null)
     plantStorageMarker()
     // skipBrowserRedirect：先拿 URL，确认 verifier 已写入存储后再跳转
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: authRedirectUrl(), skipBrowserRedirect: true },
+      options: {
+        redirectTo: authRedirectUrl(),
+        skipBrowserRedirect: true,
+        queryParams: {
+          prompt: 'select_account',
+        },
+      },
     })
     if (error || !data?.url) {
       setError(error?.message ?? 'OAuth URL missing')
@@ -266,7 +273,7 @@ export function AuthScreen() {
       <div className="auth__card">
         <LangToggle className="auth__lang" />
         <span className="auth__logo" aria-hidden>
-          ◍
+          ◉
         </span>
         <h1 className="auth__title">Keep Contact</h1>
         <p className="auth__subtitle">

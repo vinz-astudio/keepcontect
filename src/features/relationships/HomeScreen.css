@@ -9,24 +9,89 @@
   overflow: hidden; /* 内容滚动交给 .home__page，底栏靠 flex 常驻底部 */
 }
 
-/* 桌面/平板：更宽的容器；watch(home) 页在大屏用双列网格，
-   表单类页(routine/profile/circles)保持易读的单列宽度。 */
-@media (min-width: 768px) {
-  .home {
-    max-width: 680px;
-  }
+.home__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-@media (min-width: 1024px) {
-  .home--home {
-    max-width: 980px;
+/* Grids default to column layout (mobile) */
+.dashboard-grid,
+.routine-grid,
+.circles-grid,
+.profile-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 桌面/平板适配：显示左侧侧边栏，主内容靠右，各自独立滚动且宽度自适应 */
+@media (min-width: 768px) {
+  .home {
+    display: flex;
+    flex-direction: row;
+    max-width: 100%;
+    width: 100%;
+    height: 100vh;
+    margin: 0;
+    background: var(--bg);
   }
-  .home--home .home__page {
+
+  .home__body {
+    height: 100vh;
+  }
+
+  .home__page {
+    padding: 1rem 2rem 2rem;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .home__header {
+    display: none !important; /* 桌面端左侧已有 Logo 和退出，隐藏重复的顶部栏 */
+  }
+
+  .home__hello {
+    font-size: 1.5rem;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--fg);
+    padding: 1.8rem 2rem 0.5rem;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  /* grids on desktop */
+  .dashboard-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-auto-rows: min-content;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 1.5rem;
     align-items: start;
-    align-content: start;
+  }
+
+  .routine-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .circles-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .profile-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 1.5rem;
+    align-items: start;
   }
 }
 

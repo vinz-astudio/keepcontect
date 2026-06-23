@@ -416,6 +416,7 @@ export type Database = {
           share_activity: boolean
           sleep_start_utc: string | null
           sleep_end_utc: string | null
+          pattern_hash: string | null
           updated_at: string
         }
         Insert: {
@@ -424,6 +425,7 @@ export type Database = {
           share_activity?: boolean
           sleep_start_utc?: string | null
           sleep_end_utc?: string | null
+          pattern_hash?: string | null
           updated_at?: string
         }
         Update: {
@@ -432,6 +434,7 @@ export type Database = {
           share_activity?: boolean
           sleep_start_utc?: string | null
           sleep_end_utc?: string | null
+          pattern_hash?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -558,6 +561,7 @@ export type Database = {
       gm_list_clients: { Args: never; Returns: Json }
       gm_nudge_update: { Args: { _target: string }; Returns: undefined }
       gm_send_concern: { Args: { _target: string }; Returns: undefined }
+      gm_delete_user: { Args: { _target: string }; Returns: undefined }
       report_client: {
         Args: { _client_id: string; _platform: string; _version: string }
         Returns: undefined

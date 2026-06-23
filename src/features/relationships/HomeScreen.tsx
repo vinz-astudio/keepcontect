@@ -203,305 +203,6 @@ export function HomeScreen() {
       <PassivePingBoot />
       <AlertOverlay />
       <ToastHost />
-      <header className="home__header">
-        <div>
-          <span className="home__logo" aria-hidden>
-            ◍
-          </span>
-          <span className="home__appname">Keep Contact</span>
-        </div>
-        <div className="home__headerbtns">
-          <LangToggle className="home__signout" />
-          <button className="home__signout" onClick={() => void signOut()}>
-            {t('header.signout')}
-          </button>
-        </div>
-      </header>
-
-      <p className="home__hello">
-        {t('home.hello')}
-        {(user?.user_metadata?.display_name as string | undefined) ??
-          user?.email}
-      </p>
-
-      {error && <p className="home__error">{error}</p>}
-      {notice && <p className="home__notice">{notice}</p>}
-
-      <ApkUpgradeNotice />
-
-      <main className="home__page">
-      {tab === 'home' && (
-        <>
-          <SafeAwayBar />
-          <StatusBoard />
-          <NotificationsCard onChanged={refreshUnread} />
-          <CheckinTasksCard />
-        </>
-      )}
-
-      {tab === 'routine' && <RoutineSettings />}
-
-      {tab === 'gm' && <GMScreen />}
-
-      {tab === 'profile' && (
-        <>
-          <section className="card">
-            <h2 className="card__title">
-              <Icon name="user" />
-              {t('tab.profile')}
-            </h2>
-            <p className="profile__name">
-              {t('profile.title')}：
-              <EditableName
-                value={
-                  (user?.user_metadata?.display_name as string | undefined) ??
-                  user?.email ??
-                  ''
-                }
-                canEdit
-                onSave={async (next) => {
-                  await setDisplayName(next)
-                }}
-              />
-            </p>
-            <p className="muted">{t('profile.desc')}</p>
-          </section>
-          <EmergencyInfoCard />
-          <PassiveSignalCard />
-          <InstallCard />
-        </>
-      )}
-
-      {tab === 'circles' && (
-        <>
-      {/* 加入：邀请链接（收到链接直接点开即可自动加入；此处为手动兜底） */}
-      <section className="card">
-        <h2 className="card__title">
-          <Icon name="share" />
-          {t('invite.title')}
-        </h2>
-        <p className="muted">{t('invite.desc')}</p>
-        <div className="row">
-          <input
-            value={joinText}
-            onChange={(e) => setJoinText(e.target.value)}
-            placeholder={t('invite.ph')}
-          />
-          <button
-            disabled={busy || !parseInviteText(joinText)}
-            onClick={() =>
-              run(async () => {
-                const inv = parseInviteText(joinText)
-                if (!inv) throw new Error(t('invite.invalid'))
-                setNotice(await joinByInvite(inv))
-                setJoinText('')
-              })
-            }
-          >
-            {t('invite.join')}
-          </button>
-        </div>
-      </section>
-
-      {/* Communities */}
-      <section className="card">
-        <h2 className="card__title">
-          <Icon name="community" />
-          {t('comm.title')}
-        </h2>
-        {loading ? (
-          <p className="muted">{t('home.loading')}</p>
-        ) : communities.length === 0 ? (
-          <p className="muted">{t('comm.empty')}</p>
-        ) : (
-          <ul className="list">
-            {communities.map((c) => (
-              <li key={c.id} className="list__item">
-                <EditableName
-                  value={c.name}
-                  canEdit={c.created_by === user?.id}
-                  onSave={async (next) => {
-                    await renameCommunity(c.id, next)
-                    await refresh()
-                  }}
-                />
-                <button
-                  className="share"
-                  onClick={() =>
-                    void onShare({ kind: 'community', code: c.invite_code }, c.name)
-                  }
-                >
-                  {t('share.invite')}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="row">
-          <input
-            value={newCommunity}
-            onChange={(e) => setNewCommunity(e.target.value)}
-            placeholder={t('comm.new.ph')}
-          />
-          <button
-            disabled={busy || !newCommunity.trim()}
-            onClick={() =>
-              run(async () => {
-                await createCommunity(newCommunity.trim())
-                setNewCommunity('')
-              })
-            }
-          >
-            {t('comm.create')}
-          </button>
-        </div>
-      </section>
-
-      {/* Groups */}
-      <section className="card">
-        <h2 className="card__title">
-          <Icon name="group" />
-          {t('group.title')}
-        </h2>
-        {loading ? (
-          <p className="muted">{t('home.loading')}</p>
-        ) : groups.length === 0 ? (
-          <p className="muted">{t('group.empty')}</p>
-        ) : (
-          <ul className="list">
-            {groups.map(({ group, monitored, watching, role }) => (
-              <li key={group.id} className="list__item list__item--group">
-                <div className="list__row1">
-                  <EditableName
-                    value={group.name}
-                    canEdit={group.created_by === user?.id}
-                    onSave={async (next) => {
-                      await renameGroup(group.id, next)
-                      await refresh()
-                    }}
-                  />
-                  <button
-                    className="share"
-                    onClick={() =>
-                      void onShare(
-                        { kind: 'group', code: group.invite_code },
-                        group.name,
-                      )
-                    }
-                  >
-                    {t('share.invite')}
-                  </button>
-                </div>
-                <div className="list__row2">
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={monitored}
-                      disabled={busy}
-                      onChange={(e) =>
-                        run(() =>
-                          setMonitoringDirection(group.id, {
-                            monitored: e.target.checked,
-                          }),
-                        )
-                      }
-                    />
-                    {t('group.monitored')}
-                  </label>
-                  <label className="toggle">
-                    <input
-                      type="checkbox"
-                      checked={watching}
-                      disabled={busy}
-                      onChange={(e) =>
-                        run(() =>
-                          setMonitoringDirection(group.id, {
-                            watching: e.target.checked,
-                          }),
-                        )
-                      }
-                    />
-                    {t('group.watching')}
-                  </label>
-                  {group.created_by === user?.id && (
-                    <label className="toggle">
-                      {t('group.community')}
-                      <select
-                        value={group.community_id ?? ''}
-                        disabled={busy}
-                        onChange={(e) =>
-                          run(() =>
-                            setGroupCommunity(group.id, e.target.value || null),
-                          )
-                        }
-                      >
-                        <option value="">{t('group.standalone')}</option>
-                        {communities.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  <span className="role">{role === 'admin' ? t('group.admin') : ''}</span>
-                  <button
-                    className="share"
-                    disabled={busy}
-                    onClick={() =>
-                      setOpenBoard(openBoard === group.id ? null : group.id)
-                    }
-                  >
-                    {openBoard === group.id ? t('board.hide') : t('board.show')}
-                  </button>
-                  <button
-                    className="leave"
-                    disabled={busy}
-                    onClick={() => run(() => leaveGroup(group.id))}
-                  >
-                    {t('group.leave')}
-                  </button>
-                </div>
-                {openBoard === group.id && <GroupBoard groupId={group.id} />}
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="row">
-          <input
-            value={newGroup}
-            onChange={(e) => setNewGroup(e.target.value)}
-            placeholder={t('group.new.ph')}
-          />
-          <select
-            value={newGroupCommunity}
-            onChange={(e) => setNewGroupCommunity(e.target.value)}
-          >
-            <option value="">{t('group.standalone')}</option>
-            {communities.map((c) => (
-              <option key={c.id} value={c.id}>
-                {t('group.belong', { name: c.name })}
-              </option>
-            ))}
-          </select>
-          <button
-            disabled={busy || !newGroup.trim()}
-            onClick={() =>
-              run(async () => {
-                await createGroup(newGroup.trim(), newGroupCommunity || null)
-                setNewGroup('')
-              })
-            }
-          >
-            {t('comm.create')}
-          </button>
-        </div>
-      </section>
-
-      <GuardiansCard />
-        </>
-      )}
-      </main>
 
       <TabBar
         active={tab}
@@ -511,6 +212,320 @@ export function HomeScreen() {
         alerts={unread}
         isGm={isGm}
       />
+
+      <div className="home__body">
+        <header className="home__header">
+          <div>
+            <span className="home__logo" aria-hidden>
+              ◉
+            </span>
+            <span className="home__appname">Keep Contact</span>
+          </div>
+          <div className="home__headerbtns">
+            <LangToggle className="home__signout" />
+            <button className="home__signout" onClick={() => void signOut()}>
+              {t('header.signout')}
+            </button>
+          </div>
+        </header>
+
+        <p className="home__hello">
+          {t('home.hello')}
+          {(user?.user_metadata?.display_name as string | undefined) ??
+            user?.email}
+        </p>
+
+        {error && <p className="home__error">{error}</p>}
+        {notice && <p className="home__notice">{notice}</p>}
+
+        <ApkUpgradeNotice />
+
+        <main className="home__page">
+        {tab === 'home' && (
+          <div className="dashboard-grid">
+            <div className="dashboard-grid__col1">
+              <SafeAwayBar />
+              <NotificationsCard onChanged={refreshUnread} />
+            </div>
+            <div className="dashboard-grid__col2">
+              <StatusBoard />
+              <CheckinTasksCard />
+            </div>
+          </div>
+        )}
+
+        {tab === 'routine' && <RoutineSettings />}
+
+        {tab === 'gm' && <GMScreen />}
+
+        {tab === 'profile' && (
+          <div className="profile-grid">
+            <div className="profile-grid__col1">
+              <section className="card">
+                <h2 className="card__title">
+                  <Icon name="user" />
+                  {t('tab.profile')}
+                </h2>
+                <p className="profile__name">
+                  {t('profile.title')}：
+                  <EditableName
+                    value={
+                      (user?.user_metadata?.display_name as string | undefined) ??
+                      user?.email ??
+                      ''
+                    }
+                    canEdit
+                    onSave={async (next) => {
+                      await setDisplayName(next)
+                    }}
+                  />
+                </p>
+                <p className="muted">{t('profile.desc')}</p>
+              </section>
+              <EmergencyInfoCard />
+            </div>
+            <div className="profile-grid__col2">
+              <PassiveSignalCard />
+              <InstallCard />
+            </div>
+          </div>
+        )}
+
+        {tab === 'circles' && (
+          <div className="circles-grid">
+            <div className="circles-grid__col1">
+              {/* 加入：邀请链接（收到链接直接点开即可自动加入；此处为手动兜底） */}
+              <section className="card">
+                <h2 className="card__title">
+                  <Icon name="share" />
+                  {t('invite.title')}
+                </h2>
+                <p className="muted">{t('invite.desc')}</p>
+                <div className="row">
+                  <input
+                    value={joinText}
+                    onChange={(e) => setJoinText(e.target.value)}
+                    placeholder={t('invite.ph')}
+                  />
+                  <button
+                    disabled={busy || !parseInviteText(joinText)}
+                    onClick={() =>
+                      run(async () => {
+                        const inv = parseInviteText(joinText)
+                        if (!inv) throw new Error(t('invite.invalid'))
+                        setNotice(await joinByInvite(inv))
+                        setJoinText('')
+                      })
+                    }
+                  >
+                    {t('invite.join')}
+                  </button>
+                </div>
+              </section>
+
+              {/* Communities */}
+              <section className="card">
+                <h2 className="card__title">
+                  <Icon name="community" />
+                  {t('comm.title')}
+                </h2>
+                {loading ? (
+                  <p className="muted">{t('home.loading')}</p>
+                ) : communities.length === 0 ? (
+                  <p className="muted">{t('comm.empty')}</p>
+                ) : (
+                  <ul className="list">
+                    {communities.map((c) => (
+                      <li key={c.id} className="list__item">
+                        <EditableName
+                          value={c.name}
+                          canEdit={c.created_by === user?.id}
+                          onSave={async (next) => {
+                            await renameCommunity(c.id, next)
+                            await refresh()
+                          }}
+                        />
+                        <button
+                          className="share"
+                          onClick={() =>
+                            void onShare({ kind: 'community', code: c.invite_code }, c.name)
+                          }
+                        >
+                          {t('share.invite')}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="row">
+                  <input
+                    value={newCommunity}
+                    onChange={(e) => setNewCommunity(e.target.value)}
+                    placeholder={t('comm.new.ph')}
+                  />
+                  <button
+                    disabled={busy || !newCommunity.trim()}
+                    onClick={() =>
+                      run(async () => {
+                        await createCommunity(newCommunity.trim())
+                        setNewCommunity('')
+                      })
+                    }
+                  >
+                    {t('comm.create')}
+                  </button>
+                </div>
+              </section>
+
+              <GuardiansCard />
+            </div>
+
+            <div className="circles-grid__col2">
+              {/* Groups */}
+              <section className="card">
+                <h2 className="card__title">
+                  <Icon name="group" />
+                  {t('group.title')}
+                </h2>
+                {loading ? (
+                  <p className="muted">{t('home.loading')}</p>
+                ) : groups.length === 0 ? (
+                  <p className="muted">{t('group.empty')}</p>
+                ) : (
+                  <ul className="list">
+                    {groups.map(({ group, monitored, watching, role }) => (
+                      <li key={group.id} className="list__item list__item--group">
+                        <div className="list__row1">
+                          <EditableName
+                            value={group.name}
+                            canEdit={group.created_by === user?.id}
+                            onSave={async (next) => {
+                              await renameGroup(group.id, next)
+                              await refresh()
+                            }}
+                          />
+                          <button
+                            className="share"
+                            onClick={() =>
+                              void onShare(
+                                { kind: 'group', code: group.invite_code },
+                                group.name,
+                              )
+                            }
+                          >
+                            {t('share.invite')}
+                          </button>
+                        </div>
+                        <div className="list__row2">
+                          <label className="toggle">
+                            <input
+                              type="checkbox"
+                              checked={monitored}
+                              disabled={busy}
+                              onChange={(e) =>
+                                run(() =>
+                                  setMonitoringDirection(group.id, {
+                                    monitored: e.target.checked,
+                                  }),
+                                )
+                              }
+                            />
+                            {t('group.monitored')}
+                          </label>
+                          <label className="toggle">
+                            <input
+                              type="checkbox"
+                              checked={watching}
+                              disabled={busy}
+                              onChange={(e) =>
+                                run(() =>
+                                  setMonitoringDirection(group.id, {
+                                    watching: e.target.checked,
+                                  }),
+                                )
+                              }
+                            />
+                            {t('group.watching')}
+                          </label>
+                          {group.created_by === user?.id && (
+                            <label className="toggle">
+                              {t('group.community')}
+                              <select
+                                value={group.community_id ?? ''}
+                                disabled={busy}
+                                onChange={(e) =>
+                                  run(() =>
+                                    setGroupCommunity(group.id, e.target.value || null),
+                                  )
+                                }
+                              >
+                                <option value="">{t('group.standalone')}</option>
+                                {communities.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                          <span className="role">{role === 'admin' ? t('group.admin') : ''}</span>
+                          <button
+                            className="share"
+                            disabled={busy}
+                            onClick={() =>
+                              setOpenBoard(openBoard === group.id ? null : group.id)
+                            }
+                          >
+                            {openBoard === group.id ? t('board.hide') : t('board.show')}
+                          </button>
+                          <button
+                            className="leave"
+                            disabled={busy}
+                            onClick={() => run(() => leaveGroup(group.id))}
+                          >
+                            {t('group.leave')}
+                          </button>
+                        </div>
+                        {openBoard === group.id && <GroupBoard groupId={group.id} />}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="row">
+                  <input
+                    value={newGroup}
+                    onChange={(e) => setNewGroup(e.target.value)}
+                    placeholder={t('group.new.ph')}
+                  />
+                  <select
+                    value={newGroupCommunity}
+                    onChange={(e) => setNewGroupCommunity(e.target.value)}
+                  >
+                    <option value="">{t('group.standalone')}</option>
+                    {communities.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {t('group.belong', { name: c.name })}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    disabled={busy || !newGroup.trim()}
+                    onClick={() =>
+                      run(async () => {
+                        await createGroup(newGroup.trim(), newGroupCommunity || null)
+                        setNewGroup('')
+                      })
+                    }
+                  >
+                    {t('comm.create')}
+                  </button>
+                </div>
+              </section>
+            </div>
+          </div>
+        )}
+        </main>
+      </div>
     </div>
     </LivenessProvider>
   )

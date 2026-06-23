@@ -1,5 +1,6 @@
+/* 移动端底部 Tab Bar 默认显示 */
 .tabbar {
-  position: relative; /* flex 贴底子项，不用 fixed（iOS 地址栏显隐时 fixed 会抖动） */
+  position: relative;
   z-index: 40;
   flex: 0 0 auto;
   display: flex;
@@ -62,7 +63,6 @@
   border-radius: 0.6rem;
 }
 
-/* 中间凸起的 SOS（长按确认，防误触） */
 .tabbar__sos {
   position: relative;
   flex: 0 0 auto;
@@ -118,4 +118,250 @@
 
 .tabbar__sos:active {
   filter: brightness(0.92);
+}
+
+/* 默认隐藏侧边栏 */
+.sidenav {
+  display: none;
+}
+
+/* ------------------------------------------- */
+/* 桌面端大屏适配：隐藏底部 Tab Bar，显示左侧侧边栏 */
+/* ------------------------------------------- */
+@media (min-width: 768px) {
+  .tabbar--mobile {
+    display: none !important;
+  }
+
+  .sidenav {
+    display: flex;
+    flex-direction: column;
+    width: 250px;
+    height: 100vh;
+    background: var(--bg-soft);
+    border-right: 1px solid var(--line);
+    padding: 1.8rem 1.2rem;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 40;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.15);
+  }
+
+  .sidenav__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 2rem;
+  }
+
+  .sidenav__logo {
+    color: var(--accent);
+    font-size: 1.6rem;
+    font-weight: bold;
+  }
+
+  .sidenav__appname {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.3rem;
+    color: var(--fg);
+    letter-spacing: 0.01em;
+  }
+
+  .sidenav__user {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.8rem;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    margin-bottom: 2rem;
+  }
+
+  .sidenav__avatar {
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+  }
+
+  .sidenav__userinfo {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .sidenav__hello {
+    font-size: 0.75rem;
+    color: var(--fg-muted);
+  }
+
+  .sidenav__username {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidenav__menu {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex-grow: 1;
+  }
+
+  .sidenav__menuitem {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.8rem 1rem;
+    background: none;
+    border: none;
+    border-radius: var(--r-md);
+    color: var(--fg-muted);
+    font-size: 1rem;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    position: relative;
+  }
+
+  .sidenav__menuitem:hover {
+    color: var(--fg);
+    background: var(--surface-2);
+  }
+
+  .sidenav__menuitem.is-active {
+    color: var(--accent);
+    background: var(--accent-soft);
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .sidenav__icon {
+    width: 1.4rem;
+    height: 1.4rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+  }
+
+  .sidenav__badge {
+    margin-left: auto;
+    min-width: 1.2rem;
+    height: 1.2rem;
+    padding: 0 0.3rem;
+    font-size: 0.72rem;
+    line-height: 1.2rem;
+    text-align: center;
+    color: #fff;
+    background: var(--danger);
+    border-radius: 0.6rem;
+  }
+
+  .sidenav__sos-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    padding: 1rem 0.5rem;
+    border-top: 1px dashed var(--line);
+    border-bottom: 1px dashed var(--line);
+  }
+
+  .sidenav__sos {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #fff;
+    background: var(--danger);
+    border: 3px solid var(--bg-soft);
+    box-shadow: 0 4px 14px rgba(232, 100, 90, 0.4);
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 0.15s ease;
+  }
+
+  .sidenav__sos.is-holding {
+    transform: scale(1.08);
+  }
+
+  .sidenav__sosring {
+    position: absolute;
+    inset: -3px;
+    width: calc(100% + 6px);
+    height: calc(100% + 6px);
+    transform: rotate(-90deg);
+    pointer-events: none;
+  }
+
+  .sidenav__sosring circle {
+    fill: none;
+    stroke: #fff;
+    stroke-width: 3.5;
+    stroke-linecap: round;
+  }
+
+  .sidenav__sos-hint {
+    font-size: 0.72rem;
+    color: var(--fg-muted);
+    margin: 0;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .sidenav__footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1.2rem;
+  }
+
+  .sidenav__footbtn {
+    flex: 1;
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--fg-muted);
+    border-radius: var(--r-sm);
+    padding: 0.45rem 0.5rem;
+    font-size: 0.85rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .sidenav__footbtn:hover {
+    color: var(--fg);
+    border-color: var(--line-strong);
+    background: var(--surface-2);
+  }
 }

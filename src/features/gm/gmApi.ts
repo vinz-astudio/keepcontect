@@ -33,3 +33,9 @@ export async function gmSendConcern(target: string): Promise<void> {
   const { error } = await supabase.rpc('gm_send_concern', { _target: target })
   if (error) throw error
 }
+
+/** 删除/封禁用户账号 */
+export async function gmDeleteAccount(target: string): Promise<void> {
+  const { error } = await supabase.rpc('gm_delete_user', { _target: target })
+  if (error) throw error
+}

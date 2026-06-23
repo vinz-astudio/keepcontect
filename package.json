@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "preview": "vite preview",
     "cap:sync": "cap sync",
-    "release:android": "node scripts/release-android.mjs"
+    "release:android": "node scripts/release-android.mjs",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.6",
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.6",
+    "@tauri-apps/cli": "^2.11.3",
     "@types/node": "^22.19.20",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",

@@ -283,3 +283,24 @@
   color: var(--fg-muted);
   white-space: nowrap;
 }
+
+.nfeed__update-action {
+  margin-top: 0.4rem;
+  width: 100%;
+}
+
+.nfeed__update-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--accent);
+  border: none;
+  border-radius: 0.45rem;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.nfeed__update-btn:hover {
+  opacity: 0.9;
+}
