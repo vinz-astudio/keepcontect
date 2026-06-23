@@ -13,6 +13,7 @@ import { getCurrentCoords } from '@/lib/geo'
 import { useI18n } from '@/lib/i18n'
 import { setServerPatternHash } from '@/features/baseline/settingsApi'
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
+import { getPlatform } from '@/lib/platform'
 import './AlertOverlay.css'
 
 export function AlertOverlay() {
@@ -117,14 +118,13 @@ export function AlertOverlay() {
             <strong style={{ fontSize: '0.82rem', color: 'var(--fg)', display: 'block', marginBottom: '4px' }}>
               {lang === 'zh' ? '开启本设备自动感知触发源' : 'Enable Active Sensors'}
             </strong>
-            {getAvailableSensors().map((sensor) => {
+            {getAvailableSensors().filter(s => s.supported).map((sensor) => {
               const isEnabled = isSensorEnabled(sensor.key)
               return (
-                <label key={sensor.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', fontSize: '0.78rem', cursor: sensor.supported ? 'pointer' : 'not-allowed', opacity: sensor.supported ? 1 : 0.4 }}>
+                <label key={sensor.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', fontSize: '0.78rem', cursor: 'pointer' }}>
                   <input
                     type="checkbox"
-                    checked={isEnabled && sensor.supported}
-                    disabled={!sensor.supported}
+                    checked={isEnabled}
                     style={{ marginTop: '2px' }}
                     onChange={async (e) => {
                       await setSensorEnabled(sensor.key, e.target.checked)
@@ -138,6 +138,19 @@ export function AlertOverlay() {
                 </label>
               )
             })}
+
+            {getPlatform() === 'ios' && (
+              <div style={{ marginTop: '4px', borderTop: '1px dashed var(--line)', paddingTop: '6px', fontSize: '0.75rem', color: 'var(--accent)', lineHeight: '1.4' }}>
+                <strong style={{ display: 'block', marginBottom: '2px' }}>
+                  {lang === 'zh' ? '⚠️ iOS 自动守护提示：' : '⚠️ iOS Automated Watch Info:'}
+                </strong>
+                <span>
+                  {lang === 'zh' 
+                    ? 'iOS 系统限制了 Web 应用程序在后台的感知能力。如需实现屏幕解锁/插拔充电器时自动报活，您稍后需要在【我】页面导入【快捷指令】并配置自动化触发器。'
+                    : 'iOS limits background Web Apps. To automate check-ins on screen unlock or charging, you will need to import and configure the Apple Shortcut later in the "Me" tab.'}
+                </span>
+              </div>
+            )}
           </div>
         )}
 

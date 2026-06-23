@@ -300,19 +300,57 @@ export function PassiveSignalCard() {
     },
     {
       id: 'ios_shortcuts',
-      title: lang === 'zh' ? 'iOS 苹果快捷指令联动' : 'iOS Apple Shortcuts Link',
+      title: lang === 'zh' ? 'iOS 苹果快捷指令自动化 (推荐)' : 'iOS Apple Shortcuts Automation (Recommended)',
       isCurrent: platform === 'ios',
       render: () => (
-        <div>
-          <p className="muted">{t('passive.setup.ios')}</p>
-          <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+            {lang === 'zh'
+              ? '由于 iOS 系统的后台限制，Web 应用程序（PWA）在后台运行时无法自动捕获解锁或充电事件。您可以通过 Apple 快捷指令来实现全自动的守护：'
+              : 'Due to iOS background restrictions, PWAs cannot automatically run screen unlock or charging checks. You can configure Apple Shortcuts to achieve full automation:'}
+          </p>
+          
+          <div style={{ background: 'var(--accent-soft)', borderLeft: '3px solid var(--accent)', padding: '10px', borderRadius: 'var(--r-sm)', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <strong style={{ color: 'var(--accent)' }}>
+              {lang === 'zh' ? '配置说明：' : 'Step-by-step Guide:'}
+            </strong>
+            <ol style={{ margin: 0, paddingLeft: '16px', lineHeight: '1.4', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <li>
+                {lang === 'zh' 
+                  ? '点击下方按钮，将专属的【Keep Contact Ping】快捷指令导入您的苹果设备。' 
+                  : 'Tap the button below to import the custom "Keep Contact Ping" Shortcut.'}
+              </li>
+              <li>
+                {lang === 'zh'
+                  ? '打开苹果自带的【快捷指令】App，切换到下方的【自动化】标签页。'
+                  : 'Open Apple\'s built-in "Shortcuts" App, and switch to the "Automation" tab.'}
+              </li>
+              <li>
+                {lang === 'zh'
+                  ? '点击右上角【+】号创建自动化。选择触发源，建议添加：【屏幕锁定 (解锁时)】或【充电器 (接通时)】。'
+                  : 'Tap the "+" icon to create a new automation. Choose a trigger: e.g. "Screen Unlock" or "Charger Connect".'}
+              </li>
+              <li>
+                {lang === 'zh'
+                  ? '在自动化配置中，将运行方式设为【立即运行】，并关闭【运行前询问】。'
+                  : 'Set execution to "Run Immediately" and turn off "Ask Before Running".'}
+              </li>
+              <li>
+                {lang === 'zh'
+                  ? '点击下一步，选择刚刚导入的【Keep Contact Ping】快捷指令，保存即可！'
+                  : 'Set it to run the imported "Keep Contact Ping" Shortcut, and save.'}
+              </li>
+            </ol>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '4px', flexWrap: 'wrap' }}>
             {token && (
               <a className="psig__import" href={shortcutImportUrl(token)}>
-                {t('passive.import')}
+                {lang === 'zh' ? '导入快捷指令' : 'Import Shortcut'}
               </a>
             )}
             <button className="share" disabled={!token} onClick={() => void copy()}>
-              {t('passive.copy')}
+              {copied ? t('passive.copied') : (lang === 'zh' ? '复制个人报活链接' : 'Copy Heartbeat URL')}
             </button>
           </div>
         </div>
@@ -473,7 +511,7 @@ export function PassiveSignalCard() {
             : 'Toggle behaviors you want to monitor. Disabled options will not trigger auto check-in.'}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {availableSensors.map((sensor) => {
+          {availableSensors.filter(s => s.supported).map((sensor) => {
             const isEnabled = isSensorEnabled(sensor.key)
             return (
               <label 
@@ -483,18 +521,16 @@ export function PassiveSignalCard() {
                   display: 'flex', 
                   alignItems: 'flex-start', 
                   gap: '8px', 
-                  cursor: sensor.supported ? 'pointer' : 'not-allowed',
+                  cursor: 'pointer',
                   padding: '8px',
                   borderRadius: 'var(--r-sm)',
                   background: 'var(--bg-soft)',
                   border: '1px solid var(--line)',
-                  opacity: sensor.supported ? 1 : 0.4
                 }}
               >
                 <input
                   type="checkbox"
-                  checked={isEnabled && sensor.supported}
-                  disabled={!sensor.supported}
+                  checked={isEnabled}
                   style={{ marginTop: '3px' }}
                   onChange={async (e) => {
                     await setSensorEnabled(sensor.key, e.target.checked)
@@ -504,11 +540,6 @@ export function PassiveSignalCard() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <span style={{ fontSize: '0.88rem', fontWeight: '600', color: 'var(--fg)' }}>
                     {lang === 'zh' ? sensor.labelZh : sensor.labelEn}
-                    {!sensor.supported && (
-                      <span style={{ fontSize: '0.75rem', fontWeight: 'normal', opacity: 0.6, marginLeft: '6px' }}>
-                        ({lang === 'zh' ? '当前设备不支持' : 'Not supported on this device'})
-                      </span>
-                    )}
                   </span>
                   <span className="muted" style={{ fontSize: '0.78rem', lineHeight: '1.3' }}>
                     {lang === 'zh' ? sensor.descZh : sensor.descEn}
