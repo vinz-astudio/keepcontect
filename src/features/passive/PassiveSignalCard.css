@@ -350,3 +350,50 @@ button.psig__import {
   background: var(--bg);
 }
 
+.psig__small-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--fg);
+  border-radius: var(--r-sm);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.psig__small-btn:hover {
+  background: var(--line);
+}
+
+.psig__small-btn--highlight {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+.psig__small-btn--highlight:hover {
+  filter: brightness(0.9);
+  background: var(--accent);
+}
+
+.psig__status-text {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+}
+
+.psig__status-text--ok {
+  color: #10b981;
+  font-weight: 500;
+}
+
+.psig__status-text--warn {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.psig__scan-btn:active {
+  transform: scale(0.98);
+}
+
+

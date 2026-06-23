@@ -100,6 +100,73 @@ export function AuthScreen() {
   // 自动兑换耗尽后展示"完成登录"手动按钮（用户手势触发的请求在 iOS 上更可靠）
   const [showCompleteLogin, setShowCompleteLogin] = useState(false)
   // 版本号连点 3 次 → 卸载 Service Worker + 清缓存（排查 SW 与 fetch 纠缠）
+  // Phone Auth and Scan2Sync states
+  const [authMethod, setAuthMethod] = useState<'email' | 'phone' | 'scan'>('email')
+  const [phone, setPhone] = useState('')
+  const [countryCode, setCountryCode] = useState('+60')
+  const [scanToken, setScanToken] = useState<string | null>(null)
+
+  // Realtime sync login subscriber
+  useEffect(() => {
+    if (authMethod !== 'scan' || !scanToken) return
+    
+    setNotice(t('auth.scan2sync.waiting'))
+    const channel = supabase.channel(`scan2sync:${scanToken}`, {
+      config: { broadcast: { self: false } }
+    })
+    
+    channel.on('broadcast', { event: 'sync' }, async (payload: any) => {
+      const { access_token, refresh_token } = payload.payload
+      setNotice(t('auth.scan2sync.success'))
+      const { error } = await supabase.auth.setSession({ access_token, refresh_token })
+      if (error) {
+        setError(error.message)
+        setNotice(null)
+      } else {
+        setNotice(null)
+      }
+    })
+    
+    channel.subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [authMethod, scanToken, t])
+
+  async function onPhoneSubmit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    const fullPhone = `${countryCode}${phone}`
+    try {
+      if (mode === 'signup') {
+        const { data, error } = await supabase.auth.signUp({
+          phone: fullPhone,
+          password,
+          options: {
+            data: { display_name: displayName || null },
+          },
+        })
+        if (error) throw error
+        if (!data.session) {
+          setNotice(t('auth.phone.registered'))
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          phone: fullPhone,
+          password,
+        })
+        if (error) throw error
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('auth.fail'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const [tapCount, setTapCount] = useState(0)
 
   async function onVersionTap() {
@@ -277,14 +344,57 @@ export function AuthScreen() {
         </span>
         <h1 className="auth__title">Keep Contact</h1>
         <p className="auth__subtitle">
-          {mode === 'signin' ? t('auth.subtitle.signin') : t('auth.subtitle.signup')}
+          {authMethod === 'scan'
+            ? t('auth.scan2sync')
+            : mode === 'signin'
+              ? t('auth.subtitle.signin')
+              : t('auth.subtitle.signup')}
         </p>
 
-        {pendingInvite && (
-          <p className="auth__notice">{t(`auth.invite.${pendingInvite.kind}`)}</p>
+        <div className="auth__tabs">
+          <button
+            type="button"
+            className={`auth__tab${authMethod === 'email' ? ' is-active' : ''}`}
+            onClick={() => {
+              setAuthMethod('email')
+              setError(null)
+              setNotice(null)
+            }}
+          >
+            {t('auth.email')}
+          </button>
+          <button
+            type="button"
+            className={`auth__tab${authMethod === 'phone' ? ' is-active' : ''}`}
+            onClick={() => {
+              setAuthMethod('phone')
+              setError(null)
+              setNotice(null)
+            }}
+          >
+            {t('auth.phone')}
+          </button>
+          <button
+            type="button"
+            className={`auth__tab${authMethod === 'scan' ? ' is-active' : ''}`}
+            onClick={() => {
+              setAuthMethod('scan')
+              setError(null)
+              setNotice(null)
+              setScanToken(Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2))
+            }}
+          >
+            {t('auth.scan2sync')}
+          </button>
+        </div>
+
+        {pendingInvite && authMethod !== 'scan' && (
+          <p className="auth__notice" style={{ marginBottom: '1rem' }}>
+            {t(`auth.invite.${pendingInvite.kind}`)}
+          </p>
         )}
 
-        {showCompleteLogin && (
+        {showCompleteLogin && authMethod === 'email' && (
           <button
             type="button"
             className="auth__submit"
@@ -295,88 +405,209 @@ export function AuthScreen() {
           </button>
         )}
 
-        <div className="auth__social">
-          {SOCIAL.map(({ provider, label, icon }) => (
+        {authMethod === 'email' && (
+          <>
+            <div className="auth__social">
+              {SOCIAL.map(({ provider, label, icon }) => (
+                <button
+                  key={provider}
+                  type="button"
+                  className={`auth__socialbtn auth__socialbtn--${provider}`}
+                  onClick={() => void social(provider)}
+                >
+                  <span className="auth__socialicon" aria-hidden>
+                    {icon}
+                  </span>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="auth__divider">
+              <span>{t('auth.or')}</span>
+            </div>
+
+            <form className="auth__form" onSubmit={onSubmit}>
+              {mode === 'signup' && (
+                <label className="auth__field">
+                  <span>{t('auth.nickname')}</span>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder={t('auth.nickname.ph')}
+                    autoComplete="name"
+                  />
+                </label>
+              )}
+              <label className="auth__field">
+                <span>{t('auth.email')}</span>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                />
+              </label>
+              <label className="auth__field">
+                <span>{t('auth.password')}</span>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={t('auth.password.ph')}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                />
+              </label>
+
+              {error && <p className="auth__error">{error}</p>}
+              {notice && <p className="auth__notice">{notice}</p>}
+
+              <button type="submit" className="auth__submit" disabled={busy}>
+                {busy
+                  ? t('auth.busy')
+                  : mode === 'signin'
+                    ? t('auth.signin')
+                    : t('auth.signup')}
+              </button>
+            </form>
+
             <button
-              key={provider}
               type="button"
-              className={`auth__socialbtn auth__socialbtn--${provider}`}
-              onClick={() => void social(provider)}
+              className="auth__switch"
+              onClick={() => {
+                setMode(mode === 'signin' ? 'signup' : 'signin')
+                setError(null)
+                setNotice(null)
+              }}
             >
-              <span className="auth__socialicon" aria-hidden>
-                {icon}
-              </span>
-              {label}
+              {mode === 'signin' ? t('auth.toSignup') : t('auth.toSignin')}
             </button>
-          ))}
-        </div>
+          </>
+        )}
 
-        <div className="auth__divider">
-          <span>{t('auth.or')}</span>
-        </div>
+        {authMethod === 'phone' && (
+          <>
+            <form className="auth__form" onSubmit={onPhoneSubmit}>
+              {mode === 'signup' && (
+                <label className="auth__field">
+                  <span>{t('auth.nickname')}</span>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder={t('auth.nickname.ph')}
+                    autoComplete="name"
+                  />
+                </label>
+              )}
+              <div className="auth__field">
+                <span>{t('auth.phone')}</span>
+                <div className="auth__phone-row">
+                  <select
+                    className="auth__country"
+                    value={countryCode}
+                    onChange={(e) => setCountryCode(e.target.value)}
+                  >
+                    <option value="+60">🇲🇾 +60</option>
+                    <option value="+65">🇸🇬 +65</option>
+                    <option value="+975">🇧🇹 +975</option>
+                  </select>
+                  <input
+                    type="tel"
+                    required
+                    className="auth__phone-input"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder={t('auth.phone.ph')}
+                    autoComplete="tel"
+                  />
+                </div>
+              </div>
+              <label className="auth__field">
+                <span>{t('auth.password')}</span>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={t('auth.password.ph')}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                />
+              </label>
 
-        <form className="auth__form" onSubmit={onSubmit}>
-          {mode === 'signup' && (
-            <label className="auth__field">
-              <span>{t('auth.nickname')}</span>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder={t('auth.nickname.ph')}
-                autoComplete="name"
+              {error && <p className="auth__error">{error}</p>}
+              {notice && <p className="auth__notice">{notice}</p>}
+
+              <button type="submit" className="auth__submit" disabled={busy}>
+                {busy
+                  ? t('auth.busy')
+                  : mode === 'signin'
+                    ? t('auth.signin')
+                    : t('auth.signup')}
+              </button>
+            </form>
+
+            <button
+              type="button"
+              className="auth__switch"
+              onClick={() => {
+                setMode(mode === 'signin' ? 'signup' : 'signin')
+                setError(null)
+                setNotice(null)
+              }}
+            >
+              {mode === 'signin' ? t('auth.toSignup') : t('auth.toSignin')}
+            </button>
+          </>
+        )}
+
+        {authMethod === 'scan' && (
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {scanToken && (
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                  `keepcontact://sync?token=${scanToken}`,
+                )}`}
+                alt="Scan to Sync"
+                style={{
+                  margin: '1.2rem auto',
+                  display: 'block',
+                  borderRadius: '8px',
+                  border: '1px solid var(--line)',
+                  background: '#fff',
+                  padding: '6px',
+                }}
               />
-            </label>
-          )}
-          <label className="auth__field">
-            <span>{t('auth.email')}</span>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-            />
-          </label>
-          <label className="auth__field">
-            <span>{t('auth.password')}</span>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t('auth.password.ph')}
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            />
-          </label>
+            )}
+            
+            {error && <p className="auth__error">{error}</p>}
+            {notice && <p className="auth__notice">{notice}</p>}
 
-          {error && <p className="auth__error">{error}</p>}
-          {notice && <p className="auth__notice">{notice}</p>}
+            <p className="auth__scan-hint" style={{ marginTop: '1rem' }}>
+              {t('auth.scan2sync.desc')}
+            </p>
 
-          <button type="submit" className="auth__submit" disabled={busy}>
-            {busy
-              ? t('auth.busy')
-              : mode === 'signin'
-                ? t('auth.signin')
-                : t('auth.signup')}
-          </button>
-        </form>
+            <button
+              type="button"
+              className="auth__switch"
+              onClick={() => {
+                setAuthMethod('email')
+                setError(null)
+                setNotice(null)
+              }}
+            >
+              {t('auth.scan2sync.cancel')}
+            </button>
+          </div>
+        )}
 
-        <button
-          type="button"
-          className="auth__switch"
-          onClick={() => {
-            setMode(mode === 'signin' ? 'signup' : 'signin')
-            setError(null)
-            setNotice(null)
-          }}
-        >
-          {mode === 'signin' ? t('auth.toSignup') : t('auth.toSignin')}
-        </button>
-
-        <InstallCard compact />
+        {authMethod !== 'scan' && <InstallCard compact />}
 
         <p className="auth__build" onClick={() => void onVersionTap()}>
           {BUILD_TAG}

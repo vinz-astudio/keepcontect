@@ -204,15 +204,6 @@ export function HomeScreen() {
       <AlertOverlay />
       <ToastHost />
 
-      <TabBar
-        active={tab}
-        onChange={setTab}
-        onSos={() => void doSos()}
-        sosBusy={sosBusy}
-        alerts={unread}
-        isGm={isGm}
-      />
-
       <div className="home__body">
         <header className="home__header">
           <div>
@@ -286,7 +277,6 @@ export function HomeScreen() {
             </div>
             <div className="profile-grid__col2">
               <PassiveSignalCard />
-              <InstallCard />
             </div>
           </div>
         )}
@@ -526,6 +516,15 @@ export function HomeScreen() {
         )}
         </main>
       </div>
+
+      <TabBar
+        active={tab}
+        onChange={setTab}
+        onSos={() => void doSos()}
+        sosBusy={sosBusy}
+        alerts={unread}
+        isGm={isGm}
+      />
     </div>
     </LivenessProvider>
   )

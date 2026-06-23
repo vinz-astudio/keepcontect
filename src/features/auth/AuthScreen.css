@@ -198,4 +198,68 @@
   margin: 0.75rem 0 0;
   font-size: 0.7rem;
   color: var(--line-strong);
+  cursor: pointer;
 }
+
+.auth__tabs {
+  width: 100%;
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.auth__tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.45rem 0;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.auth__tab.is-active {
+  background: var(--bg-soft);
+  color: var(--accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.auth__phone-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.auth__country {
+  padding: 0.75rem 0.6rem;
+  font-size: 0.95rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  outline: none;
+}
+
+.auth__country:focus {
+  border-color: var(--accent);
+}
+
+.auth__phone-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.auth__scan-hint {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  text-align: center;
+  line-height: 1.4;
+  margin: 0 0 1rem;
+}
+
