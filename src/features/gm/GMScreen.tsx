@@ -152,7 +152,11 @@ function getStatus(r: UserRow): 'alert' | 'active' | 'quiet' | 'silent' | 'never
   return 'silent'
 }
 
-export function GMScreen() {
+interface GMScreenProps {
+  onBack?: () => void
+}
+
+export function GMScreen({ onBack }: GMScreenProps) {
   const { t, lang } = useI18n()
   const [rows, setRows] = useState<UserRow[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -298,8 +302,32 @@ export function GMScreen() {
   })
 
   return (
-    <section className="card gm-panel">
-      <h2 className="card__title">
+    <section className="card gm-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      {onBack && (
+        <button 
+          onClick={onBack}
+          className="share"
+          style={{ 
+            alignSelf: 'flex-start',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 12px',
+            fontSize: '0.85rem',
+            background: 'var(--bg)',
+            color: 'var(--fg)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--r-md)',
+            cursor: 'pointer'
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          {lang === 'zh' ? '返回群组' : 'Back to Circles'}
+        </button>
+      )}
+      <h2 className="card__title" style={{ margin: 0 }}>
         <Icon name="shield" />
         {t('gm.title')}
       </h2>

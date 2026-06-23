@@ -62,12 +62,12 @@ export function TabBar({
   alerts = 0,
   isGm = false,
 }: Props) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [hold, setHold] = useState(0)
   const rafRef = useRef<number | null>(null)
   const firedRef = useRef(false)
   const startedRef = useRef(false)
-  const tabs: Tab[] = isGm ? [...BASE_TABS, 'gm'] : BASE_TABS
+  const tabs = BASE_TABS
   const left = tabs.slice(0, 2)
   const right = tabs.slice(2)
 
@@ -185,7 +185,22 @@ export function TabBar({
             <span className="sidenav__avatar">{username.slice(0, 2).toUpperCase()}</span>
             <div className="sidenav__userinfo">
               <span className="sidenav__hello">{t('home.hello')}</span>
-              <span className="sidenav__username" title={username}>{username}</span>
+              <span className="sidenav__username" title={username} style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                <span style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{username}</span>
+                <span style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  padding: '1px 6px', 
+                  fontSize: '0.68rem', 
+                  fontWeight: '600', 
+                  borderRadius: '9999px',
+                  background: isGm ? 'var(--accent-soft)' : 'var(--bg-soft)',
+                  color: isGm ? 'var(--accent)' : 'var(--fg-muted)',
+                  border: isGm ? '1px solid var(--accent-line)' : '1px solid var(--line)'
+                }}>
+                  {isGm ? (lang === 'zh' ? '守护者' : 'Caregiver') : (lang === 'zh' ? '被守护者' : 'Recipient')}
+                </span>
+              </span>
             </div>
           </div>
         )}

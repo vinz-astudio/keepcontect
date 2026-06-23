@@ -9,6 +9,7 @@ import {
   type SignalEvent,
 } from '@/features/baseline/types'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
+import { useAuth } from '@/features/auth/AuthProvider'
 import './LivenessCard.css'
 
 const HOUR = 3_600_000
@@ -115,7 +116,13 @@ export function RoutineInsights() {
   const hasData = maxCell > 0
 
   const model = useMemo(() => buildBaseline(events), [events])
-  const installedAt = useMemo(() => getInstalledAt(), [])
+  const auth = useAuth()
+  const user = auth?.user
+  const installedAt = useMemo(() => {
+    return user?.created_at
+      ? new Date(user.created_at).getTime()
+      : getInstalledAt()
+  }, [user?.created_at])
   const learnedDays = Math.max(0, Math.floor((Date.now() - installedAt) / DAY))
   const inLearning = learnedDays < config.learningDays
 
@@ -136,25 +143,41 @@ export function RoutineInsights() {
       ? (evaluation?.reason ?? t(HINT_KEY[status]))
       : t(HINT_KEY[status])
 
-  // Localized human-readable sensitivity descriptions
-  const sensitivityDesc = lang === 'zh'
-    ? config.sensitivity === 'high'
-      ? '敏感 (沉默超过常态 1.3 倍且不低于 1.5 小时即告警)'
-      : config.sensitivity === 'balanced'
-        ? '平衡 (沉默超过常态 1.8 倍且不低于 3 小时即告警)'
-        : '保守 (沉默超过常态 2.6 倍且不低于 6 小时即告警)'
-    : config.sensitivity === 'high'
-      ? 'Sensitive (Alerts if silence > 1.3x normal, min 1.5h)'
-      : config.sensitivity === 'balanced'
-        ? 'Balanced (Alerts if silence > 1.8x normal, min 3h)'
-        : 'Relaxed (Alerts if silence > 2.6x normal, min 6h)'
+  // Compute concrete duration result for each preset without showing the abstract formulas
+  const sensitivityDesc = useMemo(() => {
+    if (!activeExpected) return '—'
+    const preset = SENSITIVITY_PRESETS[config.sensitivity]
+    const calculated = activeExpected * preset.multiplier
+    const floor = preset.floorHours * HOUR
+    const resultMs = Math.max(calculated, floor)
+    const formatted = fmtDur(resultMs)
+    
+    if (config.sensitivity === 'high') {
+      return lang === 'zh'
+        ? `敏感 (静默超过 ${formatted} 即告警)`
+        : `Sensitive (Alerts if silence > ${formatted})`
+    } else if (config.sensitivity === 'balanced') {
+      return lang === 'zh'
+        ? `平衡 (静默超过 ${formatted} 即告警)`
+        : `Balanced (Alerts if silence > ${formatted})`
+    } else {
+      return lang === 'zh'
+        ? `保守 (静默超过 ${formatted} 即告警)`
+        : `Relaxed (Alerts if silence > ${formatted})`
+    }
+  }, [config.sensitivity, activeExpected, lang])
 
-  // Localized human-readable active threshold description
-  const activeThresholdDesc = inLearning
-    ? lang === 'zh'
-      ? `${fmtDur(evaluation?.thresholdMs)} (学习期保底保护 · 学习结束后预计为 ${fmtDur(calculatedThresholdMs)})`
-      : `${fmtDur(evaluation?.thresholdMs)} (Learning phase fallback · Expect ${fmtDur(calculatedThresholdMs)} after learning)`
+  const heroThresholdVal = inLearning
+    ? fmtDur(evaluation?.thresholdMs)
     : fmtDur(calculatedThresholdMs)
+
+  const thresholdSubtext = inLearning
+    ? lang === 'zh'
+      ? `学习期保底保护中。学习结束后预计为 ${fmtDur(calculatedThresholdMs)}。`
+      : `Learning phase fallback active. Expected to be ${fmtDur(calculatedThresholdMs)} after learning.`
+    : lang === 'zh'
+      ? '系统基于此限度监控异常，超出即会发送通知。'
+      : 'Silence exceeding this limit will trigger alert notifications.'
 
   return (
     <>
@@ -265,26 +288,67 @@ export function RoutineInsights() {
         <h2 className="card__title">{t('routine.basis.title')}</h2>
         <p className="muted">{t('routine.basis.desc')}</p>
 
+        {/* Highlighted Side-by-Side Comparison Blocks */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          gap: '12px',
+          marginBottom: '1rem',
+          marginTop: '1rem'
+        }}>
+          {/* Left Block: Current Silence */}
+          <div style={{
+            background: 'var(--bg-soft)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--r-md)',
+            padding: '1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            gap: '4px'
+          }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--fg-muted)', fontWeight: '500' }}>
+              {lang === 'zh' ? '当前已静默时间' : 'Current Silence'}
+            </span>
+            <span style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--fg)' }}>
+              {fmtDur(evaluation?.currentGapMs)}
+            </span>
+          </div>
+
+          {/* Right Block: Alert Threshold (Hero Highlighted) */}
+          <div style={{
+            background: 'var(--accent-soft)',
+            border: '1px solid var(--accent-line)',
+            borderRadius: 'var(--r-md)',
+            padding: '1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            gap: '4px'
+          }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--accent)', fontWeight: '600' }}>
+              {lang === 'zh' ? '告警触发阈值' : 'Alert Threshold'}
+            </span>
+            <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent)' }}>
+              {heroThresholdVal}
+            </span>
+          </div>
+        </div>
+
+        <p className="muted" style={{ fontSize: '0.8rem', textAlign: 'center', margin: '0 0 1.25rem 0' }}>
+          {thresholdSubtext}
+        </p>
+
         <ul className="basis">
           <li className="basis__row">
-            <span>{t('routine.basis.gap')}</span>
-            <strong>{fmtDur(evaluation?.currentGapMs)}</strong>
-          </li>
-          <li className="basis__row">
-            <span>{t('routine.basis.threshold')}</span>
-            <strong>{activeThresholdDesc}</strong>
-          </li>
-          <li className="basis__row">
             <span>{t('routine.basis.baseline')}</span>
-            <strong>
-              {fmtDur(activeExpected)}
-            </strong>
+            <strong>{fmtDur(activeExpected)}</strong>
           </li>
           <li className="basis__row">
             <span>{t('routine.basis.sensitivity')}</span>
-            <strong>
-              {sensitivityDesc}
-            </strong>
+            <strong>{sensitivityDesc}</strong>
           </li>
           <li className="basis__row">
             <span>{t('routine.basis.samples')}</span>

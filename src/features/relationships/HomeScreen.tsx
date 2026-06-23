@@ -16,6 +16,7 @@ import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import { setBadge } from '@/lib/badge'
 import { reportClient } from '@/lib/clientReport'
 import { GMScreen } from '@/features/gm/GMScreen'
+import { UpdatesCard } from '@/features/update/UpdatesCard'
 import { amIGm } from '@/features/gm/gmApi'
 import { toast } from '@/lib/toast'
 import { ToastHost } from '@/features/common/ToastHost'
@@ -268,11 +269,25 @@ export function HomeScreen() {
           </div>
         </header>
 
-        <p className="home__hello">
-          {t('home.hello')}
-          {(user?.user_metadata?.display_name as string | undefined) ??
-            user?.email}
-        </p>
+        <div className="home__hello" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', padding: '0 1rem 0.25rem' }}>
+          <span style={{ color: 'var(--fg-muted)', fontSize: '0.9rem' }}>
+            {t('home.hello')}
+            {(user?.user_metadata?.display_name as string | undefined) ?? user?.email}
+          </span>
+          <span style={{ 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            padding: '2px 8px', 
+            fontSize: '0.75rem', 
+            fontWeight: '600', 
+            borderRadius: '9999px',
+            background: isGm ? 'var(--accent-soft)' : 'var(--bg-soft)',
+            color: isGm ? 'var(--accent)' : 'var(--fg-muted)',
+            border: isGm ? '1px solid var(--accent-line)' : '1px solid var(--line)'
+          }}>
+            {isGm ? (lang === 'zh' ? '守护者 (GM)' : 'Caregiver (GM)') : (lang === 'zh' ? '被守护者' : 'Care Recipient')}
+          </span>
+        </div>
 
         {error && <p className="home__error">{error}</p>}
         {notice && <p className="home__notice">{notice}</p>}
@@ -295,7 +310,7 @@ export function HomeScreen() {
 
         {tab === 'routine' && <RoutineSettings />}
 
-        {tab === 'gm' && <GMScreen />}
+        {tab === 'gm' && <GMScreen onBack={() => setTab('circles')} />}
 
         {tab === 'profile' && (
           <div className="profile-grid">
@@ -358,6 +373,7 @@ export function HomeScreen() {
                 )}
               </section>
               <EmergencyInfoCard />
+              <UpdatesCard />
             </div>
             <div className="profile-grid__col2">
               <PassiveSignalCard />
@@ -368,6 +384,33 @@ export function HomeScreen() {
         {tab === 'circles' && (
           <div className="circles-grid">
             <div className="circles-grid__col1">
+              {isGm && (
+                <section className="card" style={{ border: '1px solid var(--accent-line)', background: 'var(--accent-soft)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+                        <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
+                        <path d="M9 12l2 2 4-4" />
+                      </svg>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', color: 'var(--fg)' }}>
+                          {lang === 'zh' ? '管理员控制台' : 'Manager Console'}
+                        </h3>
+                        <p className="muted" style={{ margin: 0, fontSize: '0.8rem', lineHeight: '1.4' }}>
+                          {lang === 'zh' ? '管理本群组成员状态及客户端版本' : 'Manage member statuses and client versions'}
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      className="share" 
+                      onClick={() => setTab('gm')}
+                      style={{ background: 'var(--accent)', color: 'var(--bg)', border: 'none', cursor: 'pointer' }}
+                    >
+                      {lang === 'zh' ? '进入' : 'Enter'}
+                    </button>
+                  </div>
+                </section>
+              )}
               {/* 加入：邀请链接（收到链接直接点开即可自动加入；此处为手动兜底） */}
               <section className="card">
                 <h2 className="card__title">

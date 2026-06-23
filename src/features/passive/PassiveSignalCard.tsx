@@ -11,12 +11,10 @@ import {
 } from '@/features/passive/api'
 import { getDesktopOS, getPlatform, isTauri } from '@/lib/platform'
 import { buildWindowsHookCmd } from '@/features/passive/windowsHook'
-import { APP_VERSION, LATEST_URL } from '@/lib/version'
 import { translate, useI18n } from '@/lib/i18n'
+import { APP_VERSION, LATEST_URL } from '@/lib/version'
 import { Icon } from '@/features/common/Icon'
 
-
-import { fetchLatest, isNewer } from '@/features/update/versionCheck'
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
 
 import './PassiveSignalCard.css'
@@ -62,13 +60,6 @@ export function PassiveSignalCard() {
   const [hasAutostartSupport, setHasAutostartSupport] = useState(false)
   const [_, setSensorRefresh] = useState(0)
 
-  // Scan & Update check states
-
-  const [updBusy, setUpdBusy] = useState(false)
-  const [updStatus, setUpdStatus] = useState<'idle' | 'checking' | 'checked'>('idle')
-  const [hasNewUpdate, setHasNewUpdate] = useState(false)
-  const [newVersion, setNewVersion] = useState('')
-  const [updateUrls, setUpdateUrls] = useState<{ apkUrl?: string; exeUrl?: string }>({})
 
   // Tauri autostart check
   useEffect(() => {
@@ -138,72 +129,6 @@ export function PassiveSignalCard() {
     setTimeout(() => setCopied(false), 1500)
   }
 
-  // Unified Update Check Handler
-  async function handleCheckUpdate() {
-    setUpdStatus('checking')
-    await new Promise((r) => setTimeout(r, 800)) // Visual effect
-    try {
-      const l = await fetchLatest()
-      if (l) {
-        const outdated = isNewer(l.version, APP_VERSION)
-        setHasNewUpdate(outdated)
-        setNewVersion(l.version)
-        setUpdateUrls({ apkUrl: l.apkUrl, exeUrl: l.exeUrl })
-        setUpdStatus('checked')
-      } else {
-        setHasNewUpdate(false)
-        setUpdStatus('checked')
-      }
-    } catch (err) {
-      console.error('Check update failed:', err)
-      setHasNewUpdate(false)
-      setUpdStatus('checked')
-    }
-  }
-
-  // Version Upgrade Handler
-  async function handleTriggerUpdate() {
-    if (isTauri() && updateUrls.exeUrl) {
-      setUpdBusy(true)
-      try {
-        const internals = (window as any).__TAURI_INTERNALS__
-        if (internals && typeof internals.invoke === 'function') {
-          await internals.invoke('download_and_install', { url: updateUrls.exeUrl })
-        } else {
-          window.open(updateUrls.exeUrl, '_blank')
-        }
-      } catch (err) {
-        console.error('Tauri update failed:', err)
-        // Fallback command to open in browser safely
-        try {
-          const internals = (window as any).__TAURI_INTERNALS__
-          if (internals && typeof internals.invoke === 'function') {
-            await internals.invoke('open_in_browser', { url: updateUrls.exeUrl })
-          } else {
-            window.open(updateUrls.exeUrl, '_blank')
-          }
-        } catch {
-          window.open(updateUrls.exeUrl, '_blank')
-        }
-      } finally {
-        setUpdBusy(false)
-      }
-    } else if (Capacitor.isNativePlatform() && updateUrls.apkUrl) {
-      window.open(updateUrls.apkUrl, '_blank')
-    } else {
-      window.location.reload()
-    }
-  }
-
-
-
-  const getDeviceLabel = () => {
-    if (isTauri()) return lang === 'zh' ? 'Windows 桌面客户端' : 'Windows Desktop App'
-    if (android === 'native') return lang === 'zh' ? 'Android 原生客户端' : 'Android Native App'
-    if (platform === 'ios') return lang === 'zh' ? 'iOS 网页/快捷指令' : 'iOS Web/Shortcuts'
-    if (platform === 'android') return lang === 'zh' ? 'Android 网页版' : 'Android Web PWA'
-    return lang === 'zh' ? '网页版' : 'Web Browser'
-  }
 
   const url = token ? pingUrl(token) : '...'
 
@@ -404,61 +329,45 @@ export function PassiveSignalCard() {
 
   return (
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* 1. Header with Title & Unified Version Info */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--line)', paddingBottom: '0.75rem', flexWrap: 'wrap', gap: '8px' }}>
-        <h2 className="card__title" style={{ margin: 0 }}>
-          <Icon name="signal" />
-          {t('passive.title')}
-        </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85rem' }}>
-          <span style={{ fontWeight: '600' }}>v{APP_VERSION}</span>
-          <span style={{ opacity: 0.6 }}>({getDeviceLabel()})</span>
-        </div>
-      </div>
+      {/* 1. Header with Title */}
+      <h2 className="card__title" style={{ margin: 0, borderBottom: '1px solid var(--line)', paddingBottom: '0.75rem' }}>
+        <Icon name="signal" />
+        {t('passive.title')}
+      </h2>
 
       {error && <p className="home__error">{error}</p>}
 
-      {/* 2. Unified Check Update Panel */}
-      <div style={{ background: 'var(--bg-soft)', padding: '0.75rem 1rem', borderRadius: 'var(--r-md)', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--line)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>
-            {lang === 'zh' ? '检测最新版本与固件' : 'Check for System Updates'}
+      {/* 2. Global Status Box (Now at the top!) */}
+      <div className="psig__status-box">
+        <div className="psig__status-header">
+          <strong>{lang === 'zh' ? '守护活跃度' : 'Active Status'}</strong>
+          <span className="psig__status-badge">
+            {todayCount > 0 ? (lang === 'zh' ? '运行中' : 'Running') : (lang === 'zh' ? '待活跃' : 'Idle')}
           </span>
-          {updStatus === 'idle' && (
-            <button className="psig__small-btn" onClick={() => void handleCheckUpdate()}>
-              {t('update.check')}
-            </button>
-          )}
-          {updStatus === 'checking' && (
-            <span className="psig__status-text" style={{ fontSize: '0.85rem' }}>{t('update.checking')}</span>
-          )}
-          {updStatus === 'checked' && !hasNewUpdate && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="psig__status-text psig__status-text--ok" style={{ fontSize: '0.85rem' }}>✓ {t('update.latest')}</span>
-              <button className="psig__small-btn" onClick={() => void handleCheckUpdate()}>
-                {lang === 'zh' ? '重新检测' : 'Re-check'}
-              </button>
-            </div>
-          )}
         </div>
         
-        {updStatus === 'checked' && hasNewUpdate && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px dashed var(--line)', paddingTop: '8px', marginTop: '4px' }}>
-            <p className="psig__status-text psig__status-text--warn" style={{ fontSize: '0.85rem', margin: 0 }}>
-              {t('update.found').replace('{v}', newVersion)}
-            </p>
-            <button 
-              className="psig__small-btn psig__small-btn--highlight" 
-              style={{ width: '100%', padding: '6px' }}
-              disabled={updBusy}
-              onClick={() => void handleTriggerUpdate()}
-            >
-              {updBusy 
-                ? (lang === 'zh' ? '正在安装...' : 'Installing...') 
-                : (isTauri() ? (lang === 'zh' ? '立即更新安装' : 'Update & Install') : (lang === 'zh' ? '下载新版本' : 'Download Update'))}
+        <div className="psig__status-grid">
+          <div className="psig__status-cell">
+            <span className="psig__status-label">{lang === 'zh' ? '今日上报次数' : 'Today Pings'}</span>
+            <span className="psig__status-value">{todayCount}</span>
+          </div>
+          <div className="psig__status-cell">
+            <span className="psig__status-label">{lang === 'zh' ? '最近活跃时间' : 'Last Active'}</span>
+            <span className="psig__status-value psig__status-value--time">
+              {lastAt ? t('passive.last', { ago: ago(lastAt) }) : t('passive.never')}
+            </span>
+          </div>
+        </div>
+
+        <div className="psig__status-url-area">
+          <div className="psig__status-url-title">{lang === 'zh' ? '专属上报 Webhook 链接' : 'Personal Webhook URL'}</div>
+          <div className="psig__status-url-row">
+            <code className="psig__status-code">{url}</code>
+            <button className="psig__status-copy-btn" disabled={!token} onClick={() => void copy()}>
+              {copied ? t('passive.copied') : t('passive.copy')}
             </button>
           </div>
-        )}
+        </div>
       </div>
 
       {/* 3. Toggleable Sensors List */}
@@ -512,42 +421,7 @@ export function PassiveSignalCard() {
         </div>
       </div>
 
-
-
-      {/* 5. Global Status Box */}
-      <div className="psig__status-box">
-        <div className="psig__status-header">
-          <strong>{lang === 'zh' ? '守护活跃度' : 'Active Status'}</strong>
-          <span className="psig__status-badge">
-            {todayCount > 0 ? (lang === 'zh' ? '运行中' : 'Running') : (lang === 'zh' ? '待活跃' : 'Idle')}
-          </span>
-        </div>
-        
-        <div className="psig__status-grid">
-          <div className="psig__status-cell">
-            <span className="psig__status-label">{lang === 'zh' ? '今日上报次数' : 'Today Pings'}</span>
-            <span className="psig__status-value">{todayCount}</span>
-          </div>
-          <div className="psig__status-cell">
-            <span className="psig__status-label">{lang === 'zh' ? '最近活跃时间' : 'Last Active'}</span>
-            <span className="psig__status-value psig__status-value--time">
-              {lastAt ? t('passive.last', { ago: ago(lastAt) }) : t('passive.never')}
-            </span>
-          </div>
-        </div>
-
-        <div className="psig__status-url-area">
-          <div className="psig__status-url-title">{lang === 'zh' ? '专属上报 Webhook 链接' : 'Personal Webhook URL'}</div>
-          <div className="psig__status-url-row">
-            <code className="psig__status-code">{url}</code>
-            <button className="psig__status-copy-btn" disabled={!token} onClick={() => void copy()}>
-              {copied ? t('passive.copied') : t('passive.copy')}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 6. Collapsible Accordions sorted by relevance */}
+      {/* 4. Collapsible Accordions sorted by relevance */}
       <div className="psig__accordion">
         {sortedSections.map((s) => {
           const isOpen = expanded === s.id
@@ -577,8 +451,6 @@ export function PassiveSignalCard() {
           )
         })}
       </div>
-
-
     </section>
   )
 }

@@ -10,6 +10,7 @@ import {
   getConfig,
   getInstalledAt,
 } from '@/features/baseline/configStore'
+import { useAuth } from '@/features/auth/AuthProvider'
 import type {
   BaselineConfig,
   Evaluation,
@@ -34,15 +35,20 @@ export function useLiveness(): LivenessState {
   const [config, setConfig] = useState<BaselineConfig>(getConfig())
   const [loading, setLoading] = useState(true)
   const eventsRef = useRef<SignalEvent[]>([])
-  const installedAtRef = useRef<number>(getInstalledAt())
+
+  const auth = useAuth()
+  const user = auth?.user
+  const installedAt = user?.created_at
+    ? new Date(user.created_at).getTime()
+    : getInstalledAt()
 
   const recompute = useCallback(() => {
     const cfg = getConfig()
     setConfig(cfg)
     setEvaluation(
-      evaluate(eventsRef.current, Date.now(), cfg, installedAtRef.current),
+      evaluate(eventsRef.current, Date.now(), cfg, installedAt),
     )
-  }, [])
+  }, [installedAt])
 
   const reload = useCallback(async () => {
     eventsRef.current = await getAllSignals()
