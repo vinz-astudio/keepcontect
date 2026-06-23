@@ -14,9 +14,8 @@ import { buildWindowsHookCmd } from '@/features/passive/windowsHook'
 import { APP_VERSION, LATEST_URL } from '@/lib/version'
 import { translate, useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
-import { supabase } from '@/lib/supabase'
-import { toast } from '@/lib/toast'
-import { ScanSyncModal } from '@/features/auth/ScanSyncModal'
+
+
 import { fetchLatest, isNewer } from '@/features/update/versionCheck'
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
 
@@ -64,7 +63,7 @@ export function PassiveSignalCard() {
   const [_, setSensorRefresh] = useState(0)
 
   // Scan & Update check states
-  const [isScanning, setIsScanning] = useState(false)
+
   const [updBusy, setUpdBusy] = useState(false)
   const [updStatus, setUpdStatus] = useState<'idle' | 'checking' | 'checked'>('idle')
   const [hasNewUpdate, setHasNewUpdate] = useState(false)
@@ -196,45 +195,7 @@ export function PassiveSignalCard() {
     }
   }
 
-  // Mobile Scan QR sync handler
-  async function handleQrScan(data: string) {
-    setIsScanning(false)
-    if (!data.startsWith('keepcontact://sync?token=')) {
-      toast(t('profile.scan.failed'), 'danger')
-      return
-    }
-    const targetToken = data.replace('keepcontact://sync?token=', '')
-    toast(t('profile.scan.success'), 'info')
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        toast(t('err.load'), 'danger')
-        return
-      }
-      const channel = supabase.channel(`scan2sync:${targetToken}`, {
-        config: { broadcast: { self: false } }
-      })
-      channel.subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.send({
-            type: 'broadcast',
-            event: 'sync',
-            payload: {
-              access_token: session.access_token,
-              refresh_token: session.refresh_token
-            }
-          })
-          toast(t('profile.scan.success'), 'ok')
-          setTimeout(() => {
-            void supabase.removeChannel(channel)
-          }, 2000)
-        }
-      })
-    } catch (err) {
-      console.error('Scan sync broadcast failed:', err)
-      toast(t('profile.scan.failed'), 'danger')
-    }
-  }
+
 
   const getDeviceLabel = () => {
     if (isTauri()) return lang === 'zh' ? 'Windows 桌面客户端' : 'Windows Desktop App'
@@ -551,32 +512,7 @@ export function PassiveSignalCard() {
         </div>
       </div>
 
-      {/* 4. Scan to Sync (Only on mobile devices) */}
-      {(platform === 'android' || platform === 'ios') && (
-        <div>
-          <button
-            className="psig__scan-btn"
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              background: 'var(--accent-soft)',
-              color: 'var(--accent)',
-              border: '1px solid var(--accent-line)',
-              borderRadius: 'var(--r-md)',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px'
-            }}
-            onClick={() => setIsScanning(true)}
-          >
-            <span>📷</span>
-            {t('profile.scan')}
-          </button>
-        </div>
-      )}
+
 
       {/* 5. Global Status Box */}
       <div className="psig__status-box">
@@ -642,12 +578,7 @@ export function PassiveSignalCard() {
         })}
       </div>
 
-      {isScanning && (
-        <ScanSyncModal 
-          onClose={() => setIsScanning(false)}
-          onScan={(data) => void handleQrScan(data)}
-        />
-      )}
+
     </section>
   )
 }

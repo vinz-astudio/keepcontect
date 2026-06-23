@@ -19,6 +19,9 @@ import { GMScreen } from '@/features/gm/GMScreen'
 import { amIGm } from '@/features/gm/gmApi'
 import { toast } from '@/lib/toast'
 import { ToastHost } from '@/features/common/ToastHost'
+import { ScanSyncModal } from '@/features/auth/ScanSyncModal'
+import { supabase } from '@/lib/supabase'
+import { getPlatform } from '@/lib/platform'
 import {
   createCommunity,
   createGroup,
@@ -71,12 +74,53 @@ async function joinByInvite(inv: Invite): Promise<string> {
 
 export function HomeScreen() {
   const { user, signOut } = useAuth()
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [communities, setCommunities] = useState<Community[]>([])
   const [groups, setGroups] = useState<MyGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
+
+  // Mobile Scan QR sync handler
+  async function handleQrScan(data: string) {
+    setIsScanning(false)
+    if (!data.startsWith('keepcontact://sync?token=')) {
+      toast(t('profile.scan.failed'), 'danger')
+      return
+    }
+    const targetToken = data.replace('keepcontact://sync?token=', '')
+    toast(t('profile.scan.success'), 'info')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        toast(t('err.load'), 'danger')
+        return
+      }
+      const channel = supabase.channel(`scan2sync:${targetToken}`, {
+        config: { broadcast: { self: false } }
+      })
+      channel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.send({
+            type: 'broadcast',
+            event: 'sync',
+            payload: {
+              access_token: session.access_token,
+              refresh_token: session.refresh_token
+            }
+          })
+          toast(t('profile.scan.success'), 'ok')
+          setTimeout(() => {
+            void supabase.removeChannel(channel)
+          }, 2000)
+        }
+      })
+    } catch (err) {
+      console.error('Scan sync broadcast failed:', err)
+      toast(t('profile.scan.failed'), 'danger')
+    }
+  }
 
   const [newCommunity, setNewCommunity] = useState('')
   const [newGroup, setNewGroup] = useState('')
@@ -276,6 +320,42 @@ export function HomeScreen() {
                   />
                 </p>
                 <p className="muted">{t('profile.desc')}</p>
+
+                {/* Scan to Sync (Only on mobile devices) */}
+                {(getPlatform() === 'android' || getPlatform() === 'ios') && (
+                  <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem' }}>
+                    <button
+                      className="profile__scan-action"
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 16px',
+                        background: 'var(--bg-soft)',
+                        border: '1px solid var(--line)',
+                        borderRadius: 'var(--r-md)',
+                        cursor: 'pointer',
+                        color: 'var(--fg)',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onClick={() => setIsScanning(true)}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)' }}>
+                          <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+                          <path d="M7 12h10M12 7v10" />
+                        </svg>
+                        <span style={{ fontWeight: '600', fontSize: '0.92rem' }}>
+                          {lang === 'zh' ? '扫码同步登录新设备' : 'Scan to Sync Login'}
+                        </span>
+                      </div>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ opacity: 0.5 }}>
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </section>
               <EmergencyInfoCard />
             </div>
@@ -529,6 +609,12 @@ export function HomeScreen() {
         alerts={unread}
         isGm={isGm}
       />
+      {isScanning && (
+        <ScanSyncModal
+          onClose={() => setIsScanning(false)}
+          onScan={handleQrScan}
+        />
+      )}
     </div>
     </LivenessProvider>
   )
