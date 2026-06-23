@@ -9,9 +9,11 @@ import {
   listMyNotifications,
   markNotificationRead,
   resolveAlert,
+  getUserClients,
   type AppNotification,
   type Alert,
   type EmergencyInfo,
+  type ClientDevice,
 } from '@/features/alerts/api'
 import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -34,6 +36,7 @@ interface ResponderItem {
   emergency: EmergencyInfo | null
   /** 已认领「我去联系」的成员名（alerts.paused_by 对应的 profile） */
   reacherName: string | null
+  clients: ClientDevice[]
 }
 
 const NOTIF_KINDS = new Set([
@@ -117,18 +120,20 @@ export function NotificationsCard({
       for (const id of ids) {
         const alert = await getAlert(id)
         if (!alert || alert.status !== 'open') continue
-        const [name, emergency, reacherName] = await Promise.all([
+        const [name, emergency, reacherName, clients] = await Promise.all([
           getProfileName(alert.user_id),
           getEmergencyInfoForUser(alert.user_id).catch(() => null),
           alert.paused_by
             ? getProfileName(alert.paused_by).catch(() => null)
             : Promise.resolve(null),
+          getUserClients(alert.user_id).catch(() => []),
         ])
         built.push({
           alert,
           name: name ?? translate('notif.someone'),
           emergency,
           reacherName,
+          clients,
         })
       }
       setItems(built)
@@ -256,7 +261,7 @@ export function NotificationsCard({
 
       {items.length > 0 && (
         <div className="resp">
-          {items.map(({ alert, name, emergency, reacherName }) => {
+          {items.map(({ alert, name, emergency, reacherName, clients }) => {
             const isSos = alert.cause === 'sos'
             const reached = !!alert.paused_by
             const iAmReacher = !!user && user.id === alert.paused_by
@@ -275,36 +280,128 @@ export function NotificationsCard({
                       : t(`notif.stage.${alert.stage}` as I18nKey)}
                   </span>
                 </div>
-                {alert.sos_lat != null && alert.sos_lng != null && (
-                  <div className="resp__loc">
-                    📍{' '}
-                    <a
-                      href={`https://www.google.com/maps?q=${alert.sos_lat},${alert.sos_lng}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {t('resp.location')}
-                    </a>
-                  </div>
-                )}
-                {emergency && (
-                  <div className="resp__emergency">
-                    {emergency.home_address && (
-                      <div>📍 {emergency.home_address}</div>
-                    )}
-                    {emergency.emergency_contact_phone && (
-                      <div>
-                        ☎{' '}
-                        <a href={`tel:${emergency.emergency_contact_phone}`}>
-                          {emergency.emergency_contact_name ?? t('ei.contact')}:
-                          {emergency.emergency_contact_phone}
-                        </a>
+                {items.find(i => i.alert.id === alert.id)?.emergency ? (
+                  <div className="resp__emergency" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {emergency?.home_address && (
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <span>🏠</span>
+                        <div>
+                          <strong>{lang === 'zh' ? '登记住址 (兜底)' : 'Registered Address (Fallback)'}</strong>
+                          <div style={{ marginTop: '2px' }}>{emergency.home_address}</div>
+                        </div>
                       </div>
                     )}
-                    {emergency.medical_notes && (
-                      <div>🩺 {emergency.medical_notes}</div>
+                    
+                    {/* Live GPS Map */}
+                    {emergency?.latitude != null && emergency?.longitude != null ? (
+                      <div style={{ display: 'flex', gap: '6px', borderTop: '1px dashed var(--line)', paddingTop: '6px' }}>
+                        <span>📍</span>
+                        <div>
+                          <strong>{lang === 'zh' ? '手机实时定位 (Live Map)' : 'Mobile Live Map'}</strong>
+                          <div style={{ marginTop: '2px' }}>
+                            <a
+                              href={`https://www.google.com/maps?q=${emergency.latitude},${emergency.longitude}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ color: 'var(--accent)', fontWeight: '600', textDecoration: 'underline' }}
+                            >
+                              {lang === 'zh' ? '在地图中打开' : 'Open in Google Maps'}
+                            </a>
+                            {emergency.location_accuracy != null && (
+                              <span style={{ fontSize: '0.8rem', opacity: 0.7, marginLeft: '8px' }}>
+                                ({lang === 'zh' ? `精度约 ${Math.round(emergency.location_accuracy)} 米` : `accuracy ~${Math.round(emergency.location_accuracy)}m`})
+                              </span>
+                            )}
+                            {emergency.location_updated_at && (
+                              <div style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: '2px' }}>
+                                {lang === 'zh' ? `更新于 ${ago(emergency.location_updated_at)}` : `updated ${ago(emergency.location_updated_at)}`}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Fallback: alert SOS location */
+                      alert.sos_lat != null && alert.sos_lng != null && (
+                        <div style={{ display: 'flex', gap: '6px', borderTop: '1px dashed var(--line)', paddingTop: '6px' }}>
+                          <span>📍</span>
+                          <div>
+                            <strong>{lang === 'zh' ? 'SOS 触发时定位' : 'SOS Trigger Location'}</strong>
+                            <div style={{ marginTop: '2px' }}>
+                              <a
+                                href={`https://www.google.com/maps?q=${alert.sos_lat},${alert.sos_lng}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ color: 'var(--accent)', fontWeight: '600', textDecoration: 'underline' }}
+                              >
+                                {lang === 'zh' ? '打开定位' : 'Open Location'}
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    )}
+ 
+                    {emergency?.emergency_contact_phone && (
+                      <div style={{ display: 'flex', gap: '6px', borderTop: '1px dashed var(--line)', paddingTop: '6px' }}>
+                        <span>☎️</span>
+                        <div>
+                          <strong>{emergency.emergency_contact_name ?? t('ei.contact')}</strong>
+                          <div style={{ marginTop: '2px' }}>
+                            <a href={`tel:${emergency.emergency_contact_phone}`} style={{ color: 'var(--accent)', fontWeight: '600' }}>
+                              {emergency.emergency_contact_phone}
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+ 
+                    {emergency?.medical_notes && (
+                      <div style={{ display: 'flex', gap: '6px', borderTop: '1px dashed var(--line)', paddingTop: '6px' }}>
+                        <span>🩺</span>
+                        <div>
+                          <strong>{lang === 'zh' ? '病史与备注' : 'Medical Notes'}</strong>
+                          <div style={{ marginTop: '2px' }}>{emergency.medical_notes}</div>
+                        </div>
+                      </div>
+                    )}
+ 
+                    {/* Active Devices status feed */}
+                    {clients && clients.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px dashed var(--line)', paddingTop: '6px', fontSize: '0.82rem' }}>
+                        <div style={{ fontWeight: '600', opacity: 0.8 }}>
+                          💻 {lang === 'zh' ? '多设备活跃状态' : 'Active Devices Status'}
+                        </div>
+                        <ul style={{ margin: 0, paddingLeft: '20px', listStyleType: 'circle', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {clients.map((c) => (
+                            <li key={c.client_id} style={{ opacity: 0.85 }}>
+                              <span style={{ fontWeight: '600' }}>
+                                {c.platform === 'tauri' ? (lang === 'zh' ? 'Windows 电脑' : 'Windows PC') : c.platform === 'android' ? 'Android' : c.platform === 'ios' ? 'iOS' : c.platform}
+                              </span>:
+                              <span style={{ fontSize: '0.78rem', marginLeft: '6px', opacity: 0.7 }}>
+                                {lang === 'zh' ? `${ago(c.last_seen_at)}前活跃` : `active ${ago(c.last_seen_at)}`}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </div>
+                ) : (
+                  /* If no emergency info, show basic SOS location if available */
+                  alert.sos_lat != null && alert.sos_lng != null && (
+                    <div className="resp__loc" style={{ marginTop: '8px' }}>
+                      📍{' '}
+                      <a
+                        href={`https://www.google.com/maps?q=${alert.sos_lat},${alert.sos_lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: 'var(--accent)', fontWeight: '600', textDecoration: 'underline' }}
+                      >
+                        {t('resp.location')}
+                      </a>
+                    </div>
+                  )
                 )}
 
                 {!reached ? (

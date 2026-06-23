@@ -186,6 +186,10 @@ export type Database = {
           medical_notes: string | null
           updated_at: string
           user_id: string
+          latitude: number | null
+          longitude: number | null
+          location_accuracy: number | null
+          location_updated_at: string | null
         }
         Insert: {
           emergency_contact_name?: string | null
@@ -194,6 +198,10 @@ export type Database = {
           medical_notes?: string | null
           updated_at?: string
           user_id: string
+          latitude?: number | null
+          longitude?: number | null
+          location_accuracy?: number | null
+          location_updated_at?: string | null
         }
         Update: {
           emergency_contact_name?: string | null
@@ -202,6 +210,10 @@ export type Database = {
           medical_notes?: string | null
           updated_at?: string
           user_id?: string
+          latitude?: number | null
+          longitude?: number | null
+          location_accuracy?: number | null
+          location_updated_at?: string | null
         }
         Relationships: []
       }

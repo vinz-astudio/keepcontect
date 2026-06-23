@@ -170,7 +170,7 @@ export function HomeScreen() {
     toast(t('sos.sending'), 'info')
     try {
       const coords = await getCurrentCoords() // 附带实时位置，给 Group/Community
-      await raiseSos(coords?.lat, coords?.lng)
+      await raiseSos(coords?.lat, coords?.lng, coords?.accuracy)
       void triggerPushDispatch() // 不等 cron，立即推送到 Group 锁屏
       toast(t('sos.sent'), 'danger')
       await refresh()
@@ -199,6 +199,25 @@ export function HomeScreen() {
     void ensurePushSubscription() // 已授权过的设备登录后静默续订推送
     void reportClient() // 上报客户端版本/平台(供运营查看)
     void amIGm().then(setIsGm) // GM 才显示 GM 页
+
+    // Request geolocation permission early to prevent SOS latency/blocks
+    try {
+      if ('geolocation' in navigator) {
+        if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+          navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
+            if (result.state === 'prompt') {
+              navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 2000 })
+            }
+          }).catch(() => {
+            navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 2000 })
+          })
+        } else {
+          navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 2000 })
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to check/prompt early geolocation:', err)
+    }
   }, [])
 
   useEffect(() => {

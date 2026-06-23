@@ -22,12 +22,21 @@ export async function resolveMyAlert(): Promise<void> {
 export async function raiseSos(
   lat?: number | null,
   lng?: number | null,
+  accuracy?: number | null,
 ): Promise<string> {
   const { data, error } = await supabase.rpc('raise_sos', {
     _lat: lat ?? null,
     _lng: lng ?? null,
   })
   if (error) throw error
+  if (lat && lng) {
+    try {
+      const { saveSOSLocation } = await import('@/features/profile/emergencyApi')
+      await saveSOSLocation(lat, lng, accuracy ?? 0)
+    } catch (err) {
+      console.error('Failed to save SOS location:', err)
+    }
+  }
   return data as string
 }
 
@@ -134,13 +143,8 @@ export async function getAlert(alertId: string): Promise<Alert | null> {
 export async function getEmergencyInfoForUser(
   userId: string,
 ): Promise<EmergencyInfo | null> {
-  const { data, error } = await supabase
-    .from('emergency_info')
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle()
-  if (error) throw error
-  return data
+  const { getEmergencyInfoForUser: decryptGet } = await import('@/features/profile/emergencyApi')
+  return decryptGet(userId)
 }
 
 export async function getProfileName(userId: string): Promise<string | null> {
@@ -151,4 +155,24 @@ export async function getProfileName(userId: string): Promise<string | null> {
     .maybeSingle()
   if (error) throw error
   return data?.display_name ?? null
+}
+
+export interface ClientDevice {
+  client_id: string
+  platform: string | null
+  app_version: string | null
+  first_seen_at: string
+  last_seen_at: string
+}
+
+export async function getUserClients(userId: string): Promise<ClientDevice[]> {
+  const { data, error } = await supabase
+    .from('clients' as any)
+    .select('client_id, platform, app_version, first_seen_at, last_seen_at')
+    .eq('user_id', userId)
+  if (error) {
+    // Fail silently on permission error (RLS)
+    return []
+  }
+  return (data as unknown as ClientDevice[]) ?? []
 }

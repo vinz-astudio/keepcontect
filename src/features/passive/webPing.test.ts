@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { PASSIVE_WEB_PING_THROTTLE_MS } from '@/features/passive/api'
 import { sendPassiveWebPing } from '@/features/passive/webPing'
 
+vi.mock('@/features/passive/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/passive/api')>()
+  return {
+    ...actual,
+    calculateWebHmac: vi.fn().mockResolvedValue('mocked-signature'),
+  }
+})
+
 describe('sendPassiveWebPing', () => {
   it('skips the request inside the throttle window', async () => {
     const fetcher = vi.fn()
@@ -36,7 +44,7 @@ describe('sendPassiveWebPing', () => {
 
     expect(result).toBe('sent')
     expect(fetcher).toHaveBeenCalledWith(
-      'https://byekgmqyqlftgoveqnku.supabase.co/functions/v1/ping?token=token123',
+      'https://byekgmqyqlftgoveqnku.supabase.co/functions/v1/ping?token=token123&t=1781870400&sig=mocked-signature',
       { method: 'GET', cache: 'no-store', keepalive: true },
     )
     expect(storeLastPingAt).toHaveBeenCalledWith(nowMs)

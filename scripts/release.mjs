@@ -11,6 +11,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const run = (cmd, opts = {}) =>
   execSync(cmd, { stdio: 'inherit', cwd: root, ...opts })
 
+// Inject signing private key for Tauri updater
+process.env.TAURI_SIGNING_PRIVATE_KEY = process.env.TAURI_SIGNING_PRIVATE_KEY || 'dW50cnVzdGVkIGNvbW1lbnQ6IHJzaWduIGVuY3J5cHRlZCBzZWNyZXQga2V5ClJXUlRZMEl5TXJ6aGFwQ2FjZzBoK1RGNDcvdGVOSzVselFMMytTSjdUQUkrcnUyKzFFTUFBQkFBQUFBQUFBQUFBQUlBQUFBQUxVRnQwL2tFWFZJV3YwbXlRcWJDaTBjOUxPNmRsV3JOeEIrVkpHV2ZSSjFsQXlwUXRSVFcvMU1tV21lQzBpWnZvRlI0Zi9HTnlZK3R3VXlrdE9LZzl3RnBGdUs5N2YvUUxyN1pBdklWdnFmQW5BbTZueFM3M3RSZmNpdXAwSHdPdklGVkQ4UENkMUk9Cg=='
+
 const arg = process.argv[2]
 if (!arg) {
   console.error('Usage: node scripts/release.mjs <versionName>   Example: 0.4.4')

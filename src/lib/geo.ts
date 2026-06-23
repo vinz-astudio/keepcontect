@@ -3,11 +3,16 @@
 
 export function getCurrentCoords(
   timeoutMs = 8000,
-): Promise<{ lat: number; lng: number } | null> {
+): Promise<{ lat: number; lng: number; accuracy: number } | null> {
   return new Promise((resolve) => {
     if (!('geolocation' in navigator)) return resolve(null)
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      (p) =>
+        resolve({
+          lat: p.coords.latitude,
+          lng: p.coords.longitude,
+          accuracy: p.coords.accuracy,
+        }),
       () => resolve(null),
       { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 60_000 },
     )

@@ -57,10 +57,14 @@ final class PassivePing {
         EXECUTOR.execute(() -> {
             HttpURLConnection conn = null;
             try {
+                long t = System.currentTimeMillis() / 1000;
+                String sig = calculateHMAC(String.valueOf(t), token);
                 String url =
                     base +
                     "/functions/v1/ping?token=" +
-                    URLEncoder.encode(token, StandardCharsets.UTF_8.name());
+                    URLEncoder.encode(token, StandardCharsets.UTF_8.name()) +
+                    "&t=" + t +
+                    "&sig=" + URLEncoder.encode(sig, StandardCharsets.UTF_8.name());
                 conn = (HttpURLConnection) new URL(url).openConnection();
                 conn.setConnectTimeout(8000);
                 conn.setReadTimeout(8000);
@@ -83,6 +87,23 @@ final class PassivePing {
                 if (conn != null) conn.disconnect();
             }
         });
+    }
+
+    private static String calculateHMAC(String data, String key) {
+        try {
+            javax.crypto.spec.SecretKeySpec signingKey = new javax.crypto.spec.SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(signingKey);
+            byte[] rawHmac = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(rawHmac.length * 2);
+            for (byte b : rawHmac) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to calculate HMAC", e);
+            return "";
+        }
     }
 
     private static SharedPreferences prefs(Context context) {

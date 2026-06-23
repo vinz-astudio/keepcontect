@@ -7,6 +7,7 @@ import {
   shouldSendPassiveWebPing,
   shortcutImportUrl,
   type BehaviorPing,
+  calculateWebHmac,
 } from '@/features/passive/api'
 
 describe('passive ping helpers', () => {
@@ -52,5 +53,13 @@ describe('passive ping helpers', () => {
     expect(
       shouldSendPassiveWebPing(now - PASSIVE_WEB_PING_THROTTLE_MS, now),
     ).toBe(true)
+  })
+
+  it('calculates Web HMAC correctly', async () => {
+    const key = 'secret-token'
+    const message = '1781956800'
+    const sig = await calculateWebHmac(key, message)
+    expect(sig).toHaveLength(64)
+    expect(/^[0-9a-f]+$/.test(sig)).toBe(true)
   })
 })

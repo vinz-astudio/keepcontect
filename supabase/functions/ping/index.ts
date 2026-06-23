@@ -14,11 +14,48 @@ const cors = {
   'Access-Control-Allow-Headers': 'content-type',
 }
 
+async function verifyHmac(token: string, t: string, sig: string): Promise<boolean> {
+  try {
+    const encoder = new TextEncoder()
+    const keyBytes = encoder.encode(token)
+    const messageBytes = encoder.encode(t)
+
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      keyBytes,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    )
+
+    if (sig.length !== 64 || !/^[0-9a-fA-F]+$/.test(sig)) {
+      return false
+    }
+
+    const signatureBytes = new Uint8Array(32)
+    for (let i = 0; i < 32; i++) {
+      signatureBytes[i] = parseInt(sig.substring(i * 2, i * 2 + 2), 16)
+    }
+
+    return await crypto.subtle.verify(
+      'HMAC',
+      cryptoKey,
+      signatureBytes,
+      messageBytes
+    )
+  } catch (err) {
+    console.error('Error verifying HMAC signature:', err)
+    return false
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   const url = new URL(req.url)
   const token = url.searchParams.get('token')
+  const t = url.searchParams.get('t')
+  const sig = url.searchParams.get('sig')
   const kind = 'app'
 
   if (!token) {
@@ -26,6 +63,26 @@ Deno.serve(async (req) => {
       status: 400,
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
+  }
+
+  if (t && sig) {
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const tNum = parseInt(t, 10)
+    if (isNaN(tNum) || Math.abs(nowSeconds - tNum) > 300) {
+      return new Response(JSON.stringify({ ok: false, reason: 'expired timestamp' }), {
+        status: 401,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+    const isValid = await verifyHmac(token, t, sig)
+    if (!isValid) {
+      return new Response(JSON.stringify({ ok: false, reason: 'invalid signature' }), {
+        status: 401,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+  } else {
+    console.warn(`Unsigned ping received for token: ${token}`)
   }
 
   // token -> user

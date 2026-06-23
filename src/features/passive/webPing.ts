@@ -1,4 +1,4 @@
-import { pingUrl, shouldSendPassiveWebPing } from '@/features/passive/api'
+import { pingUrl, shouldSendPassiveWebPing, calculateWebHmac } from '@/features/passive/api'
 
 export type PassiveWebPingResult = 'sent' | 'throttled' | 'failed'
 
@@ -20,7 +20,11 @@ export async function sendPassiveWebPing({
   if (!shouldSendPassiveWebPing(lastPingAtMs, nowMs)) return 'throttled'
 
   try {
-    const response = await fetcher(pingUrl(token), {
+    const t = Math.floor(nowMs / 1000).toString()
+    const sig = await calculateWebHmac(token, t)
+    const signedUrl = `${pingUrl(token)}&t=${t}&sig=${sig}`
+
+    const response = await fetcher(signedUrl, {
       method: 'GET',
       cache: 'no-store',
       keepalive: true,

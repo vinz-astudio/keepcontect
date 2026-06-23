@@ -94,3 +94,22 @@ export function lastPingAt(pings: BehaviorPing[]): string | null {
   }
   return last
 }
+
+export async function calculateWebHmac(token: string, message: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const keyBytes = encoder.encode(token)
+  const messageBytes = encoder.encode(message)
+  const cryptoObj = typeof window !== 'undefined' ? window.crypto : (globalThis as any).crypto
+  const cryptoKey = await cryptoObj.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const sigBuffer = await cryptoObj.subtle.sign('HMAC', cryptoKey, messageBytes)
+  const sigBytes = new Uint8Array(sigBuffer)
+  return Array.from(sigBytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
