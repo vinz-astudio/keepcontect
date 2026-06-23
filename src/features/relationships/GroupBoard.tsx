@@ -83,13 +83,16 @@ export function GroupBoard({ groupId }: { groupId: string }) {
         <p className="muted board__empty">{t('board.emptyMembers')}</p>
       ) : (
         <ul className="board__list">
-          {data.members.map((m) => (
-            <li key={m.user_id} className="board__row">
-              <span className={`board__dot ${DOT[m.status]}`} aria-hidden />
-              <span className="board__name">{m.name}</span>
-              <span className="board__status">{statusText(m.status, m.hours)}</span>
-            </li>
-          ))}
+          {data.members.map((m) => {
+            const status = m.alerted ? 'silent' : m.status
+            return (
+              <li key={m.user_id} className="board__row">
+                <span className={`board__dot ${DOT[status]}`} aria-hidden />
+                <span className="board__name">{m.name}</span>
+                <span className="board__status">{statusText(status, m.hours)}</span>
+              </li>
+            )
+          })}
         </ul>
       )}
 

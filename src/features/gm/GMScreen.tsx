@@ -173,19 +173,43 @@ export function GMScreen({ onBack }: GMScreenProps) {
             clients: [] as GmClient[],
             last_heartbeat_at: null,
             alerted: false,
-            status: (c.status as any) || 'never',
+            status: 'never',
           }
         if (c.platform || c.app_version) r.clients.push(c)
+        
+        const hb = c.last_heartbeat_at || c.last_seen_at
         if (
-          c.last_heartbeat_at &&
-          (!r.last_heartbeat_at || c.last_heartbeat_at > r.last_heartbeat_at)
+          hb &&
+          (!r.last_heartbeat_at || hb > r.last_heartbeat_at)
         ) {
-          r.last_heartbeat_at = c.last_heartbeat_at
+          r.last_heartbeat_at = hb
         }
+        
         if (c.alerted) r.alerted = true
-        if (c.status) r.status = c.status as any
         map.set(c.user_id, r)
       }
+
+      // Compute unified status for each user
+      for (const r of map.values()) {
+        if (r.alerted) {
+          r.status = 'alert'
+        } else {
+          const ts = r.last_heartbeat_at ? new Date(r.last_heartbeat_at).getTime() : null
+          if (!ts) {
+            r.status = 'never'
+          } else {
+            const diffH = (Date.now() - ts) / 3_600_000
+            if (diffH < 6) {
+              r.status = 'active'
+            } else if (diffH < 24) {
+              r.status = 'quiet'
+            } else {
+              r.status = 'silent'
+            }
+          }
+        }
+      }
+
       setRows([...map.values()])
     } catch (e) {
       setError(e instanceof Error ? e.message : translate('err.load'))
