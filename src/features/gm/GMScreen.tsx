@@ -21,6 +21,8 @@ interface UserRow {
   last_heartbeat_at: string | null
   /** 是否有 group+ open 告警 */
   alerted: boolean
+  /** 统一活跃状态 */
+  status: 'alert' | 'active' | 'quiet' | 'silent' | 'never'
 }
 
 // 设备在用判定:30 天内有上报才算"目前在用"
@@ -141,17 +143,6 @@ function renderDevicesList(clients: GmClient[], lang: string) {
   ))
 }
 
-/** 与群组看板同源:device_state 心跳 6h/24h + open 告警 */
-function getStatus(r: UserRow): 'alert' | 'active' | 'quiet' | 'silent' | 'never' {
-  if (r.alerted) return 'alert'
-  const ts = r.last_heartbeat_at ? new Date(r.last_heartbeat_at).getTime() : null
-  if (!ts) return 'never'
-  const diffH = (Date.now() - ts) / 3_600_000
-  if (diffH < 6) return 'active'
-  if (diffH < 24) return 'quiet'
-  return 'silent'
-}
-
 interface GMScreenProps {
   onBack?: () => void
 }
@@ -179,9 +170,10 @@ export function GMScreen({ onBack }: GMScreenProps) {
           {
             user_id: c.user_id,
             name: c.name,
-            clients: [],
+            clients: [] as GmClient[],
             last_heartbeat_at: null,
             alerted: false,
+            status: (c.status as any) || 'never',
           }
         if (c.platform || c.app_version) r.clients.push(c)
         if (
@@ -191,6 +183,7 @@ export function GMScreen({ onBack }: GMScreenProps) {
           r.last_heartbeat_at = c.last_heartbeat_at
         }
         if (c.alerted) r.alerted = true
+        if (c.status) r.status = c.status as any
         map.set(c.user_id, r)
       }
       setRows([...map.values()])
@@ -398,7 +391,7 @@ export function GMScreen({ onBack }: GMScreenProps) {
               </tr>
             ) : (
               sorted.map((r) => {
-                const status = getStatus(r)
+                const status = r.status
                 const isOutdated = r.clients.length === 0 || r.clients.some((c) => c.app_version ? isNewer(APP_VERSION, c.app_version) : true)
                 return (
                   <tr key={r.user_id} className={isOutdated ? 'is-outdated-row' : ''}>

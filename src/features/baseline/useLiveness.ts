@@ -3,6 +3,7 @@ import {
   getAllSignals,
   pruneBefore,
   recordSignal,
+  syncSignalsWithServer,
 } from '@/features/signals/store'
 import { startSignalSources } from '@/features/signals/sources'
 import { evaluate } from '@/features/baseline/engine'
@@ -35,6 +36,7 @@ export function useLiveness(): LivenessState {
   const [config, setConfig] = useState<BaselineConfig>(getConfig())
   const [loading, setLoading] = useState(true)
   const eventsRef = useRef<SignalEvent[]>([])
+  const lastSyncRef = useRef<number>(0)
 
   const auth = useAuth()
   const user = auth?.user
@@ -51,10 +53,14 @@ export function useLiveness(): LivenessState {
   }, [installedAt])
 
   const reload = useCallback(async () => {
+    if (user?.id && Date.now() - lastSyncRef.current > 60_000) {
+      lastSyncRef.current = Date.now()
+      await syncSignalsWithServer(user.id)
+    }
     eventsRef.current = await getAllSignals()
     recompute()
     setLoading(false)
-  }, [recompute])
+  }, [user?.id, recompute])
 
   const checkIn = useCallback(async () => {
     await recordSignal('manual_checkin')

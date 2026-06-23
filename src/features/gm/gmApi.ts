@@ -13,6 +13,8 @@ export interface GmClient {
   alerted?: boolean
   /** 网页会话折叠后代表的会话数(仅 *-web 折叠时 >1) */
   web_count?: number
+  /** 真实存活信号状态 */
+  status?: string | null
 }
 
 /** 当前用户是否 GM(决定是否显示 GM 页) */

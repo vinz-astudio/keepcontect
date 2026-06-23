@@ -1,6 +1,7 @@
-// 本地行为时序存储（IndexedDB）——绝不上传，仅供端上判定/基线使用。
+// 本地行为时序存储（IndexedDB），且当用户登录时支持与 Supabase 双向同步。
 
 import type { SignalEvent, SignalKind } from '@/features/baseline/types'
+import { supabase } from '@/lib/supabase'
 
 const DB_NAME = 'keepcontact'
 const STORE = 'signals'
@@ -36,6 +37,79 @@ export async function recordSignal(
     tx.onerror = () => reject(tx.error)
   })
   db.close()
+
+  // Also upload to Supabase if logged in
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user?.id) {
+      await supabase.from('behavior_pings').insert({
+        user_id: session.user.id,
+        kind,
+        at: new Date(t).toISOString(),
+      })
+    }
+  } catch (err) {
+    console.error('Failed to upload signal to Supabase:', err)
+  }
+}
+
+export async function syncSignalsWithServer(uid: string): Promise<void> {
+  try {
+    const cutoff = Date.now() - 35 * 86_400_000
+    const sinceStr = new Date(cutoff).toISOString()
+    
+    // 1. Fetch server pings for the last 35 days
+    const { data: serverData, error } = await supabase
+      .from('behavior_pings')
+      .select('at, kind')
+      .eq('user_id', uid)
+      .gte('at', sinceStr)
+      
+    if (error) throw error
+    
+    const serverEvents = (serverData ?? []).map(r => ({
+      t: new Date(r.at).getTime(),
+      kind: r.kind
+    }))
+    
+    const serverTimestamps = new Set(serverEvents.map(e => e.t))
+    
+    // 2. Fetch local signals
+    const localEvents = await getAllSignals()
+    const localTimestamps = new Set(localEvents.map(e => e.t))
+    
+    // 3. Upload local signals that are missing on the server
+    const toUpload = localEvents.filter(e => e.t >= cutoff && !serverTimestamps.has(e.t))
+    if (toUpload.length > 0) {
+      const inserts = toUpload.map(e => ({
+        user_id: uid,
+        kind: e.kind,
+        at: new Date(e.t).toISOString()
+      }))
+      const { error: uploadError } = await supabase
+        .from('behavior_pings')
+        .insert(inserts)
+      if (uploadError) throw uploadError
+    }
+    
+    // 4. Download server signals that are missing locally
+    const toDownload = serverEvents.filter(e => !localTimestamps.has(e.t))
+    if (toDownload.length > 0) {
+      const db = await openDb()
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readwrite')
+        const os = tx.objectStore(STORE)
+        for (const se of toDownload) {
+          os.add({ t: se.t, kind: se.kind as SignalKind })
+        }
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+      })
+      db.close()
+    }
+  } catch (err) {
+    console.error('Failed to sync signals with server:', err)
+  }
 }
 
 export async function getAllSignals(): Promise<SignalEvent[]> {
