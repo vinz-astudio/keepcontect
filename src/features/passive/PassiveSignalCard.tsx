@@ -115,7 +115,9 @@ export function PassiveSignalCard() {
       setToken(tok)
       if (tok) {
         localStorage.setItem('kc.passiveToken', tok)
-        const [c, l] = await Promise.all([countTodayPings(tok), lastPingAt(tok)])
+        const ps = await listRecentPings()
+        const c = countTodayPings(ps)
+        const l = lastPingAt(ps)
         setTodayCount(c)
         setLastAt(l)
       }
