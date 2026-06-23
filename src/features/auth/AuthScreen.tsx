@@ -19,6 +19,7 @@ import { InstallCard } from '@/features/install/InstallCard'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/config'
 import { authRedirectUrl } from '@/features/auth/authRedirect'
 import { LangToggle, useI18n } from '@/lib/i18n'
+import { ThemeToggle } from '@/lib/theme'
 import './AuthScreen.css'
 
 import { APP_VERSION } from '@/lib/version'
@@ -338,9 +339,15 @@ export function AuthScreen() {
   return (
     <div className="auth">
       <div className="auth__card">
-        <LangToggle className="auth__lang" />
-        <span className="auth__logo" aria-hidden>
-          ◉
+        <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', display: 'flex', gap: '0.6rem' }}>
+          <ThemeToggle className="auth__lang" style={{ position: 'static' } as any} />
+          <LangToggle className="auth__lang" style={{ position: 'static' } as any} />
+        </div>
+        <span className="auth__logo" aria-hidden style={{ display: 'block', margin: '0 auto 0.5rem', width: '48px', height: '48px' }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="4" fill="currentColor" />
+          </svg>
         </span>
         <h1 className="auth__title">Keep Contact</h1>
         <p className="auth__subtitle">

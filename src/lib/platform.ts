@@ -8,8 +8,8 @@ export function getPlatform(): Platform {
   // iPadOS 13+ 伪装成 Mac，靠触点数区分
   const iPadOS =
     navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
-  if (/iPhone|iPad|iPod/.test(ua) || iPadOS) return 'ios'
-  if (/Android/.test(ua)) return 'android'
+  if (/iPhone|iPad|iPod/i.test(ua) || iPadOS) return 'ios'
+  if (/Android/i.test(ua)) return 'android'
   return 'desktop'
 }
 

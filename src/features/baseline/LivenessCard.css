@@ -371,5 +371,9 @@
 @media (min-width: 768px) {
   .routine-hero {
     grid-column: 1 / -1;
+    display: grid !important;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 2rem;
+    align-items: start;
   }
 }

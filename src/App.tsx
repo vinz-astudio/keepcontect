@@ -11,6 +11,7 @@ import {
   parseInviteFromUrl,
   savePendingInvite,
 } from '@/features/invites/inviteLink'
+import { ThemeProvider } from '@/lib/theme'
 import './App.css'
 
 // 启动即捕获邀请链接参数（登录前后都适用），暂存后清理地址栏
@@ -43,13 +44,15 @@ function Gate() {
 export default function App() {
   return (
     <I18nProvider>
-      <NativeAuthRedirectBridge />
-      <UpdateNotice />
-      <ErrorBoundary>
-        <AuthProvider>
-          <Gate />
-        </AuthProvider>
-      </ErrorBoundary>
+      <ThemeProvider>
+        <NativeAuthRedirectBridge />
+        <UpdateNotice />
+        <ErrorBoundary>
+          <AuthProvider>
+            <Gate />
+          </AuthProvider>
+        </ErrorBoundary>
+      </ThemeProvider>
     </I18nProvider>
   )
 }

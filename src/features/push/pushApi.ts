@@ -2,6 +2,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { VAPID_PUBLIC_KEY } from '@/lib/config'
+import { isTauri } from '@/lib/platform'
 
 export type PushStatus =
   | 'unsupported'
@@ -19,6 +20,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 export function pushSupported(): boolean {
+  if (isTauri()) return false
   return (
     'serviceWorker' in navigator &&
     'PushManager' in window &&

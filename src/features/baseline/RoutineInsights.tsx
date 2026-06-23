@@ -123,6 +123,10 @@ export function RoutineInsights() {
     model.sampleCount > 0 ? model.expectedGapByHour[nowHour] : null
 
   const preset = SENSITIVITY_PRESETS[config.sensitivity]
+  
+  // Calculate dynamic threshold based on sensitivity
+  const activeExpected = baselineMs ?? model.globalExpectedGap
+  const calculatedThresholdMs = Math.max(activeExpected * preset.multiplier, preset.floorHours * HOUR)
 
   const status: LivenessStatus = evaluation?.status ?? 'learning'
   const statusHint = loading
@@ -131,102 +135,128 @@ export function RoutineInsights() {
       ? (evaluation?.reason ?? t(HINT_KEY[status]))
       : t(HINT_KEY[status])
 
+  // Localized human-readable sensitivity descriptions
+  const sensitivityDesc = lang === 'zh'
+    ? config.sensitivity === 'high'
+      ? '敏感 (沉默超过常态 1.3 倍且不低于 1.5 小时即告警)'
+      : config.sensitivity === 'balanced'
+        ? '平衡 (沉默超过常态 1.8 倍且不低于 3 小时即告警)'
+        : '保守 (沉默超过常态 2.6 倍且不低于 6 小时即告警)'
+    : config.sensitivity === 'high'
+      ? 'Sensitive (Alerts if silence > 1.3x normal, min 1.5h)'
+      : config.sensitivity === 'balanced'
+        ? 'Balanced (Alerts if silence > 1.8x normal, min 3h)'
+        : 'Relaxed (Alerts if silence > 2.6x normal, min 6h)'
+
+  // Localized human-readable active threshold description
+  const activeThresholdDesc = inLearning
+    ? lang === 'zh'
+      ? `${fmtDur(evaluation?.thresholdMs)} (学习期保底保护 · 学习结束后预计为 ${fmtDur(calculatedThresholdMs)})`
+      : `${fmtDur(evaluation?.thresholdMs)} (Learning phase fallback · Expect ${fmtDur(calculatedThresholdMs)} after learning)`
+    : fmtDur(calculatedThresholdMs)
+
   return (
     <>
       <section className="card routine-hero">
-        <div className={`routine-hero__status ${STATUS_CLS[status]}`}>
-          <span className="status__dot" aria-hidden />
-          <div className="routine-hero__statustext">
-            <p className="routine-hero__label">{t(STATUS_KEY[status])}</p>
-            <p className="routine-hero__hint">
-              {statusHint}
-              {evaluation && status !== 'safe_window' && (
-                <span className="liveness__gap">
-                  {' '}
-                  · {t('live.gap', { gap: fmtDur(evaluation.currentGapMs) })}
-                </span>
-              )}
+        <div className="routine-hero__left" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+          <div className={`routine-hero__status ${STATUS_CLS[status]}`}>
+            <span className="status__dot" aria-hidden />
+            <div className="routine-hero__statustext">
+              <p className="routine-hero__label">{t(STATUS_KEY[status])}</p>
+              <p className="routine-hero__hint">
+                {statusHint}
+                {evaluation && status !== 'safe_window' && (
+                  <span className="liveness__gap">
+                    {' '}
+                    · {t('live.gap', { gap: fmtDur(evaluation.currentGapMs) })}
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <p className="muted routine-hero__desc" style={{ margin: '0.5rem 0' }}>
+            {t('routine.insights.desc')}
+          </p>
+
+          <div className="rhythm__progress" style={{ marginTop: '0.5rem' }}>
+            <div className="rhythm__bar">
+              <span
+                style={{
+                  width: `${Math.min(100, (learnedDays / config.learningDays) * 100)}%`,
+                }}
+              />
+            </div>
+            <p className="muted" style={{ margin: '0.25rem 0 0' }}>
+              {inLearning
+                ? t('routine.learn.progress', {
+                    n: learnedDays,
+                    total: config.learningDays,
+                  })
+                : t('routine.learn.done', { total: config.learningDays })}
             </p>
           </div>
         </div>
 
-        <p className="muted routine-hero__desc">{t('routine.insights.desc')}</p>
-
-        {hasData ? (
-          <>
-            <div className="rhythm">
-              <div
-                className="rhythm__grid"
-                role="img"
-                aria-label={t('routine.insights.title')}
-              >
-                {grid.map((row, ri) => {
-                  const date = new Date(dayStarts[ri])
-                  const isToday = ri === DAYS - 1
-                  return (
-                    <Fragment key={ri}>
-                      <span
-                        className={`rhythm__daylabel${isToday ? ' is-today' : ''}`}
-                        title={date.toLocaleDateString()}
-                      >
-                        {date.toLocaleDateString(undefined, {
-                          weekday: 'short',
+        <div className="routine-hero__right" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+          {hasData ? (
+            <>
+              <div className="rhythm">
+                <div
+                  className="rhythm__grid"
+                  role="img"
+                  aria-label={t('routine.insights.title')}
+                >
+                  {grid.map((row, ri) => {
+                    const date = new Date(dayStarts[ri])
+                    const isToday = ri === DAYS - 1
+                    return (
+                      <Fragment key={ri}>
+                        <span
+                          className={`rhythm__daylabel${isToday ? ' is-today' : ''}`}
+                          title={date.toLocaleDateString()}
+                        >
+                          {date.toLocaleDateString(undefined, {
+                            weekday: 'short',
+                          })}
+                        </span>
+                        {row.map((c, hi) => {
+                          const lvl = level(c, maxCell)
+                          return (
+                            <span
+                              key={hi}
+                              className={`rhythm__cell${lvl ? ` is-on l${lvl}` : ''}`}
+                              title={`${date.toLocaleDateString()} ${String(
+                                hi,
+                              ).padStart(2, '0')}:00 · ${c}`}
+                            />
+                          )
                         })}
-                      </span>
-                      {row.map((c, hi) => {
-                        const lvl = level(c, maxCell)
-                        return (
-                          <span
-                            key={hi}
-                            className={`rhythm__cell${lvl ? ` is-on l${lvl}` : ''}`}
-                            title={`${date.toLocaleDateString()} ${String(
-                              hi,
-                            ).padStart(2, '0')}:00 · ${c}`}
-                          />
-                        )
-                      })}
-                    </Fragment>
-                  )
-                })}
+                      </Fragment>
+                    )
+                  })}
+                </div>
+                <div className="rhythm__hours" aria-hidden>
+                  <span />
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <span key={h}>{h % 6 === 0 ? h : ''}</span>
+                  ))}
+                </div>
               </div>
-              <div className="rhythm__hours" aria-hidden>
-                <span />
-                {Array.from({ length: 24 }, (_, h) => (
-                  <span key={h}>{h % 6 === 0 ? h : ''}</span>
-                ))}
+
+              <div className="rhythm__legend" aria-hidden style={{ marginTop: '0.25rem' }}>
+                <span>{t('routine.insights.legend.less')}</span>
+                <i className="rhythm__cell" />
+                <i className="rhythm__cell is-on l1" />
+                <i className="rhythm__cell is-on l2" />
+                <i className="rhythm__cell is-on l3" />
+                <i className="rhythm__cell is-on l4" />
+                <span>{t('routine.insights.legend.more')}</span>
               </div>
-            </div>
-
-            <div className="rhythm__legend" aria-hidden>
-              <span>{t('routine.insights.legend.less')}</span>
-              <i className="rhythm__cell" />
-              <i className="rhythm__cell is-on l1" />
-              <i className="rhythm__cell is-on l2" />
-              <i className="rhythm__cell is-on l3" />
-              <i className="rhythm__cell is-on l4" />
-              <span>{t('routine.insights.legend.more')}</span>
-            </div>
-          </>
-        ) : (
-          <p className="muted">{t('routine.insights.empty')}</p>
-        )}
-
-        <div className="rhythm__progress">
-          <div className="rhythm__bar">
-            <span
-              style={{
-                width: `${Math.min(100, (learnedDays / config.learningDays) * 100)}%`,
-              }}
-            />
-          </div>
-          <p className="muted">
-            {inLearning
-              ? t('routine.learn.progress', {
-                  n: learnedDays,
-                  total: config.learningDays,
-                })
-              : t('routine.learn.done', { total: config.learningDays })}
-          </p>
+            </>
+          ) : (
+            <p className="muted">{t('routine.insights.empty')}</p>
+          )}
         </div>
       </section>
 
@@ -241,24 +271,18 @@ export function RoutineInsights() {
           </li>
           <li className="basis__row">
             <span>{t('routine.basis.threshold')}</span>
-            <strong>{fmtDur(evaluation?.thresholdMs)}</strong>
+            <strong>{activeThresholdDesc}</strong>
           </li>
           <li className="basis__row">
             <span>{t('routine.basis.baseline')}</span>
             <strong>
-              {baselineMs != null ? fmtDur(baselineMs) : t('routine.basis.na')}
+              {fmtDur(activeExpected)}
             </strong>
           </li>
           <li className="basis__row">
             <span>{t('routine.basis.sensitivity')}</span>
             <strong>
-              {t(`live.sens.${config.sensitivity}`)}{' '}
-              <em className="basis__sub">
-                {t('routine.basis.sensFormula', {
-                  mult: preset.multiplier,
-                  floor: preset.floorHours,
-                })}
-              </em>
+              {sensitivityDesc}
             </strong>
           </li>
           <li className="basis__row">

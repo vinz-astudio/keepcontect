@@ -1,6 +1,7 @@
 import { useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { toast } from '@/lib/toast'
 import { useI18n, LangToggle } from '@/lib/i18n'
+import { ThemeToggle } from '@/lib/theme'
 import { useAuth } from '@/features/auth/AuthProvider'
 import './TabBar.css'
 
@@ -170,7 +171,12 @@ export function TabBar({
       {/* 桌面端侧边栏 Sidenav (在小屏下通过 CSS 隐藏) */}
       <aside className="sidenav" aria-label="侧边导航">
         <div className="sidenav__brand">
-          <span className="sidenav__logo" aria-hidden>◉</span>
+          <span className="sidenav__logo" aria-hidden>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="4" fill="currentColor" />
+            </svg>
+          </span>
           <span className="sidenav__appname">Keep Contact</span>
         </div>
 
@@ -226,7 +232,8 @@ export function TabBar({
           <p className="sidenav__sos-hint">{t('sos.hold')}</p>
         </div>
 
-        <div className="sidenav__footer">
+        <div className="sidenav__footer" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <ThemeToggle className="sidenav__footbtn" />
           <LangToggle className="sidenav__footbtn" />
           <button className="sidenav__footbtn" onClick={() => void signOut()}>
             {t('header.signout')}

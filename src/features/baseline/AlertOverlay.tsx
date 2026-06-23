@@ -12,15 +12,17 @@ import { triggerPushDispatch } from '@/features/push/pushApi'
 import { getCurrentCoords } from '@/lib/geo'
 import { useI18n } from '@/lib/i18n'
 import { setServerPatternHash } from '@/features/baseline/settingsApi'
+import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
 import './AlertOverlay.css'
 
 export function AlertOverlay() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { evaluation, serverAlert, mode, alertHint, confirmSafe, closeOverlay } =
     useLivenessContext()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [sosSent, setSosSent] = useState(false)
+  const [refresh, setRefresh] = useState(0)
 
   // 真告警：本地引擎判 alert，或 服务器已开告警（沉默/暗设备；SOS 本人主动发的不弹）
   const serverNeedsConfirm =
@@ -109,6 +111,36 @@ export function AlertOverlay() {
       <div className="overlay__card">
         <h2 className="overlay__title">{title}</h2>
         <p className="overlay__sub">{sub}</p>
+        
+        {needSetup && (
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '8px', margin: '8px 0 16px 0', padding: '10px', background: 'var(--bg-soft)', borderRadius: 'var(--r-md)', border: '1px solid var(--line)', textAlign: 'left' }}>
+            <strong style={{ fontSize: '0.82rem', color: 'var(--fg)', display: 'block', marginBottom: '4px' }}>
+              {lang === 'zh' ? '开启本设备自动感知触发源' : 'Enable Active Sensors'}
+            </strong>
+            {getAvailableSensors().map((sensor) => {
+              const isEnabled = isSensorEnabled(sensor.key)
+              return (
+                <label key={sensor.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', fontSize: '0.78rem', cursor: sensor.supported ? 'pointer' : 'not-allowed', opacity: sensor.supported ? 1 : 0.4 }}>
+                  <input
+                    type="checkbox"
+                    checked={isEnabled && sensor.supported}
+                    disabled={!sensor.supported}
+                    style={{ marginTop: '2px' }}
+                    onChange={async (e) => {
+                      await setSensorEnabled(sensor.key, e.target.checked)
+                      setRefresh(r => r + 1)
+                    }}
+                  />
+                  <div>
+                    <span style={{ fontWeight: '600', display: 'block', color: 'var(--fg)' }}>{lang === 'zh' ? sensor.labelZh : sensor.labelEn}</span>
+                    <span style={{ display: 'block', fontSize: '0.7rem', opacity: 0.7, lineHeight: '1.2' }}>{lang === 'zh' ? sensor.descZh : sensor.descEn}</span>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+        )}
+
         <PatternLock
           onComplete={onComplete}
           hint={needSetup ? t('overlay.hint.setup') : t('overlay.hint.verify')}

@@ -49,6 +49,7 @@ import {
   type Invite,
 } from '@/features/invites/inviteLink'
 import { LangToggle, translate, useI18n } from '@/lib/i18n'
+import { ThemeToggle } from '@/lib/theme'
 import {
   ensurePushSubscription,
   triggerPushDispatch,
@@ -205,13 +206,17 @@ export function HomeScreen() {
 
       <div className="home__body">
         <header className="home__header">
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
             <span className="home__logo" aria-hidden>
-              ◉
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="4" fill="currentColor" />
+              </svg>
             </span>
             <span className="home__appname">Keep Contact</span>
           </div>
           <div className="home__headerbtns">
+            <ThemeToggle className="home__signout" />
             <LangToggle className="home__signout" />
             <button className="home__signout" onClick={() => void signOut()}>
               {t('header.signout')}

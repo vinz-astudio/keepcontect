@@ -65,19 +65,30 @@ function liveDevices(clients: GmClient[]): GmClient[] {
     (c) =>
       c.last_seen_at && now - new Date(c.last_seen_at).getTime() < RECENCY_MS,
   )
-  const installed: GmClient[] = []
+  
+  const nativeByPlatform = new Map<string, GmClient>()
   const webByBase = new Map<string, GmClient[]>()
+  
   for (const c of recent) {
-    if (platKind(c.platform) === 'web') {
-      const b = platBase(c.platform)
-      const arr = webByBase.get(b) ?? []
+    const kind = platKind(c.platform)
+    const base = platBase(c.platform)
+    
+    if (kind === 'web') {
+      const arr = webByBase.get(base) ?? []
       arr.push(c)
-      webByBase.set(b, arr)
+      webByBase.set(base, arr)
     } else {
-      installed.push(c)
+      // Installed app client (apk, app, pwa). 
+      // De-duplicate by keeping only the latest active client ID for this platform.
+      const platKey = c.platform || 'unknown'
+      const existing = nativeByPlatform.get(platKey)
+      if (!existing || new Date(c.last_seen_at!).getTime() > new Date(existing.last_seen_at!).getTime()) {
+        nativeByPlatform.set(platKey, c)
+      }
     }
   }
-  const out = [...installed]
+  
+  const out = Array.from(nativeByPlatform.values())
   for (const [, arr] of webByBase) {
     const latest = arr.reduce((a, b) =>
       new Date(a.last_seen_at!).getTime() >= new Date(b.last_seen_at!).getTime()
@@ -130,12 +141,10 @@ function renderDevicesList(clients: GmClient[], lang: string) {
   ))
 }
 
-/** 与群组看板同源:device_state 心跳 6h/24h + open 告警;心跳缺失时回退 last_seen */
+/** 与群组看板同源:device_state 心跳 6h/24h + open 告警 */
 function getStatus(r: UserRow): 'alert' | 'active' | 'quiet' | 'silent' | 'never' {
   if (r.alerted) return 'alert'
-  const ts = r.last_heartbeat_at
-    ? new Date(r.last_heartbeat_at).getTime()
-    : latestSeen(r.clients)
+  const ts = r.last_heartbeat_at ? new Date(r.last_heartbeat_at).getTime() : null
   if (!ts) return 'never'
   const diffH = (Date.now() - ts) / 3_600_000
   if (diffH < 6) return 'active'

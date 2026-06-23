@@ -87,12 +87,54 @@ async fn download_and_install(url: String) -> Result<(), String> {
     std::io::copy(&mut response.into_reader(), &mut file)
       .map_err(|e| e.to_string())?;
 
-    std::process::Command::new(installer_path)
-      .spawn()
-      .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    {
+      std::process::Command::new("powershell")
+        .args(&[
+          "-NoProfile",
+          "-WindowStyle", "Hidden",
+          "-Command",
+          &format!("Start-Process '{}'", installer_path.display())
+        ])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+      std::process::Command::new(installer_path)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    }
 
     std::process::exit(0);
   }).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn open_in_browser(url: String) -> Result<(), String> {
+  #[cfg(target_os = "windows")]
+  {
+    std::process::Command::new("cmd")
+      .args(&["/C", "start", "", &url])
+      .spawn()
+      .map_err(|e| e.to_string())?;
+  }
+  #[cfg(target_os = "macos")]
+  {
+    std::process::Command::new("open")
+      .arg(&url)
+      .spawn()
+      .map_err(|e| e.to_string())?;
+  }
+  #[cfg(target_os = "linux")]
+  {
+    std::process::Command::new("xdg-open")
+      .arg(&url)
+      .spawn()
+      .map_err(|e| e.to_string())?;
+  }
+  Ok(())
 }
 
 
@@ -167,7 +209,7 @@ pub fn run() {
         let _ = window.hide();
       }
     })
-    .invoke_handler(tauri::generate_handler![get_system_idle_time_ms, download_and_install])
+    .invoke_handler(tauri::generate_handler![get_system_idle_time_ms, download_and_install, open_in_browser])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
