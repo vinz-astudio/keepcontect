@@ -89,12 +89,17 @@ async fn download_and_install(url: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
+      let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
       std::process::Command::new("powershell")
         .args(&[
           "-NoProfile",
           "-WindowStyle", "Hidden",
           "-Command",
-          &format!("Start-Process '{}' -ArgumentList '/S'", installer_path.display())
+          &format!(
+            "Start-Sleep -Seconds 2; Start-Process '{}' -ArgumentList '/S' -Wait; Start-Process '{}'",
+            installer_path.display(),
+            current_exe.display()
+          )
         ])
         .spawn()
         .map_err(|e| e.to_string())?;

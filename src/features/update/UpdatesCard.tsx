@@ -90,7 +90,7 @@ export function UpdatesCard() {
           {lang === 'zh' ? '系统版本与更新' : 'Updates & Versions'}
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem' }}>
-          <span style={{ fontWeight: '700', color: 'var(--accent)' }}>v{APP_VERSION}</span>
+          <span style={{ fontWeight: '700', color: 'var(--accent)' }}>beta {APP_VERSION}</span>
           <span style={{ opacity: 0.6 }}>({getDeviceLabel()})</span>
         </div>
       </div>
