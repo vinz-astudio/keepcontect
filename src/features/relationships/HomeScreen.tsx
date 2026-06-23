@@ -15,6 +15,8 @@ import { listMyNotifications, raiseSos } from '@/features/alerts/api'
 import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import { setBadge } from '@/lib/badge'
 import { reportClient } from '@/lib/clientReport'
+import { GMScreen } from '@/features/gm/GMScreen'
+import { amIGm } from '@/features/gm/gmApi'
 import { toast } from '@/lib/toast'
 import { ToastHost } from '@/features/common/ToastHost'
 import {
@@ -83,6 +85,7 @@ export function HomeScreen() {
   const [notice, setNotice] = useState<string | null>(null)
   const [openBoard, setOpenBoard] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('home')
+  const [isGm, setIsGm] = useState(false)
   const [unread, setUnread] = useState(0)
   const [sosBusy, setSosBusy] = useState(false)
 
@@ -150,6 +153,7 @@ export function HomeScreen() {
   useEffect(() => {
     void ensurePushSubscription() // 已授权过的设备登录后静默续订推送
     void reportClient() // 上报客户端版本/平台(供运营查看)
+    void amIGm().then(setIsGm) // GM 才显示 GM 页
   }, [])
 
   useEffect(() => {
@@ -236,6 +240,8 @@ export function HomeScreen() {
       )}
 
       {tab === 'routine' && <RoutineSettings />}
+
+      {tab === 'gm' && <GMScreen />}
 
       {tab === 'profile' && (
         <>
@@ -503,6 +509,7 @@ export function HomeScreen() {
         onSos={() => void doSos()}
         sosBusy={sosBusy}
         alerts={unread}
+        isGm={isGm}
       />
     </div>
     </LivenessProvider>

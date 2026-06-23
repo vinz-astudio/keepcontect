@@ -3,9 +3,15 @@ import { toast } from '@/lib/toast'
 import { useI18n } from '@/lib/i18n'
 import './TabBar.css'
 
-export type Tab = 'home' | 'routine' | 'circles' | 'profile'
+export type Tab = 'home' | 'routine' | 'circles' | 'profile' | 'gm'
 
 const ICONS: Record<Tab, ReactNode> = {
+  gm: (
+    <>
+      <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
+      <path d="M9 12l2 2 4-4" />
+    </>
+  ),
   home: (
     <>
       <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -34,7 +40,7 @@ const ICONS: Record<Tab, ReactNode> = {
   ),
 }
 
-const TABS: Tab[] = ['home', 'routine', 'circles', 'profile']
+const BASE_TABS: Tab[] = ['home', 'routine', 'circles', 'profile']
 const HOLD_MS = 1400
 
 interface Props {
@@ -43,6 +49,7 @@ interface Props {
   onSos: () => void
   sosBusy?: boolean
   alerts?: number
+  isGm?: boolean
 }
 
 export function TabBar({
@@ -51,14 +58,16 @@ export function TabBar({
   onSos,
   sosBusy = false,
   alerts = 0,
+  isGm = false,
 }: Props) {
   const { t } = useI18n()
   const [hold, setHold] = useState(0)
   const rafRef = useRef<number | null>(null)
   const firedRef = useRef(false)
   const startedRef = useRef(false)
-  const left = TABS.slice(0, 2)
-  const right = TABS.slice(2)
+  const tabs: Tab[] = isGm ? [...BASE_TABS, 'gm'] : BASE_TABS
+  const left = tabs.slice(0, 2)
+  const right = tabs.slice(2)
 
   function stopRaf() {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)

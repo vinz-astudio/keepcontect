@@ -49,6 +49,7 @@ const NOTIF_KINDS = new Set([
   'task_declined',
   'test',
   'concern',
+  'update',
 ])
 
 /** 优先按 kind+params 本地化渲染；旧数据/未知 kind 回退 body */

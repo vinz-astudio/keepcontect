@@ -1,0 +1,82 @@
+.gm__list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.gm__item {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  padding: 0.6rem 0.75rem;
+}
+
+.gm__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.6rem;
+}
+
+.gm__name {
+  font-size: 0.95rem;
+}
+
+.gm__ver {
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+  font-family: ui-monospace, monospace;
+}
+
+.gm__seen {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--fg-muted);
+}
+
+.gm__actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.gm__actions button {
+  flex: 1;
+  min-width: 7rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--accent);
+  border: none;
+  border-radius: 0.55rem;
+  cursor: pointer;
+}
+
+.gm__actions button:last-child {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+}
+
+.gm__actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.gm__refresh {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  cursor: pointer;
+}

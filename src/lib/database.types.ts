@@ -554,6 +554,10 @@ export type Database = {
         Args: { _community: string; _name: string }
         Returns: undefined
       }
+      am_i_gm: { Args: never; Returns: boolean }
+      gm_list_clients: { Args: never; Returns: Json }
+      gm_nudge_update: { Args: { _target: string }; Returns: undefined }
+      gm_send_concern: { Args: { _target: string }; Returns: undefined }
       report_client: {
         Args: { _client_id: string; _platform: string; _version: string }
         Returns: undefined
