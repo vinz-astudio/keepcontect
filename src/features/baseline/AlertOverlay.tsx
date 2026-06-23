@@ -22,7 +22,7 @@ export function AlertOverlay() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [sosSent, setSosSent] = useState(false)
-  const [refresh, setRefresh] = useState(0)
+  const [_, setRefresh] = useState(0)
 
   // 真告警：本地引擎判 alert，或 服务器已开告警（沉默/暗设备；SOS 本人主动发的不弹）
   const serverNeedsConfirm =

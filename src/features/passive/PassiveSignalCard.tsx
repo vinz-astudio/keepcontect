@@ -8,7 +8,6 @@ import {
   pingUrl,
   shortcutImportUrl,
   summaryUrl,
-  type BehaviorPing,
 } from '@/features/passive/api'
 import { getDesktopOS, getPlatform, isTauri } from '@/lib/platform'
 import { buildWindowsHookCmd } from '@/features/passive/windowsHook'
@@ -20,7 +19,7 @@ import { toast } from '@/lib/toast'
 import { ScanSyncModal } from '@/features/auth/ScanSyncModal'
 import { fetchLatest, isNewer } from '@/features/update/versionCheck'
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
-import { configureNativePassivePing } from '@/features/passive/native'
+
 import './PassiveSignalCard.css'
 
 function downloadText(name: string, text: string): void {
@@ -62,7 +61,7 @@ export function PassiveSignalCard() {
   const [hookConsent, setHookConsent] = useState(false)
   const [autostart, setAutostart] = useState(false)
   const [hasAutostartSupport, setHasAutostartSupport] = useState(false)
-  const [sensorRefresh, setSensorRefresh] = useState(0)
+  const [_, setSensorRefresh] = useState(0)
 
   // Scan & Update check states
   const [isScanning, setIsScanning] = useState(false)
@@ -417,6 +416,8 @@ export function PassiveSignalCard() {
           <span style={{ opacity: 0.6 }}>({getDeviceLabel()})</span>
         </div>
       </div>
+
+      {error && <p className="home__error">{error}</p>}
 
       {/* 2. Unified Check Update Panel */}
       <div style={{ background: 'var(--bg-soft)', padding: '0.75rem 1rem', borderRadius: 'var(--r-md)', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--line)' }}>

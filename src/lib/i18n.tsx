@@ -810,12 +810,13 @@ export function useI18n(): I18nValue {
 }
 
 /** 语言切换按钮(中 ⇄ EN) */
-export function LangToggle({ className }: { className?: string }) {
+export function LangToggle({ className, style }: { className?: string; style?: React.CSSProperties }) {
   const { lang, setLang } = useI18n()
   return (
     <button
       type="button"
       className={className}
+      style={style}
       onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
       aria-label="Switch language"
     >

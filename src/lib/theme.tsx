@@ -51,7 +51,7 @@ export function useTheme() {
   return ctx
 }
 
-export function ThemeToggle({ className }: { className?: string }) {
+export function ThemeToggle({ className, style }: { className?: string; style?: React.CSSProperties }) {
   const { theme, setTheme } = useTheme()
   const { lang } = useI18n()
   return (
@@ -60,7 +60,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       className={className}
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       aria-label="Toggle theme"
-      style={{ cursor: 'pointer' }}
+      style={{ cursor: 'pointer', ...style }}
     >
       {theme === 'dark'
         ? lang === 'zh' ? '明亮' : 'Light'

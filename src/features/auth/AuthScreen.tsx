@@ -340,8 +340,8 @@ export function AuthScreen() {
     <div className="auth">
       <div className="auth__card">
         <div style={{ position: 'absolute', top: '1.25rem', right: '1.25rem', display: 'flex', gap: '0.6rem' }}>
-          <ThemeToggle className="auth__lang" style={{ position: 'static' } as any} />
-          <LangToggle className="auth__lang" style={{ position: 'static' } as any} />
+          <ThemeToggle className="auth__lang" style={{ position: 'static' }} />
+          <LangToggle className="auth__lang" style={{ position: 'static' }} />
         </div>
         <span className="auth__logo" aria-hidden style={{ display: 'block', margin: '0 auto 0.5rem', width: '48px', height: '48px' }}>
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

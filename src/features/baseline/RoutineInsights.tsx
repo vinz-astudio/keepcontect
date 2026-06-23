@@ -61,7 +61,7 @@ function level(count: number, max: number): number {
  * 全部在端上由本地行为时序(IndexedDB)计算,绝不上传——与"判断完全线下"一致。
  */
 export function RoutineInsights() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { evaluation, config, loading } = useLivenessContext()
   const [events, setEvents] = useState<SignalEvent[]>([])
 
