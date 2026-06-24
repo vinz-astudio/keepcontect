@@ -4,7 +4,6 @@ import {
   countTodayPings,
   getHeartbeatToken,
   lastPingAt,
-  listRecentPings,
   pingUrl,
   shortcutImportUrl,
   summaryUrl,
@@ -16,6 +15,7 @@ import { APP_VERSION, LATEST_URL } from '@/lib/version'
 import { Icon } from '@/features/common/Icon'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
+import { getAllSignals } from '@/features/signals/store'
 
 import './PassiveSignalCard.css'
 
@@ -104,7 +104,14 @@ export function PassiveSignalCard() {
       setToken(tok)
       if (tok) {
         localStorage.setItem('kc.passiveToken', tok)
-        const ps = await listRecentPings()
+        const localEvents = await getAllSignals()
+        const ps = localEvents.map((e) => ({
+          id: 0,
+          user_id: '',
+          kind: e.kind,
+          at: new Date(e.t).toISOString(),
+          created_at: new Date(e.t).toISOString(),
+        }))
         const c = countTodayPings(ps)
         const l = lastPingAt(ps)
         setTodayCount(c)
