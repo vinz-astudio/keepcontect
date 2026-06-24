@@ -69,13 +69,13 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
   )
 
   const status = live.evaluation?.status ?? null
-  const hbStatus: 'normal' | 'alert' = status === 'alert' ? 'alert' : 'normal'
+  const hbStatus: 'normal' | 'alert' = 'normal'
 
   const serverNeedsConfirm =
     serverAlert != null &&
     serverAlert.status === 'open' &&
     (serverAlert.cause === 'silence' || serverAlert.cause === 'dark_device')
-  const realAlert = serverNeedsConfirm || status === 'alert'
+  const realAlert = serverNeedsConfirm
 
   // 首次进入且本机还没设过手势：自动同步服务器，若无则弹出"设置手势"引导
   const promptedRef = useRef(false)

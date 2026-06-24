@@ -38,15 +38,25 @@ export async function recordSignal(
   })
   db.close()
 
-  // Also upload to Supabase if logged in
+  // Upload debounce: only upload to Supabase if at least 10 minutes have passed since last upload,
+  // except for manual checkins (which must be uploaded immediately).
   try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user?.id) {
-      await supabase.from('behavior_pings').insert({
-        user_id: session.user.id,
-        kind,
-        at: new Date(t).toISOString(),
-      })
+    const lastUploadStr = localStorage.getItem('kc.lastUploadT')
+    const lastUpload = lastUploadStr ? parseInt(lastUploadStr, 10) : 0
+    const DEBOUNCE_MS = 10 * 60 * 1000 // 10 minutes
+
+    if (kind === 'manual_checkin' || t - lastUpload >= DEBOUNCE_MS) {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.id) {
+        const { error } = await supabase.from('behavior_pings').insert({
+          user_id: session.user.id,
+          kind,
+          at: new Date(t).toISOString(),
+        })
+        if (!error) {
+          localStorage.setItem('kc.lastUploadT', String(t))
+        }
+      }
     }
   } catch (err) {
     console.error('Failed to upload signal to Supabase:', err)

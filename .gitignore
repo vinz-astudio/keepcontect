@@ -38,3 +38,4 @@ android/app/src/main/assets/capacitor.config.json
 .remember/
 supabase/.temp/
 
+.env*

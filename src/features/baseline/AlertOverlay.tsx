@@ -18,7 +18,7 @@ import './AlertOverlay.css'
 
 export function AlertOverlay() {
   const { t, lang } = useI18n()
-  const { evaluation, serverAlert, mode, alertHint, confirmSafe, closeOverlay } =
+  const { serverAlert, mode, alertHint, confirmSafe, closeOverlay } =
     useLivenessContext()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -30,7 +30,7 @@ export function AlertOverlay() {
     serverAlert != null &&
     serverAlert.status === 'open' &&
     (serverAlert.cause === 'silence' || serverAlert.cause === 'dark_device')
-  const realAlert = evaluation?.status === 'alert' || serverNeedsConfirm
+  const realAlert = serverNeedsConfirm
   // 从通知点进来时先乐观顶出解锁界面（alertHint），待 getMyOpenAlert 确认
   const showAsAlert = realAlert || alertHint
 

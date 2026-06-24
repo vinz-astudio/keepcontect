@@ -12,6 +12,7 @@ import {
   getInstalledAt,
 } from '@/features/baseline/configStore'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { getSleepWindow } from '@/features/baseline/settingsApi'
 import type {
   BaselineConfig,
   Evaluation,
@@ -19,7 +20,6 @@ import type {
 } from '@/features/baseline/types'
 
 const RETENTION_DAYS = 35
-const REEVAL_MS = 60_000
 
 interface LivenessState {
   evaluation: Evaluation | null
@@ -35,8 +35,12 @@ export function useLiveness(): LivenessState {
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
   const [config, setConfig] = useState<BaselineConfig>(getConfig())
   const [loading, setLoading] = useState(true)
+  const [_, setSleepWindow] = useState<{ start: string; end: string } | null>(null)
+  const sleepWindowRef = useRef<{ start: string; end: string } | null>(null)
+  const lastSleepFetchRef = useRef<number>(0)
   const eventsRef = useRef<SignalEvent[]>([])
   const lastSyncRef = useRef<number>(0)
+  const timerRef = useRef<number | null>(null)
 
   const auth = useAuth()
   const user = auth?.user
@@ -44,31 +48,132 @@ export function useLiveness(): LivenessState {
     ? new Date(user.created_at).getTime()
     : getInstalledAt()
 
+  const updateSleepWindow = useCallback((sw: { start: string; end: string } | null) => {
+    setSleepWindow(sw)
+    sleepWindowRef.current = sw
+  }, [])
+
+  const getExtendedConfig = useCallback((sleep: { start: string; end: string } | null) => {
+    const baseCfg = getConfig()
+    if (!sleep) return baseCfg
+
+    const quietWindows = [...baseCfg.quietWindows]
+    const parseHHMM = (hhmm: string) => {
+      const [h, m] = hhmm.split(':').map(Number)
+      return h * 60 + m
+    }
+    const startMin = parseHHMM(sleep.start)
+    const endMin = parseHHMM(sleep.end)
+    for (let dow = 0; dow < 7; dow++) {
+      quietWindows.push({
+        kind: 'recurring',
+        label: '睡眠',
+        dow,
+        startMin,
+        endMin,
+      })
+    }
+    return { ...baseCfg, quietWindows }
+  }, [])
+
   const recompute = useCallback(() => {
-    const cfg = getConfig()
-    setConfig(cfg)
+    const nextCfg = getExtendedConfig(sleepWindowRef.current)
+    setConfig(nextCfg)
     const effectiveInstalledAt = eventsRef.current.length > 0
       ? Math.max(installedAt, Math.min(...eventsRef.current.map((e) => e.t)))
       : installedAt
     setEvaluation(
-      evaluate(eventsRef.current, Date.now(), cfg, effectiveInstalledAt),
+      evaluate(eventsRef.current, Date.now(), nextCfg, effectiveInstalledAt),
     )
-  }, [installedAt])
+  }, [installedAt, getExtendedConfig])
 
   const reload = useCallback(async (forceSync = false) => {
-    if (user?.id && (forceSync || Date.now() - lastSyncRef.current > 60_000)) {
+    const isVisible = document.visibilityState === 'visible'
+    if (user?.id && (forceSync || (isVisible && Date.now() - lastSyncRef.current > 60_000))) {
       lastSyncRef.current = Date.now()
       await syncSignalsWithServer(user.id)
+    }
+    if (user?.id && (forceSync || !sleepWindowRef.current || (isVisible && Date.now() - lastSleepFetchRef.current > 300_000))) {
+      lastSleepFetchRef.current = Date.now()
+      const sw = await getSleepWindow().catch(() => null)
+      updateSleepWindow(sw)
     }
     eventsRef.current = await getAllSignals()
     recompute()
     setLoading(false)
-  }, [user?.id, recompute])
+  }, [user?.id, recompute, updateSleepWindow])
 
   const checkIn = useCallback(async () => {
     await recordSignal('manual_checkin')
     await reload()
   }, [reload])
+
+  useEffect(() => {
+    if (!user?.id) {
+      updateSleepWindow(null)
+      lastSleepFetchRef.current = 0
+    }
+  }, [user?.id, updateSleepWindow])
+
+  const reloadRef = useRef(reload)
+  useEffect(() => {
+    reloadRef.current = reload
+  }, [reload])
+
+  // Adaptive scheduler: recalculate next sync delay and reschedule timer
+  useEffect(() => {
+    if (loading) return
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+
+    // Only sync / recompute periodically when the page is active
+    if (document.visibilityState !== 'visible') return
+
+    let delay = 60_000 // 1 minute default fallback
+    if (evaluation) {
+      if (evaluation.status === 'safe_window') {
+        delay = 30 * 60 * 1000 // 30 minutes in sleep
+      } else {
+        const currentGapMs = evaluation.currentGapMs
+        const thresholdMs = evaluation.thresholdMs ?? (12 * 3600 * 1000)
+        const remainingMs = thresholdMs - currentGapMs
+
+        if (remainingMs <= 0) {
+          delay = 30_000 // 30 seconds
+        } else if (remainingMs > 30 * 60 * 1000) {
+          // Safe: wait until 30 minutes before threshold, up to max 1 hour
+          delay = Math.min(remainingMs - 30 * 60 * 1000, 60 * 60 * 1000)
+        } else {
+          // Near threshold: check every 5 minutes
+          delay = 5 * 60 * 1000
+        }
+      }
+    }
+
+    timerRef.current = window.setTimeout(() => {
+      void reloadRef.current()
+    }, delay)
+
+    return () => {
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [evaluation, loading])
+
+  // Listen to visibilitychange to instantly reschedule when foregrounded
+  useEffect(() => {
+    const handleVis = () => {
+      if (document.visibilityState === 'visible') {
+        void reloadRef.current(true)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVis)
+    return () => document.removeEventListener('visibilitychange', handleVis)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -87,15 +192,11 @@ export function useLiveness(): LivenessState {
         if (!cancelled) void reload()
       })
 
-    // 定时重算（即使无新事件，静默时长也在增长）
-    const timer = window.setInterval(recompute, REEVAL_MS)
-
     return () => {
       cancelled = true
       stop()
-      window.clearInterval(timer)
     }
-  }, [reload, recompute])
+  }, [reload])
 
   return { evaluation, config, loading, checkIn, reload }
 }
