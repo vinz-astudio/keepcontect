@@ -56,6 +56,8 @@ export function GroupBoard({ groupId }: { groupId: string }) {
 
   useEffect(() => {
     void load()
+    const timer = window.setInterval(() => void load(), 30_000)
+    return () => window.clearInterval(timer)
   }, [load])
 
   async function run(fn: () => Promise<unknown>) {

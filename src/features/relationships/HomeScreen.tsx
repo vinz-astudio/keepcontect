@@ -348,7 +348,7 @@ export function HomeScreen() {
 
           {isGm && (
             <div className={tab !== 'gm' ? 'home__tab-content--hidden' : ''}>
-              <GMScreen onBack={() => setTab('circles')} />
+              <GMScreen active={tab === 'gm'} onBack={() => setTab('circles')} />
             </div>
           )}
 

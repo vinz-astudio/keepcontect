@@ -144,10 +144,11 @@ function renderDevicesList(clients: GmClient[], lang: string) {
 }
 
 interface GMScreenProps {
+  active?: boolean
   onBack?: () => void
 }
 
-export function GMScreen({ onBack }: GMScreenProps) {
+export function GMScreen({ active = true, onBack }: GMScreenProps) {
   const { t, lang } = useI18n()
   const [rows, setRows] = useState<UserRow[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -217,8 +218,11 @@ export function GMScreen({ onBack }: GMScreenProps) {
   }, [])
 
   useEffect(() => {
+    if (!active) return
     void load()
-  }, [load])
+    const timer = window.setInterval(() => void load(), 30_000)
+    return () => window.clearInterval(timer)
+  }, [load, active])
 
   async function act(key: string, fn: () => Promise<void>, okMsg: string) {
     setBusy(key)
