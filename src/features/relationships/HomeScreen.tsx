@@ -331,8 +331,7 @@ export function HomeScreen() {
         <ApkUpgradeNotice />
 
         <main className="home__page">
-        {tab === 'home' && (
-          <div className="dashboard-grid">
+          <div className={`dashboard-grid ${tab !== 'home' ? 'home__tab-content--hidden' : ''}`}>
             <div className="dashboard-grid__col1">
               <SafeAwayBar />
               <NotificationsCard onChanged={refreshUnread} />
@@ -342,14 +341,18 @@ export function HomeScreen() {
               <CheckinTasksCard />
             </div>
           </div>
-        )}
 
-        {tab === 'routine' && <RoutineSettings />}
+          <div className={tab !== 'routine' ? 'home__tab-content--hidden' : ''}>
+            <RoutineSettings />
+          </div>
 
-        {tab === 'gm' && <GMScreen onBack={() => setTab('circles')} />}
+          {isGm && (
+            <div className={tab !== 'gm' ? 'home__tab-content--hidden' : ''}>
+              <GMScreen onBack={() => setTab('circles')} />
+            </div>
+          )}
 
-        {tab === 'profile' && (
-          <div className="profile-grid">
+          <div className={`profile-grid ${tab !== 'profile' ? 'home__tab-content--hidden' : ''}`}>
             <div className="profile-grid__col1">
               <section className="card">
                 <h2 className="card__title">
@@ -415,10 +418,8 @@ export function HomeScreen() {
               <PassiveSignalCard />
             </div>
           </div>
-        )}
 
-        {tab === 'circles' && (
-          <div className="circles-grid">
+          <div className={`circles-grid ${tab !== 'circles' ? 'home__tab-content--hidden' : ''}`}>
             <div className="circles-grid__col1">
               {isGm && (
                 <section className="card" style={{ border: '1px solid var(--accent-line)', background: 'var(--accent-soft)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -676,7 +677,6 @@ export function HomeScreen() {
               </section>
             </div>
           </div>
-        )}
         </main>
       </div>
 

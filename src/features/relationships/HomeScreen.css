@@ -504,3 +504,8 @@
 .sos:active {
   transform: scale(0.98);
 }
+
+.home__tab-content--hidden {
+  display: none !important;
+}
+
