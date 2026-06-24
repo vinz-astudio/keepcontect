@@ -416,22 +416,12 @@ export function HomeScreen() {
           </div>
         </header>
 
-        <div className="home__hello" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', padding: '0 1rem 0.25rem' }}>
-          <span style={{ color: 'var(--fg-muted)', fontSize: '0.9rem' }}>
+        <div className="home__hello">
+          <span className="home__hello-text">
             {t('home.hello')}
             {(user?.user_metadata?.display_name as string | undefined) ?? user?.email}
           </span>
-          <span style={{ 
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            padding: '2px 8px', 
-            fontSize: '0.75rem', 
-            fontWeight: '600', 
-            borderRadius: '9999px',
-            background: isGm ? 'var(--accent-soft)' : 'var(--bg-soft)',
-            color: isGm ? 'var(--accent)' : 'var(--fg-muted)',
-            border: isGm ? '1px solid var(--accent-line)' : '1px solid var(--line)'
-          }}>
+          <span className={`home__hello-badge ${isGm ? 'is-gm' : ''}`}>
             {isGm ? (lang === 'zh' ? '守护者 (GM)' : 'Caregiver (GM)') : (lang === 'zh' ? '被守护者' : 'Care Recipient')}
           </span>
         </div>
@@ -557,16 +547,18 @@ export function HomeScreen() {
                 ) : (
                   <ul className="list">
                     {communities.map((c) => (
-                      <li key={c.id} className="list__item">
-                        <EditableName
-                          value={c.name}
-                          canEdit={c.created_by === user?.id}
-                          onSave={async (next) => {
-                            await renameCommunity(c.id, next)
-                            await refresh()
-                          }}
-                        />
-                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <li key={c.id} className="list__item list__item--group">
+                        <div className="list__row1">
+                          <EditableName
+                            value={c.name}
+                            canEdit={c.created_by === user?.id}
+                            onSave={async (next) => {
+                              await renameCommunity(c.id, next)
+                              await refresh()
+                            }}
+                          />
+                        </div>
+                        <div className="list__row2" style={{ gap: '6px' }}>
                           <button
                             className="share"
                             onClick={() =>
@@ -655,51 +647,96 @@ export function HomeScreen() {
                               await refresh()
                             }}
                           />
-                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            className="leave"
+                            disabled={busy}
+                            onClick={() => run(() => leaveGroup(group.id))}
+                          >
+                            {t('group.leave')}
+                          </button>
+                        </div>
+
+                        <div className="list__row2" style={{ gap: '6px' }}>
+                          <button
+                            className="share"
+                            onClick={() =>
+                              void onShare(
+                                { kind: 'group', code: group.invite_code },
+                                group.name,
+                              )
+                            }
+                          >
+                            {t('share.invite')}
+                          </button>
+                          <button
+                            className="share"
+                            title={t('qr.show')}
+                            onClick={() => onShowQR({ kind: 'group', code: group.invite_code }, group.name)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <rect x="3" y="3" width="7" height="7"/>
+                              <rect x="14" y="3" width="7" height="7"/>
+                              <rect x="3" y="14" width="7" height="7"/>
+                              <rect x="14" y="14" width="3" height="3"/>
+                              <rect x="19" y="14" width="2" height="2"/>
+                              <rect x="14" y="19" width="2" height="2"/>
+                              <rect x="19" y="19" width="2" height="2"/>
+                            </svg>
+                            {t('qr.show')}
+                          </button>
+                          {group.created_by === user?.id && (
                             <button
-                              className="share"
-                              onClick={() =>
-                                void onShare(
-                                  { kind: 'group', code: group.invite_code },
-                                  group.name,
-                                )
-                              }
+                              className="leave"
+                              disabled={busy}
+                              onClick={() => {
+                                if (window.confirm(t('admin.delete.confirm.group'))) {
+                                  run(() => deleteGroup(group.id))
+                                }
+                              }}
                             >
-                              {t('share.invite')}
+                              {t('admin.delete')}
                             </button>
-                            <button
-                              className="share"
-                              title={t('qr.show')}
-                              onClick={() => onShowQR({ kind: 'group', code: group.invite_code }, group.name)}
-                              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <rect x="3" y="3" width="7" height="7"/>
-                                <rect x="14" y="3" width="7" height="7"/>
-                                <rect x="3" y="14" width="7" height="7"/>
-                                <rect x="14" y="14" width="3" height="3"/>
-                                <rect x="19" y="14" width="2" height="2"/>
-                                <rect x="14" y="19" width="2" height="2"/>
-                                <rect x="19" y="19" width="2" height="2"/>
-                              </svg>
-                              {t('qr.show')}
-                            </button>
+                          )}
+                        </div>
+
+                        <div className="list__row2" style={{ marginTop: '2px', justifyContent: 'space-between', width: '100%' }}>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span className="role">{role === 'admin' ? t('group.admin') : ''}</span>
                             {group.created_by === user?.id && (
-                              <button
-                                className="leave"
-                                disabled={busy}
-                                onClick={() => {
-                                  if (window.confirm(t('admin.delete.confirm.group'))) {
-                                    run(() => deleteGroup(group.id))
+                              <label className="toggle" style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                {t('group.community')}
+                                <select
+                                  value={group.community_id ?? ''}
+                                  disabled={busy}
+                                  onChange={(e) =>
+                                    run(() =>
+                                      setGroupCommunity(group.id, e.target.value || null),
+                                    )
                                   }
-                                }}
-                              >
-                                {t('admin.delete')}
-                              </button>
+                                >
+                                  <option value="">{t('group.standalone')}</option>
+                                  {communities.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
                             )}
                           </div>
+                          <button
+                            className="share"
+                            disabled={busy}
+                            onClick={() =>
+                              setOpenBoard(openBoard === group.id ? null : group.id)
+                            }
+                          >
+                            {openBoard === group.id ? t('board.hide') : t('board.show')}
+                          </button>
                         </div>
-                        <div className="list__row2">
+
+                        <div className="list__row2" style={{ marginTop: '6px', borderTop: '1px dashed var(--line)', paddingTop: '6px', gap: '1rem', width: '100%' }}>
                           <label className="toggle">
                             <input
                               type="checkbox"
@@ -730,44 +767,6 @@ export function HomeScreen() {
                             />
                             {t('group.watching')}
                           </label>
-                          {group.created_by === user?.id && (
-                            <label className="toggle">
-                              {t('group.community')}
-                              <select
-                                value={group.community_id ?? ''}
-                                disabled={busy}
-                                onChange={(e) =>
-                                  run(() =>
-                                    setGroupCommunity(group.id, e.target.value || null),
-                                  )
-                                }
-                              >
-                                <option value="">{t('group.standalone')}</option>
-                                {communities.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          )}
-                          <span className="role">{role === 'admin' ? t('group.admin') : ''}</span>
-                          <button
-                            className="share"
-                            disabled={busy}
-                            onClick={() =>
-                              setOpenBoard(openBoard === group.id ? null : group.id)
-                            }
-                          >
-                            {openBoard === group.id ? t('board.hide') : t('board.show')}
-                          </button>
-                          <button
-                            className="leave"
-                            disabled={busy}
-                            onClick={() => run(() => leaveGroup(group.id))}
-                          >
-                            {t('group.leave')}
-                          </button>
                         </div>
                         {openBoard === group.id && <GroupBoard groupId={group.id} />}
                       </li>

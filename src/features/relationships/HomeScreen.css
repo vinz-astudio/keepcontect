@@ -70,15 +70,27 @@
   }
 
   .home__hello {
+    padding: 1.8rem 2rem 0.5rem;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .home__hello-text {
     font-size: 1.5rem;
     font-family: var(--font-display);
     font-weight: 600;
     line-height: 1;           /* removes default line-height gap above glyphs */
     color: var(--fg);
-    padding: 1.8rem 2rem 0.5rem;
-    max-width: 1200px;
-    width: 100%;
-    margin: 0 auto;
+  }
+
+  .home__hello-badge {
+    padding: 4px 10px;
+    font-size: 0.8rem;
   }
 
   /* grids on desktop */
@@ -172,8 +184,33 @@
 .home__hello {
   margin: 0;
   padding: 0 1rem 0.25rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.home__hello-text {
   color: var(--fg-muted);
   font-size: 0.9rem;
+}
+
+.home__hello-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: var(--bg-soft);
+  color: var(--fg-muted);
+  border: 1px solid var(--line);
+}
+
+.home__hello-badge.is-gm {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
 }
 
 .home__error {
