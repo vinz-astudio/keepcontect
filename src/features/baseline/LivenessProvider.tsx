@@ -120,13 +120,35 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     void syncPattern()
   }, [])
 
+  const reloadRef = useRef(live.reload)
+  const statusRef = useRef(status)
+  const serverAlertRef = useRef(serverAlert)
+
+  useEffect(() => {
+    reloadRef.current = live.reload
+  }, [live.reload])
+
+  useEffect(() => {
+    statusRef.current = status
+  }, [status])
+
+  useEffect(() => {
+    serverAlertRef.current = serverAlert
+  }, [serverAlert])
+
   const refreshAlert = useCallback(async () => {
     try {
       const a = await getMyOpenAlert()
+      const prevAlert = serverAlertRef.current
       setServerAlert(a)
       // 记下权威状态供下次启动乐观显示；并收起本次乐观遮罩（有则 realAlert 接手）
       localStorage.setItem('kc.openAlert', a ? '1' : '0')
       setAlertHint(false)
+
+      if (!a && (prevAlert || statusRef.current === 'alert')) {
+        // 强制进行服务器信号同步，清除本地的“异常沉默”告警状态
+        await reloadRef.current(true)
+      }
     } catch {
       /* 离线/未登录时忽略；保留 alertHint 宁可多弹也不漏 */
     }

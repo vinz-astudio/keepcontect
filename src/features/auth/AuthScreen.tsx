@@ -117,11 +117,22 @@ export function AuthScreen() {
     })
     
     channel.on('broadcast', { event: 'sync' }, async (payload: any) => {
-      const { access_token, refresh_token } = payload.payload
+      const { email, otp, access_token, refresh_token } = payload.payload
       setNotice(t('auth.scan2sync.success'))
-      const { error } = await supabase.auth.setSession({ access_token, refresh_token })
-      if (error) {
-        setError(error.message)
+      
+      let result
+      if (email && otp) {
+        result = await supabase.auth.verifyOtp({
+          email,
+          token: otp,
+          type: 'magiclink'
+        })
+      } else {
+        result = await supabase.auth.setSession({ access_token, refresh_token })
+      }
+
+      if (result.error) {
+        setError(result.error.message)
         setNotice(null)
       } else {
         setNotice(null)

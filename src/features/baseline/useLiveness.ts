@@ -28,7 +28,7 @@ interface LivenessState {
   /** 手动"我没事"打卡，记一次 manual_checkin 并立即重算 */
   checkIn: () => Promise<void>
   /** 配置变更后重新加载（灵敏度/安静窗） */
-  reload: () => Promise<void>
+  reload: (forceSync?: boolean) => Promise<void>
 }
 
 export function useLiveness(): LivenessState {
@@ -55,8 +55,8 @@ export function useLiveness(): LivenessState {
     )
   }, [installedAt])
 
-  const reload = useCallback(async () => {
-    if (user?.id && Date.now() - lastSyncRef.current > 60_000) {
+  const reload = useCallback(async (forceSync = false) => {
+    if (user?.id && (forceSync || Date.now() - lastSyncRef.current > 60_000)) {
       lastSyncRef.current = Date.now()
       await syncSignalsWithServer(user.id)
     }

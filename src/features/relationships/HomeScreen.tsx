@@ -98,6 +98,26 @@ export function HomeScreen() {
         toast(t('err.load'), 'danger')
         return
       }
+
+      let payload: any = {
+        access_token: session.access_token,
+        refresh_token: session.refresh_token
+      }
+
+      try {
+        const { data: funcData, error: funcError } = await supabase.functions.invoke('sync-auth')
+        if (funcError) {
+          console.warn('Edge function sync-auth failed, falling back to legacy token sync:', funcError)
+        } else if (funcData && funcData.email && funcData.otp) {
+          payload = {
+            email: funcData.email,
+            otp: funcData.otp
+          }
+        }
+      } catch (err) {
+        console.warn('Edge function sync-auth failed, falling back to legacy token sync:', err)
+      }
+
       const channel = supabase.channel(`scan2sync:${targetToken}`, {
         config: { broadcast: { self: false } }
       })
@@ -106,10 +126,7 @@ export function HomeScreen() {
           await channel.send({
             type: 'broadcast',
             event: 'sync',
-            payload: {
-              access_token: session.access_token,
-              refresh_token: session.refresh_token
-            }
+            payload
           })
           toast(t('profile.scan.success'), 'ok')
           setTimeout(() => {
