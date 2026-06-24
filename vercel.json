@@ -29,6 +29,6 @@
     }
   ],
   "rewrites": [
-    { "source": "/((?!assets/|icons/|sw.js|manifest.webmanifest|version.json).*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|icons/|sw.js|manifest.webmanifest|version.json|.*\\.apk$|.*\\.exe$|.*\\.msi$).*)", "destination": "/index.html" }
   ]
 }
