@@ -348,20 +348,11 @@ export function RoutineInsights() {
 
         <ul className="basis">
           <li className="basis__row">
-            <span>{t('routine.basis.baseline')}</span>
-            <strong>{fmtDur(activeExpected)}</strong>
-          </li>
-          <li className="basis__row">
             <span>{t('routine.basis.sensitivity')}</span>
             <strong>{sensitivityDesc}</strong>
           </li>
         </ul>
 
-        <p className="basis__note">
-          {t('routine.basis.thresholdHint')}
-          {inLearning &&
-            ` · ${t('routine.basis.learning', { h: config.coldStartGapHours })}`}
-        </p>
         <p className="basis__tune">{t('routine.basis.tune')}</p>
       </section>
     </>
