@@ -467,9 +467,9 @@ export function HomeScreen() {
             <div className="profile-grid__col1">
               <ProfileSection setIsScanning={setIsScanning} />
               <EmergencyInfoCard />
-              <UpdatesCard />
             </div>
             <div className="profile-grid__col2">
+              <UpdatesCard />
               <PassiveSignalCard />
             </div>
           </div>

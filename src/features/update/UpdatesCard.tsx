@@ -7,7 +7,7 @@ import { Icon } from '@/features/common/Icon'
 import { fetchLatest, isNewer } from '@/features/update/versionCheck'
 
 export function UpdatesCard() {
-  const { t, lang } = useI18n()
+  const { lang } = useI18n()
   const [updBusy, setUpdBusy] = useState(false)
   const [updStatus, setUpdStatus] = useState<'idle' | 'checking' | 'checked'>('idle')
   const [hasNewUpdate, setHasNewUpdate] = useState(false)
@@ -108,72 +108,99 @@ export function UpdatesCard() {
     }
   }
 
-  return (
-    <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 className="card__title" style={{ margin: 0 }}>
-          <Icon name="signal" />
-          {lang === 'zh' ? '系统版本与更新' : 'Updates & Versions'}
-        </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem' }}>
-          <span style={{ fontWeight: '700', color: 'var(--accent)' }}>beta {APP_VERSION}</span>
-          <span style={{ opacity: 0.6 }}>({getDeviceLabel()})</span>
-        </div>
-      </div>
 
-      <div style={{ background: 'var(--bg-soft)', padding: '0.75rem 1rem', borderRadius: 'var(--r-md)', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--line)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <span style={{ fontSize: '0.88rem', fontWeight: '600' }}>
-            {lang === 'zh' ? '检测最新版本与固件' : 'Check for System Updates'}
+  return (
+    <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      {/* Title: "Version · x.x.x" */}
+      <h2 className="card__title" style={{ margin: 0 }}>
+        <Icon name="signal" />
+        {lang === 'zh' ? `版本 · ${APP_VERSION}` : `Version · ${APP_VERSION}`}
+      </h2>
+
+      {/* Single content row */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        background: 'var(--bg-soft)',
+        border: '1px solid var(--line)',
+        borderRadius: 'var(--r-md)',
+        padding: '10px 14px',
+      }}>
+        {/* Left: device type + current version */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+          <span style={{ fontWeight: '600', fontSize: '0.88rem', color: 'var(--fg)' }}>
+            {getDeviceLabel()}
           </span>
-          {updStatus === 'idle' && (
-            <button className="share" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={() => void handleCheckUpdate()}>
-              {t('update.check')}
+          <span style={{ fontSize: '0.75rem', color: 'var(--fg-muted)' }}>
+            {`v${APP_VERSION}`}
+            {hasNewUpdate && updStatus === 'checked' && (
+              <span style={{ marginLeft: '6px', color: 'var(--accent)', fontWeight: '600' }}>
+                {' '}→{' '}v{newVersion}
+              </span>
+            )}
+          </span>
+        </div>
+
+        {/* Right: contextual button */}
+        <div style={{ flexShrink: 0 }}>
+          {progress !== null ? (
+            /* Downloading – show inline progress bar */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '120px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', opacity: 0.85 }}>
+                <span>
+                  {progress >= 100
+                    ? (lang === 'zh' ? '准备安装…' : 'Installing…')
+                    : (lang === 'zh' ? '下载中…' : 'Downloading…')}
+                </span>
+                <span>{progress}%</span>
+              </div>
+              <div style={{ width: '100%', height: '5px', backgroundColor: 'var(--line)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--accent)', transition: 'width 0.1s ease-out' }} />
+              </div>
+            </div>
+          ) : updStatus === 'checking' ? (
+            /* Checking – disabled spinner label */
+            <button className="share" style={{ padding: '5px 14px', fontSize: '0.8rem', opacity: 0.6 }} disabled>
+              {lang === 'zh' ? '检查中…' : 'Checking…'}
+            </button>
+          ) : updStatus === 'checked' && !hasNewUpdate ? (
+            /* Up to date – grey, non-interactive */
+            <button
+              className="share"
+              style={{ padding: '5px 14px', fontSize: '0.8rem', opacity: 0.4, cursor: 'default', pointerEvents: 'none' }}
+              disabled
+            >
+              {lang === 'zh' ? '已是最新版本' : 'Up to date'}
+            </button>
+          ) : updStatus === 'checked' && hasNewUpdate ? (
+            /* Update available – coloured & active */
+            <button
+              className="share"
+              style={{ padding: '5px 14px', fontSize: '0.8rem', background: 'var(--accent)', color: 'var(--bg)', fontWeight: '700', border: 'none' }}
+              disabled={updBusy}
+              onClick={() => void handleTriggerUpdate()}
+            >
+              {updBusy
+                ? (lang === 'zh' ? '安装中…' : 'Installing…')
+                : (isTauri()
+                  ? (lang === 'zh' ? '立即更新' : 'Update')
+                  : (lang === 'zh' ? '下载更新' : 'Download'))}
+            </button>
+          ) : (
+            /* Idle – tap to check */
+            <button
+              className="share"
+              style={{ padding: '5px 14px', fontSize: '0.8rem' }}
+              onClick={() => void handleCheckUpdate()}
+            >
+              {lang === 'zh' ? '检查更新' : 'Check'}
             </button>
           )}
-          {updStatus === 'checking' && (
-            <span className="psig__status-text" style={{ fontSize: '0.82rem', opacity: 0.7 }}>{t('update.checking')}</span>
-          )}
-          {updStatus === 'checked' && !hasNewUpdate && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className="psig__status-text psig__status-text--ok" style={{ fontSize: '0.82rem', color: 'var(--ok)', fontWeight: '600' }}>✓ {t('update.latest')}</span>
-              <button className="share" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={() => void handleCheckUpdate()}>
-                {lang === 'zh' ? '重新检测' : 'Re-check'}
-              </button>
-            </div>
-          )}
         </div>
-        
-        {updStatus === 'checked' && hasNewUpdate && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px dashed var(--line)', paddingTop: '8px', marginTop: '4px' }}>
-            <p className="psig__status-text psig__status-text--warn" style={{ fontSize: '0.82rem', color: 'var(--warning)', fontWeight: '600', margin: 0 }}>
-              {t('update.found').replace('{v}', newVersion)}
-            </p>
-            {progress !== null ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', marginTop: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', opacity: 0.9 }}>
-                  <span>{progress >= 100 ? (lang === 'zh' ? '正在准备安装...' : 'Preparing installation...') : (lang === 'zh' ? '正在下载更新...' : 'Downloading update...')}</span>
-                  <span>{progress}%</span>
-                </div>
-                <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--line)', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--accent)', transition: 'width 0.1s ease-out' }} />
-                </div>
-              </div>
-            ) : (
-              <button 
-                className="share" 
-                style={{ width: '100%', padding: '8px', background: 'var(--accent)', color: 'var(--bg)' }}
-                disabled={updBusy}
-                onClick={() => void handleTriggerUpdate()}
-              >
-                {updBusy 
-                  ? (lang === 'zh' ? '正在安装...' : 'Installing...') 
-                  : (isTauri() ? (lang === 'zh' ? '立即更新安装' : 'Update & Install') : (lang === 'zh' ? '下载新版本' : 'Download Update'))}
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </section>
   )
 }
+

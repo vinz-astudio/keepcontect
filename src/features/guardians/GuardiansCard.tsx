@@ -6,7 +6,7 @@ import {
   revokeGuardianship,
   type GuardianLink,
 } from '@/features/guardians/api'
-import { parseInviteText, shareInvite } from '@/features/invites/inviteLink'
+import { buildInviteUrl, shareInvite } from '@/features/invites/inviteLink'
 import {
   createTaskForWard,
   listTasksISet,
@@ -18,6 +18,9 @@ import {
 import { useAuth } from '@/features/auth/AuthProvider'
 import { translate, useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
+import { ScanSyncModal } from '@/features/auth/ScanSyncModal'
+import { QRModal } from '@/features/relationships/QRModal'
+import { toast } from '@/lib/toast'
 
 export function GuardiansCard() {
   const { t } = useI18n()
@@ -29,11 +32,12 @@ export function GuardiansCard() {
   const [myCode, setMyCode] = useState<string>('')
   const [links, setLinks] = useState<GuardianLink[]>([])
   const [tasksISet, setTasksISet] = useState<CheckinTask[]>([])
-  const [code, setCode] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [isScanning, setIsScanning] = useState(false)
+  const [showQR, setShowQR] = useState(false)
   // 给 ward 设任务的内联表单(同一时刻只展开一个 ward 的)
   const [formWard, setFormWard] = useState<string | null>(null)
   const [formMode, setFormMode] = useState<'daily' | 'interval'>('daily')
@@ -111,6 +115,7 @@ export function GuardiansCard() {
         <p className="muted">{t('home.loading')}</p>
       ) : (
         <>
+          {/* Share invite + QR */}
           <div className="row">
             <button
               className="share"
@@ -125,27 +130,56 @@ export function GuardiansCard() {
             >
               {t('guard.invite')}
             </button>
-          </div>
-
-          <div className="row">
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder={t('guard.ph')}
-            />
             <button
-              disabled={busy || !code.trim()}
-              onClick={() =>
-                run(async () => {
-                  const inv = parseInviteText(code)
-                  await becomeGuardianByCode(inv?.kind === 'guardian' ? inv.code : code)
-                  setCode('')
-                })
-              }
+              className="share"
+              title={t('qr.show')}
+              onClick={() => setShowQR(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
             >
-              {t('guard.confirm')}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+                <rect x="14" y="14" width="3" height="3"/>
+                <rect x="19" y="14" width="2" height="2"/>
+                <rect x="14" y="19" width="2" height="2"/>
+                <rect x="19" y="19" width="2" height="2"/>
+              </svg>
+              {t('qr.show')}
             </button>
           </div>
+
+          {/* Scan to become a guardian */}
+          <button
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              background: 'var(--bg-soft)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r-md)',
+              cursor: 'pointer',
+              color: 'var(--fg)',
+              transition: 'all 0.2s ease',
+              marginTop: '0.25rem',
+            }}
+            onClick={() => setIsScanning(true)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)' }}>
+                <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+                <path d="M7 12h10M12 7v10" />
+              </svg>
+              <span style={{ fontWeight: '600', fontSize: '0.88rem' }}>
+                {t('guard.scanToBecome')}
+              </span>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ opacity: 0.5 }}>
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
 
           {error && <p className="home__error">{error}</p>}
           {notice && <p className="ei__saved">{notice}</p>}
@@ -334,6 +368,44 @@ export function GuardiansCard() {
             </>
           )}
         </>
+      )}
+
+      {isScanning && (
+        <ScanSyncModal
+          onClose={() => setIsScanning(false)}
+          onScan={async (data) => {
+            setIsScanning(false)
+            // Parse invite link from QR
+            let code = data
+            try {
+              const url = new URL(data)
+              const raw = url.searchParams.get('invite')
+              if (raw) {
+                const dot = raw.indexOf('.')
+                const kind = raw.slice(0, dot)
+                const c = decodeURIComponent(raw.slice(dot + 1))
+                if (kind === 'guardian' && c) code = c
+                else {
+                  toast(t('invite.invalid'), 'danger')
+                  return
+                }
+              }
+            } catch {
+              // not a URL, use raw
+            }
+            run(async () => {
+              await becomeGuardianByCode(code)
+              setNotice(t('invite.joined.guardian'))
+            })
+          }}
+        />
+      )}
+      {showQR && myCode && (
+        <QRModal
+          url={buildInviteUrl('guardian', myCode)}
+          title={t('guard.title')}
+          onClose={() => setShowQR(false)}
+        />
       )}
     </section>
   )
