@@ -355,10 +355,6 @@ export function RoutineInsights() {
             <span>{t('routine.basis.sensitivity')}</span>
             <strong>{sensitivityDesc}</strong>
           </li>
-          <li className="basis__row">
-            <span>{t('routine.basis.samples')}</span>
-            <strong>{t('routine.basis.sampleN', { n: events.length })}</strong>
-          </li>
         </ul>
 
         <p className="basis__note">
