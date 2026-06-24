@@ -22,12 +22,13 @@ import { LangToggle, useI18n } from '@/lib/i18n'
 import { ThemeToggle } from '@/lib/theme'
 import './AuthScreen.css'
 
-import { APP_VERSION } from '@/lib/version'
+import { APP_VERSION, LATEST_URL } from '@/lib/version'
 
 type Mode = 'signin' | 'signup'
 type SocialProvider = 'google' | 'apple' | 'facebook'
 
-const BUILD_TAG = `v${APP_VERSION}`
+const isIterationUrl = LATEST_URL.includes('iteration') || (typeof window !== 'undefined' && window.location.hostname.includes('keep-contact-git-iteration'))
+const BUILD_TAG = isIterationUrl ? `v${APP_VERSION} (Iteration)` : `v${APP_VERSION}`
 
 /** 网络探针：fetch 与 XHR 双通道分别测 */
 async function probeNetwork(): Promise<string> {

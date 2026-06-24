@@ -196,8 +196,8 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
         if (c.alerted) r.alerted = true
 
         // Use server-computed status (based on behavior_pings, matching process_escalations)
-        if (c.status && (!r.status || c.status === 'alert')) {
-          r.status = (c.status as UserRow['status']) ?? 'never'
+        if (c.status) {
+          r.status = c.status as UserRow['status']
         }
 
         map.set(c.user_id, r)

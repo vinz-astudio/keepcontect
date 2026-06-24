@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { isTauri, getPlatform } from '@/lib/platform'
-import { APP_VERSION } from '@/lib/version'
+import { APP_VERSION, LATEST_URL } from '@/lib/version'
 import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import { fetchLatest, isNewer } from '@/features/update/versionCheck'
@@ -19,10 +19,11 @@ export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
   const [updateUrls, setUpdateUrls] = useState<{ apkUrl?: string; exeUrl?: string }>({})
   const [progress, setProgress] = useState<number | null>(null)
 
-  const isIterationUrl = typeof window !== 'undefined' && 
-    (window.location.hostname.includes('keep-contact-git-iteration') || 
-     window.location.hostname.includes('localhost') || 
-     window.location.hostname.includes('127.0.0.1'))
+  const isIterationUrl = 
+    LATEST_URL.includes('iteration') || 
+    (typeof window !== 'undefined' && window.location.hostname.includes('keep-contact-git-iteration'))
+
+  const displayVersion = isIterationUrl ? `${APP_VERSION} (Iteration)` : APP_VERSION
 
   const iterationBaseUrl = 'https://keep-contact-git-iteration-vinzastudio-3665s-projects.vercel.app'
 
@@ -125,7 +126,7 @@ export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
       {/* Title: "Version · x.x.x" */}
       <h2 className="card__title" style={{ margin: 0 }}>
         <Icon name="signal" />
-        {lang === 'zh' ? `版本 · ${APP_VERSION}` : `Version · ${APP_VERSION}`}
+        {lang === 'zh' ? `版本 · ${displayVersion}` : `Version · ${displayVersion}`}
       </h2>
 
       {/* Single content row */}
@@ -145,7 +146,7 @@ export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
             {getDeviceLabel()}
           </span>
           <span style={{ fontSize: '0.75rem', color: 'var(--fg-muted)' }}>
-            {`v${APP_VERSION}`}
+            {`v${displayVersion}`}
             {hasNewUpdate && updStatus === 'checked' && (
               <span style={{ marginLeft: '6px', color: 'var(--accent)', fontWeight: '600' }}>
                 {' '}→{' '}v{newVersion}
