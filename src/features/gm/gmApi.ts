@@ -7,13 +7,15 @@ export interface GmClient {
   app_version: string | null
   first_seen_at?: string | null
   last_seen_at: string | null
-  /** 真实存活信号(device_state),与群组看板同源;缺失时回退 last_seen_at */
+  /** 设备心跳时间(device_state) — 包含 app 保活心跳，不代表真实行为 */
   last_heartbeat_at?: string | null
+  /** 最后一次真实行为信号时间(behavior_pings) — 与 silence 检测同源 */
+  last_behavior_at?: string | null
   /** 是否有已升级到 group+ 的 open 告警 */
   alerted?: boolean
   /** 网页会话折叠后代表的会话数(仅 *-web 折叠时 >1) */
   web_count?: number
-  /** 真实存活信号状态 */
+  /** 基于 behavior_pings 的存活状态(与 process_escalations 同源) */
   status?: string | null
 }
 

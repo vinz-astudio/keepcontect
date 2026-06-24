@@ -17,11 +17,13 @@ interface UserRow {
   user_id: string
   name: string
   clients: GmClient[]
-  /** 真实存活信号(device_state),与群组看板同源 */
+  /** 设备心跳时间(device_state) — 仅作参考 */
   last_heartbeat_at: string | null
+  /** 最后真实行为信号时间(behavior_pings) — 与 silence 检测同源 */
+  last_behavior_at: string | null
   /** 是否有 group+ open 告警 */
   alerted: boolean
-  /** 统一活跃状态 */
+  /** 基于 behavior_pings 的统一状态，与 process_escalations 保持一致 */
   status: 'alert' | 'active' | 'quiet' | 'silent' | 'never'
 }
 
@@ -173,42 +175,32 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
             name: c.name,
             clients: [] as GmClient[],
             last_heartbeat_at: null,
+            last_behavior_at: null,
             alerted: false,
-            status: 'never',
+            status: 'never' as const,
           }
         if (c.platform || c.app_version) r.clients.push(c)
-        
+
+        // Track latest device heartbeat (informational only)
         const hb = c.last_heartbeat_at || c.last_seen_at
-        if (
-          hb &&
-          (!r.last_heartbeat_at || hb > r.last_heartbeat_at)
-        ) {
+        if (hb && (!r.last_heartbeat_at || hb > r.last_heartbeat_at)) {
           r.last_heartbeat_at = hb
         }
-        
-        if (c.alerted) r.alerted = true
-        map.set(c.user_id, r)
-      }
 
-      // Compute unified status for each user
-      for (const r of map.values()) {
-        if (r.alerted) {
-          r.status = 'alert'
-        } else {
-          const ts = r.last_heartbeat_at ? new Date(r.last_heartbeat_at).getTime() : null
-          if (!ts) {
-            r.status = 'never'
-          } else {
-            const diffH = (Date.now() - ts) / 3_600_000
-            if (diffH < 6) {
-              r.status = 'active'
-            } else if (diffH < 24) {
-              r.status = 'quiet'
-            } else {
-              r.status = 'silent'
-            }
-          }
+        // Track latest behavior ping — this is the source of truth for silence detection
+        const bp = c.last_behavior_at
+        if (bp && (!r.last_behavior_at || bp > r.last_behavior_at)) {
+          r.last_behavior_at = bp
         }
+
+        if (c.alerted) r.alerted = true
+
+        // Use server-computed status (based on behavior_pings, matching process_escalations)
+        if (c.status && (!r.status || c.status === 'alert')) {
+          r.status = (c.status as UserRow['status']) ?? 'never'
+        }
+
+        map.set(c.user_id, r)
       }
 
       setRows([...map.values()])
@@ -308,10 +300,11 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
       return a.name.localeCompare(b.name)
     }
     if (sortBy === 'seen') {
+      // Sort by last real behavior signal (same source as silence detection)
       const at = (r: UserRow) =>
-        r.last_heartbeat_at
-          ? new Date(r.last_heartbeat_at).getTime()
-          : latestSeen(r.clients)
+        r.last_behavior_at
+          ? new Date(r.last_behavior_at).getTime()
+          : (r.last_heartbeat_at ? new Date(r.last_heartbeat_at).getTime() : latestSeen(r.clients))
       return at(b) - at(a)
     }
     if (sortBy === 'version') {
@@ -426,13 +419,24 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
                     <td style={{ textAlign: 'center' }}>
                       <span
                         className={`gm__status-dot is-${status}`}
-                        title={
-                          status === 'alert' ? (lang === 'zh' ? '异常告警 · 需关注' : 'Alert · needs attention') :
-                          status === 'active' ? (lang === 'zh' ? '近期活跃 (<6小时)' : 'Active (<6h)') :
-                          status === 'quiet' ? (lang === 'zh' ? '安静 (<24小时)' : 'Quiet (<24h)') :
-                          status === 'silent' ? (lang === 'zh' ? '长时间未活跃 (>24小时)' : 'Silent (>24h)') :
-                          (lang === 'zh' ? '暂无数据' : 'No data')
-                        }
+                        title={(() => {
+                          const lastBehavior = r.last_behavior_at
+                            ? (() => {
+                                const s = Math.floor((Date.now() - new Date(r.last_behavior_at).getTime()) / 1000)
+                                if (s < 60) return lang === 'zh' ? '行为信号: 刚刚' : 'Signal: just now'
+                                if (s < 3600) return lang === 'zh' ? `行为信号: ${Math.floor(s/60)}分钟前` : `Signal: ${Math.floor(s/60)}m ago`
+                                if (s < 86400) return lang === 'zh' ? `行为信号: ${Math.floor(s/3600)}小时前` : `Signal: ${Math.floor(s/3600)}h ago`
+                                return lang === 'zh' ? `行为信号: ${Math.floor(s/86400)}天前` : `Signal: ${Math.floor(s/86400)}d ago`
+                              })()
+                            : (lang === 'zh' ? '暂无行为信号' : 'No signal yet')
+                          const base =
+                            status === 'alert' ? (lang === 'zh' ? '异常告警 · 需关注' : 'Alert · needs attention') :
+                            status === 'active' ? (lang === 'zh' ? '近期活跃 (<6h)' : 'Active (<6h)') :
+                            status === 'quiet' ? (lang === 'zh' ? '安静 (<24h)' : 'Quiet (<24h)') :
+                            status === 'silent' ? (lang === 'zh' ? '长时间无行为信号 (>24h)' : 'No activity signal (>24h)') :
+                            (lang === 'zh' ? '暂无数据' : 'No data')
+                          return `${base} · ${lastBehavior}`
+                        })()}
                       />
                     </td>
                     <td>

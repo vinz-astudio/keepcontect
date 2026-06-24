@@ -30,10 +30,14 @@ export async function recordSignal(
   t: number = Date.now(),
 ): Promise<void> {
   const db = await openDb()
+  let addedId: number | undefined
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite')
-    tx.objectStore(STORE).add({ t, kind })
-    tx.oncomplete = () => resolve()
+    const req = tx.objectStore(STORE).add({ t, kind, uploaded: false })
+    req.onsuccess = () => {
+      addedId = req.result as number
+      resolve()
+    }
     tx.onerror = () => reject(tx.error)
   })
   db.close()
@@ -55,6 +59,24 @@ export async function recordSignal(
         })
         if (!error) {
           localStorage.setItem('kc.lastUploadT', String(t))
+          
+          if (addedId !== undefined) {
+            const dbMark = await openDb()
+            const txMark = dbMark.transaction(STORE, 'readwrite')
+            const osMark = txMark.objectStore(STORE)
+            const getReq = osMark.get(addedId)
+            getReq.onsuccess = () => {
+              const data = getReq.result
+              if (data) {
+                data.uploaded = true
+                osMark.put(data)
+              }
+            }
+            await new Promise<void>((res) => {
+              txMark.oncomplete = () => res()
+            })
+            dbMark.close()
+          }
         }
       }
     }
@@ -68,12 +90,14 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
     const cutoff = Date.now() - 35 * 86_400_000
     const sinceStr = new Date(cutoff).toISOString()
     
-    // 1. Fetch server pings for the last 35 days
+    // 1. Fetch recent server pings (limit to 200 to avoid postgrest cap and save bandwidth)
     const { data: serverData, error } = await supabase
       .from('behavior_pings')
       .select('at, kind')
       .eq('user_id', uid)
       .gte('at', sinceStr)
+      .order('at', { ascending: false })
+      .limit(200)
       
     if (error) throw error
     
@@ -84,14 +108,23 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
     
     const serverTimestamps = new Set(serverEvents.map(e => e.t))
     
-    // 2. Fetch local signals
-    const localEvents = await getAllSignals()
-    const localTimestamps = new Set(localEvents.map(e => e.t))
-    
+    // 2. Fetch local signals that need uploading (where uploaded !== true)
+    const db = await openDb()
+    const localEventsToUpload = await new Promise<Array<{ id: number; t: number; kind: SignalKind }>>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly')
+      const req = tx.objectStore(STORE).getAll()
+      req.onsuccess = () => {
+        const all = req.result as Array<{ id: number; t: number; kind: SignalKind; uploaded?: boolean }>
+        const pending = all.filter(e => e.uploaded !== true && e.t >= cutoff)
+        resolve(pending)
+      }
+      req.onerror = () => reject(req.error)
+    })
+    db.close()
+
     // 3. Upload local signals that are missing on the server
-    const toUpload = localEvents.filter(e => e.t >= cutoff && !serverTimestamps.has(e.t))
-    if (toUpload.length > 0) {
-      const inserts = toUpload.map(e => ({
+    if (localEventsToUpload.length > 0) {
+      const inserts = localEventsToUpload.map(e => ({
         user_id: uid,
         kind: e.kind,
         at: new Date(e.t).toISOString()
@@ -99,23 +132,53 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
       const { error: uploadError } = await supabase
         .from('behavior_pings')
         .insert(inserts)
+        
       if (uploadError) throw uploadError
-    }
-    
-    // 4. Download server signals that are missing locally
-    const toDownload = serverEvents.filter(e => !localTimestamps.has(e.t))
-    if (toDownload.length > 0) {
-      const db = await openDb()
+
+      // Mark these local events as uploaded
+      const dbMark = await openDb()
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE, 'readwrite')
+        const tx = dbMark.transaction(STORE, 'readwrite')
         const os = tx.objectStore(STORE)
-        for (const se of toDownload) {
-          os.add({ t: se.t, kind: se.kind as SignalKind })
+        const getReq = os.getAll()
+        getReq.onsuccess = () => {
+          const all = getReq.result as Array<{ id: number; t: number; kind: SignalKind; uploaded?: boolean }>
+          for (const item of all) {
+            let changed = false
+            if (localEventsToUpload.some(x => x.id === item.id)) {
+              item.uploaded = true
+              changed = true
+            } else if (item.uploaded === undefined && serverTimestamps.has(item.t)) {
+              item.uploaded = true
+              changed = true
+            }
+            if (changed) {
+              os.put(item)
+            }
+          }
         }
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
       })
-      db.close()
+      dbMark.close()
+    }
+    
+    // 4. Download server signals that are missing locally
+    const localEvents = await getAllSignals()
+    const localTimestamps = new Set(localEvents.map(e => e.t))
+    const toDownload = serverEvents.filter(e => !localTimestamps.has(e.t))
+    if (toDownload.length > 0) {
+      const dbDl = await openDb()
+      await new Promise<void>((resolve, reject) => {
+        const tx = dbDl.transaction(STORE, 'readwrite')
+        const os = tx.objectStore(STORE)
+        for (const se of toDownload) {
+          os.add({ t: se.t, kind: se.kind as SignalKind, uploaded: true })
+        }
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+      })
+      dbDl.close()
     }
   } catch (err) {
     console.error('Failed to sync signals with server:', err)
