@@ -36,11 +36,14 @@ import {
   renameGroup,
   setGroupCommunity,
   setMonitoringDirection,
+  deleteCommunity,
+  deleteGroup,
   type Community,
   type MyGroup,
 } from '@/features/relationships/api'
 import { GroupBoard } from '@/features/relationships/GroupBoard'
 import { StatusBoard } from '@/features/relationships/StatusBoard'
+import { QRModal } from '@/features/relationships/QRModal'
 import { ApkUpgradeNotice } from '@/features/install/ApkUpgradeNotice'
 import { EditableName } from '@/features/common/EditableName'
 import { Icon } from '@/features/common/Icon'
@@ -48,6 +51,7 @@ import { setDisplayName } from '@/features/profile/profileApi'
 import { getCurrentCoords } from '@/lib/geo'
 import { becomeGuardianByCode } from '@/features/guardians/api'
 import {
+  buildInviteUrl,
   parseInviteText,
   shareInvite,
   takePendingInvite,
@@ -225,13 +229,14 @@ export function HomeScreen() {
   const [newCommunity, setNewCommunity] = useState('')
   const [newGroup, setNewGroup] = useState('')
   const [newGroupCommunity, setNewGroupCommunity] = useState<string>('')
-  const [joinText, setJoinText] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
   const [openBoard, setOpenBoard] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('home')
   const [isGm, setIsGm] = useState(false)
   const [unread, setUnread] = useState(0)
   const [sosBusy, setSosBusy] = useState(false)
+  const [qrTarget, setQrTarget] = useState<{ url: string; name: string } | null>(null)
+  const [scanningJoin, setScanningJoin] = useState(false)
 
   // 未读数提到顶层：任何 tab 都更新 App 图标角标 + 底部"通知"页红点
   const refreshUnread = useCallback(async () => {
@@ -345,6 +350,30 @@ export function HomeScreen() {
     const r = await shareInvite(inv.kind, inv.code, name)
     if (r.status === 'copied') setNotice(t('invite.copied'))
     else if (r.status === 'manual') setNotice(t('invite.manual', { url: r.url }))
+  }
+
+  function onShowQR(inv: Invite, name: string) {
+    const url = buildInviteUrl(inv.kind, inv.code)
+    setQrTarget({ url, name })
+  }
+
+  async function handleJoinScan(data: string) {
+    setScanningJoin(false)
+    // Could be a keepcontact:// sync link or an invite link
+    if (data.startsWith('keepcontact://sync?token=')) {
+      // Accidentally scanned a sync QR — ignore for join flow
+      toast(t('invite.invalid'), 'danger')
+      return
+    }
+    const inv = parseInviteText(data)
+    if (!inv) {
+      toast(t('invite.invalid'), 'danger')
+      return
+    }
+    run(async () => {
+      const msg = await joinByInvite(inv)
+      setNotice(msg)
+    })
   }
 
   async function run(fn: () => Promise<unknown>) {
@@ -474,33 +503,45 @@ export function HomeScreen() {
                   </div>
                 </section>
               )}
-              {/* 加入：邀请链接（收到链接直接点开即可自动加入；此处为手动兜底） */}
+              {/* 加入：扫码加入 */}
               <section className="card">
                 <h2 className="card__title">
-                  <Icon name="share" />
-                  {t('invite.title')}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)' }}>
+                    <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+                    <path d="M7 12h10M12 7v10" />
+                  </svg>
+                  {t('scan.join')}
                 </h2>
-                <p className="muted">{t('invite.desc')}</p>
-                <div className="row">
-                  <input
-                    value={joinText}
-                    onChange={(e) => setJoinText(e.target.value)}
-                    placeholder={t('invite.ph')}
-                  />
-                  <button
-                    disabled={busy || !parseInviteText(joinText)}
-                    onClick={() =>
-                      run(async () => {
-                        const inv = parseInviteText(joinText)
-                        if (!inv) throw new Error(t('invite.invalid'))
-                        setNotice(await joinByInvite(inv))
-                        setJoinText('')
-                      })
-                    }
-                  >
-                    {t('invite.join')}
-                  </button>
-                </div>
+                <p className="muted">{t('scan.join.desc')}</p>
+                <button
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'var(--bg-soft)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--r-md)',
+                    cursor: 'pointer',
+                    color: 'var(--fg)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onClick={() => setScanningJoin(true)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)' }}>
+                      <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+                      <path d="M7 12h10M12 7v10" />
+                    </svg>
+                    <span style={{ fontWeight: '600', fontSize: '0.92rem' }}>
+                      {t('scan.join')}
+                    </span>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ opacity: 0.5 }}>
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
               </section>
 
               {/* Communities */}
@@ -525,14 +566,46 @@ export function HomeScreen() {
                             await refresh()
                           }}
                         />
-                        <button
-                          className="share"
-                          onClick={() =>
-                            void onShare({ kind: 'community', code: c.invite_code }, c.name)
-                          }
-                        >
-                          {t('share.invite')}
-                        </button>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            className="share"
+                            onClick={() =>
+                              void onShare({ kind: 'community', code: c.invite_code }, c.name)
+                            }
+                          >
+                            {t('share.invite')}
+                          </button>
+                          <button
+                            className="share"
+                            title={t('qr.show')}
+                            onClick={() => onShowQR({ kind: 'community', code: c.invite_code }, c.name)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <rect x="3" y="3" width="7" height="7"/>
+                              <rect x="14" y="3" width="7" height="7"/>
+                              <rect x="3" y="14" width="7" height="7"/>
+                              <rect x="14" y="14" width="3" height="3"/>
+                              <rect x="19" y="14" width="2" height="2"/>
+                              <rect x="14" y="19" width="2" height="2"/>
+                              <rect x="19" y="19" width="2" height="2"/>
+                            </svg>
+                            {t('qr.show')}
+                          </button>
+                          {c.created_by === user?.id && (
+                            <button
+                              className="leave"
+                              disabled={busy}
+                              onClick={() => {
+                                if (window.confirm(t('admin.delete.confirm.community'))) {
+                                  run(() => deleteCommunity(c.id))
+                                }
+                              }}
+                            >
+                              {t('admin.delete')}
+                            </button>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -556,8 +629,6 @@ export function HomeScreen() {
                   </button>
                 </div>
               </section>
-
-              <GuardiansCard />
             </div>
 
             <div className="circles-grid__col2">
@@ -584,17 +655,49 @@ export function HomeScreen() {
                               await refresh()
                             }}
                           />
-                          <button
-                            className="share"
-                            onClick={() =>
-                              void onShare(
-                                { kind: 'group', code: group.invite_code },
-                                group.name,
-                              )
-                            }
-                          >
-                            {t('share.invite')}
-                          </button>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <button
+                              className="share"
+                              onClick={() =>
+                                void onShare(
+                                  { kind: 'group', code: group.invite_code },
+                                  group.name,
+                                )
+                              }
+                            >
+                              {t('share.invite')}
+                            </button>
+                            <button
+                              className="share"
+                              title={t('qr.show')}
+                              onClick={() => onShowQR({ kind: 'group', code: group.invite_code }, group.name)}
+                              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <rect x="3" y="3" width="7" height="7"/>
+                                <rect x="14" y="3" width="7" height="7"/>
+                                <rect x="3" y="14" width="7" height="7"/>
+                                <rect x="14" y="14" width="3" height="3"/>
+                                <rect x="19" y="14" width="2" height="2"/>
+                                <rect x="14" y="19" width="2" height="2"/>
+                                <rect x="19" y="19" width="2" height="2"/>
+                              </svg>
+                              {t('qr.show')}
+                            </button>
+                            {group.created_by === user?.id && (
+                              <button
+                                className="leave"
+                                disabled={busy}
+                                onClick={() => {
+                                  if (window.confirm(t('admin.delete.confirm.group'))) {
+                                    run(() => deleteGroup(group.id))
+                                  }
+                                }}
+                              >
+                                {t('admin.delete')}
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="list__row2">
                           <label className="toggle">
@@ -701,6 +804,9 @@ export function HomeScreen() {
                   </button>
                 </div>
               </section>
+
+              {/* Guardians – moved to bottom */}
+              <GuardiansCard />
             </div>
           </div>
         </main>
@@ -718,6 +824,19 @@ export function HomeScreen() {
         <ScanSyncModal
           onClose={() => setIsScanning(false)}
           onScan={handleQrScan}
+        />
+      )}
+      {scanningJoin && (
+        <ScanSyncModal
+          onClose={() => setScanningJoin(false)}
+          onScan={handleJoinScan}
+        />
+      )}
+      {qrTarget && (
+        <QRModal
+          url={qrTarget.url}
+          title={qrTarget.name}
+          onClose={() => setQrTarget(null)}
         />
       )}
     </div>

@@ -375,6 +375,16 @@ const zh = {
   'update.checking': '正在检查...',
   'update.latest': '当前已是最新版本',
   'update.found': '发现新版本 {v}！',
+  'scan.join': '扫码加入',
+  'scan.join.desc': '扫描对方分享的群组/社区二维码即可加入。',
+  'qr.show': '显示二维码',
+  'qr.title': '扫码加入',
+  'qr.expire': '此二维码在此页面开启期间有效。',
+  'admin.delete': '解散',
+  'admin.delete.confirm.community': '确定要解散这个 Community 吗？此操作无法撤销。',
+  'admin.delete.confirm.group': '确定要解散这个 Group 吗？此操作无法撤销。',
+  'admin.promote': '设为管理员',
+  'admin.promoted': '已设为管理员',
 } as const
 
 export type I18nKey = keyof typeof zh
@@ -748,6 +758,16 @@ const en: Record<I18nKey, string> = {
   'update.checking': 'Checking...',
   'update.latest': 'Already the latest version',
   'update.found': 'New version {v} found!',
+  'scan.join': 'Scan to Join',
+  'scan.join.desc': 'Scan a QR code shared by someone to join their group or community.',
+  'qr.show': 'Show QR',
+  'qr.title': 'Scan to Join',
+  'qr.expire': 'This QR code is live while this screen is open.',
+  'admin.delete': 'Disband',
+  'admin.delete.confirm.community': 'Are you sure you want to disband this Community? This cannot be undone.',
+  'admin.delete.confirm.group': 'Are you sure you want to disband this Group? This cannot be undone.',
+  'admin.promote': 'Make Admin',
+  'admin.promoted': 'Promoted to Admin',
 }
 
 const DICTS: Record<Lang, Record<I18nKey, string>> = { zh, en }

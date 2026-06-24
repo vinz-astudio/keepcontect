@@ -181,3 +181,74 @@ export async function listGroupMembers(
     display_name: nameById.get(r.user_id) ?? null,
   }))
 }
+
+// ── Admin actions ─────────────────────────────────────────
+
+export async function deleteCommunity(communityId: string): Promise<void> {
+  const { error } = await supabase
+    .from('communities')
+    .delete()
+    .eq('id', communityId)
+  if (error) throw error
+}
+
+export async function deleteGroup(groupId: string): Promise<void> {
+  const { error } = await supabase
+    .from('groups')
+    .delete()
+    .eq('id', groupId)
+  if (error) throw error
+}
+
+export async function promoteGroupMemberToAdmin(
+  groupId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('group_members')
+    .update({ role: 'admin' })
+    .eq('group_id', groupId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
+export async function promoteCommunityMemberToAdmin(
+  communityId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('community_members')
+    .update({ role: 'admin' })
+    .eq('community_id', communityId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
+export async function listCommunityMembers(
+  communityId: string,
+): Promise<{ user_id: string; role: string; display_name: string | null }[]> {
+  const { data: members, error } = await supabase
+    .from('community_members')
+    .select('user_id, role')
+    .eq('community_id', communityId)
+  if (error) throw error
+  const rows = members ?? []
+  if (rows.length === 0) return []
+
+  const ids = rows.map((m) => m.user_id)
+  const { data: profs, error: pErr } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .in('id', ids)
+  if (pErr) throw pErr
+  const nameById = new Map(
+    (profs ?? []).map((p) => [p.id, p.display_name] as const),
+  )
+
+  return rows.map((r) => ({
+    user_id: r.user_id,
+    role: r.role,
+    display_name: nameById.get(r.user_id) ?? null,
+  }))
+}
+

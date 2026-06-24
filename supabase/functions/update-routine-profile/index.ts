@@ -98,16 +98,6 @@ Deno.serve(async (req) => {
   }
 
   const geminiKey = Deno.env.get('GEMINI_API_KEY')
-  if (geminiKey) {
-    try {
-      console.log('Fetching available models list from Gemini API...')
-      const modelsResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`)
-      const modelsData = await modelsResp.json()
-      console.log('Available models for key:', JSON.stringify(modelsData))
-    } catch (e) {
-      console.error('Failed to list models:', e)
-    }
-  }
   const results: Array<{ user_id: string; status: string; method: 'gemini' | 'rule-based'; error?: string }> = []
 
   // 4. Process each user
@@ -159,7 +149,7 @@ Deno.serve(async (req) => {
       // Check if Gemini is available and if user consented or if it's personal optimization
       if (geminiKey && aggregates && aggregates.length > 0) {
         let success = false
-        const modelsToTry = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash']
+        const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite']
         let lastErrorMsg = ''
 
         const historyStr = aggregates
@@ -249,7 +239,7 @@ Ensure the returned thresholds represent the maximum allowed silence (in hours) 
             break
           } catch (modelErr) {
             console.warn(`Gemini analysis failed using model ${modelName}:`, modelErr)
-            lastErrorMsg = `${modelName}: ${(modelErr as Error).message}`
+            lastErrorMsg += ` [${modelName}: ${(modelErr as Error).message}]`
           }
         }
 
