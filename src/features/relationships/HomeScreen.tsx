@@ -7,7 +7,8 @@ import { RoutineSettings } from '@/features/baseline/RoutineSettings'
 import { CheckinTasksCard } from '@/features/tasks/CheckinTasksCard'
 import { PassiveSignalCard } from '@/features/passive/PassiveSignalCard'
 import { PassivePingBoot } from '@/features/passive/PassivePingBoot'
-import { LivenessProvider } from '@/features/baseline/LivenessProvider'
+import { LivenessProvider, useLivenessContext } from '@/features/baseline/LivenessProvider'
+import '@/features/baseline/LivenessCard.css'
 import { AlertOverlay } from '@/features/baseline/AlertOverlay'
 import { NotificationsCard } from '@/features/alerts/NotificationsCard'
 import { TabBar, type Tab } from '@/features/nav/TabBar'
@@ -71,6 +72,87 @@ async function joinByInvite(inv: Invite): Promise<string> {
   }
   await becomeGuardianByCode(inv.code)
   return translate('invite.joined.guardian')
+}
+
+interface ProfileSectionProps {
+  setIsScanning: (val: boolean) => void
+}
+
+function ProfileSection({ setIsScanning }: ProfileSectionProps) {
+  const { user } = useAuth()
+  const { t, lang } = useI18n()
+  const { startSetup, startPractice } = useLivenessContext()
+
+  return (
+    <section className="card">
+      <h2 className="card__title">
+        <Icon name="user" />
+        {t('tab.profile')}
+      </h2>
+      <p className="profile__name">
+        {t('profile.title')}：
+        <EditableName
+          value={
+            (user?.user_metadata?.display_name as string | undefined) ??
+            user?.email ??
+            ''
+          }
+          canEdit
+          onSave={async (next) => {
+            await setDisplayName(next)
+          }}
+        />
+      </p>
+      <p className="muted">{t('profile.desc')}</p>
+
+      {/* Scan to Sync (Only on mobile devices) */}
+      {(getPlatform() === 'android' || getPlatform() === 'ios') && (
+        <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem' }}>
+          <button
+            className="profile__scan-action"
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 16px',
+              background: 'var(--bg-soft)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r-md)',
+              cursor: 'pointer',
+              color: 'var(--fg)',
+              transition: 'all 0.2s ease',
+            }}
+            onClick={() => setIsScanning(true)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)' }}>
+                <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+                <path d="M7 12h10M12 7v10" />
+              </svg>
+              <span style={{ fontWeight: '600', fontSize: '0.92rem' }}>
+                {lang === 'zh' ? '扫码同步登录新设备' : 'Scan to Sync Login'}
+              </span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ opacity: 0.5 }}>
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Unlock Pattern Configuration */}
+      <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem' }}>
+        <div className="liveness__row" style={{ marginTop: 0 }}>
+          <span className="liveness__rowlabel">{t('live.pattern')}</span>
+          <div className="liveness__seg">
+            <button onClick={startSetup}>{t('live.setPattern')}</button>
+            <button onClick={startPractice}>{t('live.practice')}</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 export function HomeScreen() {
@@ -354,63 +436,7 @@ export function HomeScreen() {
 
           <div className={`profile-grid ${tab !== 'profile' ? 'home__tab-content--hidden' : ''}`}>
             <div className="profile-grid__col1">
-              <section className="card">
-                <h2 className="card__title">
-                  <Icon name="user" />
-                  {t('tab.profile')}
-                </h2>
-                <p className="profile__name">
-                  {t('profile.title')}：
-                  <EditableName
-                    value={
-                      (user?.user_metadata?.display_name as string | undefined) ??
-                      user?.email ??
-                      ''
-                    }
-                    canEdit
-                    onSave={async (next) => {
-                      await setDisplayName(next)
-                    }}
-                  />
-                </p>
-                <p className="muted">{t('profile.desc')}</p>
-
-                {/* Scan to Sync (Only on mobile devices) */}
-                {(getPlatform() === 'android' || getPlatform() === 'ios') && (
-                  <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem' }}>
-                    <button
-                      className="profile__scan-action"
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '12px 16px',
-                        background: 'var(--bg-soft)',
-                        border: '1px solid var(--line)',
-                        borderRadius: 'var(--r-md)',
-                        cursor: 'pointer',
-                        color: 'var(--fg)',
-                        transition: 'all 0.2s ease',
-                      }}
-                      onClick={() => setIsScanning(true)}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)' }}>
-                          <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
-                          <path d="M7 12h10M12 7v10" />
-                        </svg>
-                        <span style={{ fontWeight: '600', fontSize: '0.92rem' }}>
-                          {lang === 'zh' ? '扫码同步登录新设备' : 'Scan to Sync Login'}
-                        </span>
-                      </div>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ opacity: 0.5 }}>
-                        <path d="M9 18l6-6-6-6" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-              </section>
+              <ProfileSection setIsScanning={setIsScanning} />
               <EmergencyInfoCard />
               <UpdatesCard />
             </div>

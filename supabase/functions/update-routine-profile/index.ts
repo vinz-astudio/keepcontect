@@ -98,6 +98,16 @@ Deno.serve(async (req) => {
   }
 
   const geminiKey = Deno.env.get('GEMINI_API_KEY')
+  if (geminiKey) {
+    try {
+      console.log('Fetching available models list from Gemini API...')
+      const modelsResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`)
+      const modelsData = await modelsResp.json()
+      console.log('Available models for key:', JSON.stringify(modelsData))
+    } catch (e) {
+      console.error('Failed to list models:', e)
+    }
+  }
   const results: Array<{ user_id: string; status: string; method: 'gemini' | 'rule-based'; error?: string }> = []
 
   // 4. Process each user
@@ -114,7 +124,7 @@ Deno.serve(async (req) => {
 
       const pattern = profile.routine_pattern || 'regular_9to5'
 
-      // Query historical aggregates (last 90 days)
+      -- Query historical aggregates (last 90 days)
       let { data: aggregates, error: aggErr } = await supabase
         .from('daily_activity_aggregates')
         .select('date, hourly_density')
@@ -144,15 +154,19 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Check if Gemini is available and if user consented or if it's personal optimization
-      // (Note: even without consent for sharing data globally, we can use AI to optimize their own thresholds locally)
-      if (geminiKey && aggregates && aggregates.length > 0) {
-        try {
-          const historyStr = aggregates
-            .map((a) => `${a.date}: [${(a.hourly_density as number[]).join(',')}]`)
-            .join('\n')
+      let fallbackReason = 'Gemini Key is missing in Deno env'
 
-          const promptText = `You are the Keep Contact Adaptive Routine Engine.
+      // Check if Gemini is available and if user consented or if it's personal optimization
+      if (geminiKey && aggregates && aggregates.length > 0) {
+        let success = false
+        const modelsToTry = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash']
+        let lastErrorMsg = ''
+
+        const historyStr = aggregates
+          .map((a) => `${a.date}: [${(a.hourly_density as number[]).join(',')}]`)
+          .join('\n')
+
+        const promptText = `You are the Keep Contact Adaptive Routine Engine.
 Analyze the user's daily activity aggregates and routine pattern settings to output a dynamic 24-hour timeout threshold profile (in hours) for silence detection.
 
 Inputs:
@@ -170,69 +184,83 @@ Guidelines for generating thresholds (in hours):
 Ensure the returned thresholds represent the maximum allowed silence (in hours) before triggering an alert. High values = low sensitivity (fewer false alerts but slower alarm), low values = high sensitivity (quick alarm but higher false alert risk). Thresholds must be double precision floats between 1.0 and 12.0.
 `
 
-          const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: promptText }] }],
-                generationConfig: {
-                  responseMimeType: 'application/json',
-                  responseSchema: {
-                    type: 'OBJECT',
-                    properties: {
-                      hourly_thresholds: {
-                        type: 'ARRAY',
-                        description: '24 double precision floats representing custom hourly thresholds (in hours) starting from hour 0 to hour 23',
-                        items: { type: 'NUMBER' },
+        for (const modelName of modelsToTry) {
+          try {
+            console.log(`Attempting Gemini analysis for user ${uid} using model ${modelName}...`)
+            const response = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: promptText }] }],
+                  generationConfig: {
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                      type: 'OBJECT',
+                      properties: {
+                        hourly_thresholds: {
+                          type: 'ARRAY',
+                          description: '24 double precision floats representing custom hourly thresholds (in hours) starting from hour 0 to hour 23',
+                          items: { type: 'NUMBER' },
+                        },
+                        weekend_multiplier: {
+                          type: 'NUMBER',
+                          description: 'Multiplier for thresholds on weekends (Saturday and Sunday). Must be between 0.8 and 2.0',
+                        },
+                        reasoning: {
+                          type: 'STRING',
+                          description: 'Brief explanation of the routine analysis',
+                        },
                       },
-                      weekend_multiplier: {
-                        type: 'NUMBER',
-                        description: 'Multiplier for thresholds on weekends (Saturday and Sunday). Must be between 0.8 and 2.0',
-                      },
-                      reasoning: {
-                        type: 'STRING',
-                        description: 'Brief explanation of the routine analysis',
-                      },
+                      required: ['hourly_thresholds', 'weekend_multiplier'],
                     },
-                    required: ['hourly_thresholds', 'weekend_multiplier'],
                   },
-                },
-              }),
+                }),
+              }
+            )
+
+            if (!response.ok) {
+              const errBody = await response.text().catch(() => '')
+              throw new Error(`Gemini API returned status ${response.status} (${response.statusText}). Body: ${errBody}`)
             }
-          )
 
-          if (!response.ok) {
-            throw new Error(`Gemini API returned status ${response.status}: ${response.statusText}`)
+            const geminiData = await response.json()
+            const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
+            if (!text) {
+              throw new Error('Empty text content in Gemini response')
+            }
+
+            const parsed = JSON.parse(text)
+            if (!Array.isArray(parsed.hourly_thresholds) || parsed.hourly_thresholds.length !== 24) {
+              throw new Error('Invalid hourly thresholds array size returned by Gemini')
+            }
+
+            await supabase.from('user_activity_profiles').upsert({
+              user_id: uid,
+              hourly_thresholds: parsed.hourly_thresholds,
+              weekend_multiplier: parsed.weekend_multiplier || 1.0,
+              updated_at: new Date().toISOString(),
+            })
+
+            console.log(`Successfully updated routine profile using model ${modelName} for user ${uid}`)
+            results.push({ user_id: uid, status: 'success', method: 'gemini' })
+            success = true
+            break
+          } catch (modelErr) {
+            console.warn(`Gemini analysis failed using model ${modelName}:`, modelErr)
+            lastErrorMsg = `${modelName}: ${(modelErr as Error).message}`
           }
+        }
 
-          const geminiData = await response.json()
-          const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text
-          if (!text) {
-            throw new Error('Empty text content in Gemini response')
-          }
-
-          const parsed = JSON.parse(text)
-          if (!Array.isArray(parsed.hourly_thresholds) || parsed.hourly_thresholds.length !== 24) {
-            throw new Error('Invalid hourly thresholds array size returned by Gemini')
-          }
-
-          await supabase.from('user_activity_profiles').upsert({
-            user_id: uid,
-            hourly_thresholds: parsed.hourly_thresholds,
-            weekend_multiplier: parsed.weekend_multiplier || 1.0,
-            updated_at: new Date().toISOString(),
-          })
-
-          results.push({ user_id: uid, status: 'success', method: 'gemini' })
+        if (success) {
           continue
-        } catch (geminiError) {
-          console.error(`Gemini analysis failed for user ${uid}, falling back to rule-based:`, geminiError)
+        } else {
+          fallbackReason = `All Gemini models failed. Key info: len=${geminiKey?.length}, prefix=${geminiKey?.substring(0, 6)}. Last error: ${lastErrorMsg}`
         }
       }
 
-      // 5. Rule-based fallback (if gemini is disabled, missing key, or failed)
+      // 5. Rule-based fallback
       const { hourly_thresholds, weekend_multiplier } = getRuleBasedProfile(pattern)
       await supabase.from('user_activity_profiles').upsert({
         user_id: uid,
@@ -241,7 +269,7 @@ Ensure the returned thresholds represent the maximum allowed silence (in hours) 
         updated_at: new Date().toISOString(),
       })
 
-      results.push({ user_id: uid, status: 'success', method: 'rule-based' })
+      results.push({ user_id: uid, status: 'success', method: 'rule-based', error: fallbackReason })
     } catch (err) {
       console.error(`Failed to process routine profile for user ${uid}:`, err)
       results.push({ user_id: uid, status: 'failed', method: 'rule-based', error: (err as Error).message })
