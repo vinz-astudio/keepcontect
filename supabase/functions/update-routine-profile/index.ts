@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
 
       const pattern = profile.routine_pattern || 'regular_9to5'
 
-      -- Query historical aggregates (last 90 days)
+      // Query historical aggregates (last 90 days)
       let { data: aggregates, error: aggErr } = await supabase
         .from('daily_activity_aggregates')
         .select('date, hourly_density')
