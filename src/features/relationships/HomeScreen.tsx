@@ -459,7 +459,7 @@ export function HomeScreen() {
               <EmergencyInfoCard />
             </div>
             <div className="profile-grid__col2">
-              <UpdatesCard />
+              <UpdatesCard isGm={isGm} />
               <PassiveSignalCard />
             </div>
           </div>

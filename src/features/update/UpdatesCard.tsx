@@ -6,7 +6,11 @@ import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import { fetchLatest, isNewer } from '@/features/update/versionCheck'
 
-export function UpdatesCard() {
+interface UpdatesCardProps {
+  isGm?: boolean
+}
+
+export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
   const { lang } = useI18n()
   const [updBusy, setUpdBusy] = useState(false)
   const [updStatus, setUpdStatus] = useState<'idle' | 'checking' | 'checked'>('idle')
@@ -14,6 +18,13 @@ export function UpdatesCard() {
   const [newVersion, setNewVersion] = useState('')
   const [updateUrls, setUpdateUrls] = useState<{ apkUrl?: string; exeUrl?: string }>({})
   const [progress, setProgress] = useState<number | null>(null)
+
+  const isIterationUrl = typeof window !== 'undefined' && 
+    (window.location.hostname.includes('keep-contact-git-iteration') || 
+     window.location.hostname.includes('localhost') || 
+     window.location.hostname.includes('127.0.0.1'))
+
+  const iterationBaseUrl = 'https://keep-contact-git-iteration-vinzastudio-3665s-projects.vercel.app'
 
   useEffect(() => {
     let unlisten: (() => void) | null = null
@@ -200,6 +211,100 @@ export function UpdatesCard() {
           )}
         </div>
       </div>
+
+      {isGm && (
+        <div style={{
+          marginTop: '6px',
+          padding: '12px',
+          border: '1px dashed var(--accent-line)',
+          borderRadius: 'var(--r-md)',
+          background: 'var(--accent-soft)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontWeight: '700', fontSize: '0.82rem', color: 'var(--accent)' }}>
+              {lang === 'zh' ? '🔁 迭代测试通道 (Iteration Branch)' : '🔁 Iteration Test Channel'}
+            </span>
+            <span style={{
+              fontSize: '0.7rem',
+              fontWeight: 'bold',
+              background: isIterationUrl ? 'var(--accent)' : 'var(--bg)',
+              color: isIterationUrl ? 'var(--bg)' : 'var(--fg-muted)',
+              padding: '2px 6px',
+              borderRadius: '10px',
+              border: '1px solid var(--line)',
+            }}>
+              {isIterationUrl 
+                ? (lang === 'zh' ? '测试环境' : 'Testing') 
+                : (lang === 'zh' ? '生产环境' : 'Production')}
+            </span>
+          </div>
+
+          <p style={{ margin: 0, fontSize: '0.75rem', lineHeight: '1.3', color: 'var(--fg)' }}>
+            {lang === 'zh' 
+              ? '建议守护者 (GM) 优先使用 Iteration 测试版本验证最新提交。' 
+              : 'GMs are recommended to use the Iteration build to test the latest features.'}
+          </p>
+
+          {!isIterationUrl && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+              <a
+                href={iterationBaseUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '0.75rem',
+                  borderRadius: 'var(--r-sm)',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--fg)',
+                  textDecoration: 'none',
+                  fontWeight: '600',
+                }}
+              >
+                {lang === 'zh' ? '🌐 打开网页版' : '🌐 Web Version'}
+              </a>
+              <a
+                href={`${iterationBaseUrl}/keep-contact-iteration.apk`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '0.75rem',
+                  borderRadius: 'var(--r-sm)',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--fg)',
+                  textDecoration: 'none',
+                  fontWeight: '600',
+                }}
+              >
+                {lang === 'zh' ? '🤖 下载 APK' : '🤖 Download APK'}
+              </a>
+              <a
+                href={`${iterationBaseUrl}/desktop/KeepContact-Iteration-Setup.exe`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '0.75rem',
+                  borderRadius: 'var(--r-sm)',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--fg)',
+                  textDecoration: 'none',
+                  fontWeight: '600',
+                }}
+              >
+                {lang === 'zh' ? '💻 下载 Windows 版' : '💻 Download Windows'}
+              </a>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   )
 }
