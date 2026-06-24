@@ -111,3 +111,28 @@ export async function setServerPatternHash(hash: string): Promise<void> {
     .eq('user_id', uid)
   if (error) throw error
 }
+
+/** 检测并同步本地浏览器时区到服务器 */
+export async function syncServerTimezone(): Promise<void> {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) return
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  if (!tz) return
+
+  const { data, error } = await (supabase
+    .from('user_settings')
+    .select('timezone')
+    .eq('user_id', uid)
+    .maybeSingle() as any)
+  if (error) throw error
+
+  if (!data || data.timezone !== tz) {
+    const { error: updateErr } = await supabase
+      .from('user_settings')
+      .update({ timezone: tz } as any)
+      .eq('user_id', uid)
+    if (updateErr) throw updateErr
+  }
+}
+

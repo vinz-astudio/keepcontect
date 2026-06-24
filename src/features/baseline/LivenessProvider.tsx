@@ -21,6 +21,7 @@ import {
   setSleepWindow,
   getServerPatternHash,
   setServerPatternHash,
+  syncServerTimezone,
 } from '@/features/baseline/settingsApi'
 import { getConfig, setConfig } from '@/features/baseline/configStore'
 import { hasPattern } from '@/features/pattern/patternStore'
@@ -199,6 +200,14 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 检测并自动同步浏览器本地时区到服务器
+  useEffect(() => {
+    void syncServerTimezone().catch((err) => {
+      console.error('Failed to sync server timezone:', err)
+    })
+  }, [])
+
 
   // 轮询服务器 open 告警 + 回到前台时立刻查（这样打开 App 就能弹 pattern）
   useEffect(() => {
