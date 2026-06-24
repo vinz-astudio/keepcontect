@@ -115,6 +115,22 @@ export function RoutineInsights() {
   )
   const hasData = maxCell > 0
 
+  const orderedGridData = useMemo(() => {
+    const data = dayStarts.map((start, ri) => {
+      const date = new Date(start)
+      const dayOfWeek = date.getDay() // 0 = Sun, 1 = Mon, ..., 6 = Sat
+      const order = dayOfWeek === 0 ? 6 : dayOfWeek - 1 // Mon -> 0, Sun -> 6
+      return {
+        start,
+        row: grid[ri],
+        order,
+        isToday: ri === DAYS - 1,
+      }
+    })
+    data.sort((a, b) => a.order - b.order)
+    return data
+  }, [dayStarts, grid])
+
   const model = useMemo(() => buildBaseline(events), [events])
   const auth = useAuth()
   const user = auth?.user
@@ -236,11 +252,10 @@ export function RoutineInsights() {
                   role="img"
                   aria-label={t('routine.insights.title')}
                 >
-                  {grid.map((row, ri) => {
-                    const date = new Date(dayStarts[ri])
-                    const isToday = ri === DAYS - 1
+                  {orderedGridData.map(({ start, row, isToday }, idx) => {
+                    const date = new Date(start)
                     return (
-                      <Fragment key={ri}>
+                      <Fragment key={idx}>
                         <span
                           className={`rhythm__daylabel${isToday ? ' is-today' : ''}`}
                           title={date.toLocaleDateString()}
