@@ -123,7 +123,7 @@ export function UpdatesCard() {
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: '12px',
-        background: 'var(--bg-soft)',
+        background: 'var(--bg)',
         border: '1px solid var(--line)',
         borderRadius: 'var(--r-md)',
         padding: '10px 14px',

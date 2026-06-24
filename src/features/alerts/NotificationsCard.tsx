@@ -194,11 +194,23 @@ export function NotificationsCard({
 
   return (
     <section className="card">
-      <h2 className="card__title">
-        <Icon name="bell" />
-        {t('notif.title')}
-        {unread > 0 && <span className="nbadge">{unread}</span>}
-      </h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <h2 className="card__title" style={{ margin: 0 }}>
+          <Icon name="bell" />
+          {t('notif.title')}
+          {unread > 0 && <span className="nbadge">{unread}</span>}
+        </h2>
+        {pushStatus === 'subscribed' && (
+          <button
+            className="nfeed__more"
+            style={{ margin: 0, padding: '4px 8px', fontSize: '0.78rem', width: 'auto' }}
+            aria-expanded={showTools}
+            onClick={() => setShowTools((v) => !v)}
+          >
+            {t('push.tools')} {showTools ? '▴' : '▾'}
+          </button>
+        )}
+      </div>
 
       {error && <p className="home__error">{error}</p>}
 
@@ -217,14 +229,6 @@ export function NotificationsCard({
 
       {pushStatus === 'subscribed' && (
         <>
-          <button
-            className="nfeed__more"
-            style={{ marginBottom: '0.5rem' }}
-            aria-expanded={showTools}
-            onClick={() => setShowTools((v) => !v)}
-          >
-            {t('push.tools')} {showTools ? '▴' : '▾'}
-          </button>
           {showTools && (
             <div className="pushbar">
               <p className="muted">{testMsg ?? t('push.test.hint')}</p>

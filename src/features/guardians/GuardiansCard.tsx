@@ -157,7 +157,7 @@ export function GuardiansCard() {
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '10px 14px',
-              background: 'var(--bg-soft)',
+              background: 'var(--bg)',
               border: '1px solid var(--line)',
               borderRadius: 'var(--r-md)',
               cursor: 'pointer',
