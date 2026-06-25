@@ -129,34 +129,51 @@ export function RoutineSettings() {
         </p>
 
         {/* 作息模式选择 */}
-        <div className="liveness__row">
-          <span className="liveness__rowlabel">{lang === 'zh' ? '作息模式' : 'Routine Mode'}</span>
-          <select
-            value={routinePattern}
-            onChange={async (e) => {
-              const val = e.target.value
-              setRoutinePattern(val)
-              try {
-                await updateRoutineProfile({ routine_pattern: val })
-                toast(lang === 'zh' ? '已更新作息模式' : 'Routine mode updated', 'ok')
-              } catch (err) {
-                toast(lang === 'zh' ? '保存失败' : 'Failed to save', 'danger')
-              }
-            }}
-            style={{
-              flex: 1,
-              padding: '8px 12px',
-              border: '1px solid var(--line)',
-              borderRadius: 'var(--r-md)',
-              background: 'var(--bg-soft)',
-              color: 'var(--fg)',
-              cursor: 'pointer'
-            }}
-          >
-            <option value="regular_9to5">{lang === 'zh' ? '常规朝九晚五作息' : 'Regular 9-to-5'}</option>
-            <option value="semester_break">{lang === 'zh' ? '学期与假期交替作息' : 'Semester & Break'}</option>
-            <option value="shift_irregular">{lang === 'zh' ? '弹性/轮班不规律作息' : 'Flexible / Shift'}</option>
-          </select>
+        <div style={{ marginTop: '0.85rem' }}>
+          <div className="liveness__rowlabel" style={{ marginBottom: '8px' }}>
+            {lang === 'zh' ? '作息模式' : 'Routine Mode'}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {[
+              { value: 'regular_9to5', label: lang === 'zh' ? '常规朝九晚五作息' : 'Regular 9-to-5' },
+              { value: 'semester_break', label: lang === 'zh' ? '学期与假期交替作息' : 'Semester & Break' },
+              { value: 'shift_irregular', label: lang === 'zh' ? '弹性/轮班不规律作息' : 'Flexible / Shift' }
+            ].map((item) => {
+              const isActive = routinePattern === item.value
+              return (
+                <button
+                  key={item.value}
+                  onClick={async () => {
+                    setRoutinePattern(item.value)
+                    try {
+                      await updateRoutineProfile({ routine_pattern: item.value })
+                      toast(lang === 'zh' ? '已更新作息模式' : 'Routine mode updated', 'ok')
+                    } catch (err) {
+                      toast(lang === 'zh' ? '保存失败' : 'Failed to save', 'danger')
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--r-md)',
+                    background: isActive ? 'var(--accent-soft)' : 'var(--bg-soft)',
+                    border: isActive ? '1px solid var(--accent)' : '1px solid var(--line)',
+                    color: isActive ? 'var(--accent)' : 'var(--fg)',
+                    fontWeight: isActive ? '600' : 'normal',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    width: '100%',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <span>{item.label}</span>
+                  {isActive && <span style={{ fontSize: '0.85rem' }}>✓</span>}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* 匿名数据共享授权 */}
