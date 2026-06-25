@@ -518,6 +518,14 @@ export type Database = {
         Args: { _group: string; _community: string | null }
         Returns: undefined
       }
+      set_monitoring_direction: {
+        Args: {
+          _group: string
+          _monitored?: boolean | null
+          _watching?: boolean | null
+        }
+        Returns: undefined
+      }
       set_share_activity: { Args: { _share: boolean }; Returns: undefined }
       set_sleep_window: {
         Args: { _start: string | null; _end: string | null }

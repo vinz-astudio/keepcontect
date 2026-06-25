@@ -141,12 +141,12 @@ export async function setMonitoringDirection(
   groupId: string,
   patch: { monitored?: boolean; watching?: boolean },
 ): Promise<void> {
-  const uid = await requireUid()
-  const { error } = await supabase
-    .from('group_members')
-    .update(patch)
-    .eq('group_id', groupId)
-    .eq('user_id', uid)
+  await requireUid()
+  const { error } = await supabase.rpc('set_monitoring_direction', {
+    _group: groupId,
+    _monitored: patch.monitored ?? null,
+    _watching: patch.watching ?? null,
+  })
   if (error) throw error
 }
 
