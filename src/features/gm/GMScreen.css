@@ -219,6 +219,29 @@
   font-weight: 500;
 }
 
+
+.gm__table-behavior {
+  min-width: 140px;
+  white-space: nowrap;
+}
+
+.gm__behavior-relative,
+.gm__behavior-exact {
+  display: block;
+  line-height: 1.25;
+}
+
+.gm__behavior-relative {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.gm__behavior-exact {
+  margin-top: 0.18rem;
+  color: var(--fg-muted);
+  font-size: 0.76rem;
+}
+
 .gm__table-device {
   font-size: 0.82rem;
   color: var(--fg-muted);

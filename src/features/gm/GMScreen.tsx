@@ -11,6 +11,7 @@ import { toast } from '@/lib/toast'
 import { Icon } from '@/features/common/Icon'
 import { isNewer } from '@/features/update/versionCheck'
 import { APP_VERSION } from '@/lib/version'
+import { formatBehaviorTime } from '@/features/gm/behaviorTime'
 import './GMScreen.css'
 
 interface UserRow {
@@ -399,6 +400,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
               <th style={{ width: '60px', textAlign: 'center' }}>{lang === 'zh' ? '状态' : 'Status'}</th>
               <th style={{ width: '100px' }}>ID</th>
               <th>{lang === 'zh' ? '名字' : 'Name'}</th>
+              <th style={{ width: '150px' }}>{lang === 'zh' ? '最新行为' : 'Last behavior'}</th>
               <th>{lang === 'zh' ? '设备与版本' : 'Devices & Versions'}</th>
               <th style={{ width: '320px', textAlign: 'right' }}>{lang === 'zh' ? '操作' : 'Actions'}</th>
             </tr>
@@ -406,7 +408,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={5} className="gm__table-empty">
+                <td colSpan={6} className="gm__table-empty">
                   {lang === 'zh' ? '无匹配数据' : 'No records found'}
                 </td>
               </tr>
@@ -414,6 +416,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
               sorted.map((r) => {
                 const status = r.status
                 const isOutdated = r.clients.length === 0 || r.clients.some((c) => c.app_version ? isNewer(APP_VERSION, c.app_version) : true)
+                const behaviorTime = formatBehaviorTime(r.last_behavior_at, Date.now(), lang)
                 return (
                   <tr key={r.user_id} className={isOutdated ? 'is-outdated-row' : ''}>
                     <td style={{ textAlign: 'center' }}>
@@ -446,6 +449,12 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
                     </td>
                     <td className="gm__table-name" title={r.name}>
                       {r.name}
+                    </td>
+                    <td className="gm__table-behavior" title={r.last_behavior_at ?? ''}>
+                      <span className="gm__behavior-relative">{behaviorTime.relative}</span>
+                      {behaviorTime.exact && (
+                        <span className="gm__behavior-exact">{behaviorTime.exact}</span>
+                      )}
                     </td>
                     <td className="gm__table-device" title={formatDevices(r.clients, lang)}>
                       {renderDevicesList(r.clients, lang)}
