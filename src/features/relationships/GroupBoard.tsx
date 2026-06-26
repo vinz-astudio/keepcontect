@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import {
   getGroupActivity,
   setGroupVisibility,
@@ -7,6 +7,7 @@ import {
   type GroupActivity,
 } from '@/features/relationships/groupActivity'
 import { translate, useI18n } from '@/lib/i18n'
+import { formatGroupActivityStatus } from '@/features/relationships/groupActivityDisplay'
 import './GroupBoard.css'
 
 const DOT: Record<ActivityStatus, string> = {
@@ -14,30 +15,13 @@ const DOT: Record<ActivityStatus, string> = {
   active: 'board__dot--active',
   quiet: 'board__dot--quiet',
   silent: 'board__dot--silent',
+  alert: 'board__dot--silent',
   unknown: 'board__dot--unknown',
   hidden: 'board__dot--unknown',
 }
 
-function statusText(status: ActivityStatus, hours: number | null): string {
-  switch (status) {
-    case 'self':
-      return translate('board.you')
-    case 'active':
-      return translate('board.active')
-    case 'quiet':
-      return translate('board.quiet', { h: hours ?? 0 })
-    case 'silent':
-      return translate('board.silent', { d: Math.max(1, Math.floor((hours ?? 24) / 24)) })
-    case 'unknown':
-      return translate('board.unknown')
-    case 'hidden':
-    default:
-      return translate('board.hidden')
-  }
-}
-
 export function GroupBoard({ groupId }: { groupId: string }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [data, setData] = useState<GroupActivity | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -86,12 +70,12 @@ export function GroupBoard({ groupId }: { groupId: string }) {
       ) : (
         <ul className="board__list">
           {data.members.map((m) => {
-            const status = m.alerted ? 'silent' : m.status
+            const status = m.status
             return (
               <li key={m.user_id} className="board__row">
                 <span className={`board__dot ${DOT[status]}`} aria-hidden />
                 <span className="board__name">{m.name}</span>
-                <span className="board__status">{statusText(status, m.hours)}</span>
+                <span className="board__status">{formatGroupActivityStatus(status, m.hours, lang)}</span>
               </li>
             )
           })}
@@ -104,7 +88,7 @@ export function GroupBoard({ groupId }: { groupId: string }) {
         </p>
       )}
 
-      {/* 本人 opt-in：不开启则别人看不到你 */}
+      {/* æœ¬äºº opt-inï¼šä¸å¼€å¯åˆ™åˆ«äººçœ‹ä¸åˆ°ä½  */}
       <label className="board__toggle">
         <input
           type="checkbox"
@@ -115,7 +99,7 @@ export function GroupBoard({ groupId }: { groupId: string }) {
         {t('board.share')}
       </label>
 
-      {/* 组主可切换本组可见范围 */}
+      {/* ç»„ä¸»å¯åˆ‡æ¢æœ¬ç»„å¯è§èŒƒå›´ */}
       {data.is_owner && (
         <div className="board__vis">
           <span className="board__vislabel">{t('board.vis.label')}</span>
