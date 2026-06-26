@@ -1,6 +1,8 @@
 package com.keepcontact.app;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.util.Log;
 import java.io.BufferedReader;
@@ -19,16 +21,20 @@ final class PassivePing {
     private static final String KEY_SUPABASE_URL = "supabase_url";
     private static final String KEY_TOKEN = "token";
     private static final String KEY_LAST_PING = "last_ping";
+    private static final String KEY_ALLOW_UNLOCK = "allow_unlock";
+    private static final String KEY_ALLOW_CHARGING = "allow_charging";
     private static final long APP_THROTTLE_MS = 5 * 60 * 1000;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
 
     private PassivePing() {}
 
-    static void configure(Context context, String supabaseUrl, String token) {
+    static void configure(Context context, String supabaseUrl, String token, boolean allowUnlock, boolean allowCharging) {
         prefs(context)
             .edit()
             .putString(KEY_SUPABASE_URL, trimSlash(supabaseUrl))
             .putString(KEY_TOKEN, token)
+            .putBoolean(KEY_ALLOW_UNLOCK, allowUnlock)
+            .putBoolean(KEY_ALLOW_CHARGING, allowCharging)
             .apply();
     }
 
@@ -42,6 +48,38 @@ final class PassivePing {
 
     static void pingApp(Context context) {
         ping(context, APP_THROTTLE_MS);
+    }
+
+    static boolean isConfigured(Context context) {
+        SharedPreferences prefs = prefs(context);
+        String base = prefs.getString(KEY_SUPABASE_URL, null);
+        String token = prefs.getString(KEY_TOKEN, null);
+        return base != null && token != null && token.length() > 0;
+    }
+
+    static boolean shouldPingForAction(Context context, String action) {
+        if (!isConfigured(context) || action == null) return false;
+        SharedPreferences prefs = prefs(context);
+        if (Intent.ACTION_USER_PRESENT.equals(action)) {
+            return prefs.getBoolean(KEY_ALLOW_UNLOCK, false);
+        }
+        if (Intent.ACTION_POWER_CONNECTED.equals(action) || Intent.ACTION_POWER_DISCONNECTED.equals(action)) {
+            return prefs.getBoolean(KEY_ALLOW_CHARGING, false);
+        }
+        return false;
+    }
+
+    static IntentFilter eventIntentFilter(Context context) {
+        SharedPreferences prefs = prefs(context);
+        IntentFilter filter = new IntentFilter();
+        if (isConfigured(context) && prefs.getBoolean(KEY_ALLOW_CHARGING, false)) {
+            filter.addAction(Intent.ACTION_POWER_CONNECTED);
+            filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+        }
+        if (isConfigured(context) && prefs.getBoolean(KEY_ALLOW_UNLOCK, false)) {
+            filter.addAction(Intent.ACTION_USER_PRESENT);
+        }
+        return filter;
     }
 
     private static void ping(Context context, long throttleMs) {
@@ -115,4 +153,3 @@ final class PassivePing {
         return value;
     }
 }
-

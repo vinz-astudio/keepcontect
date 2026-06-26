@@ -14,7 +14,9 @@ public class PassivePingReceiver extends BroadcastReceiver {
             Intent.ACTION_POWER_DISCONNECTED.equals(action) ||
             Intent.ACTION_USER_PRESENT.equals(action)
         ) {
-            PassivePing.ping(context);
+            if (PassivePing.shouldPingForAction(context, action)) {
+                PassivePing.ping(context);
+            }
         }
     }
 }
