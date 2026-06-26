@@ -8,6 +8,7 @@ export type ActivityStatus =
   | 'active'
   | 'quiet'
   | 'silent'
+  | 'alert'
   | 'unknown'
   | 'hidden'
 
@@ -19,6 +20,9 @@ export interface GroupMemberStatus {
   is_me: boolean
   status: ActivityStatus
   hours: number | null
+  last_behavior_at?: string | null
+  last_heartbeat_at?: string | null
+  threshold_hours?: number | null
   /** 是否处于已升级到 group+ 的开放告警（异常沉默，需关注） */
   alerted: boolean
 }
