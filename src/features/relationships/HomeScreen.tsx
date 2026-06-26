@@ -185,23 +185,19 @@ export function HomeScreen() {
         return
       }
 
-      let payload: any = {
-        access_token: session.access_token,
-        refresh_token: session.refresh_token
+      // Obtain a one-time OTP via the sync-auth edge function.
+      // We do NOT fall back to broadcasting raw access/refresh tokens — if the
+      // edge function is unavailable the scan fails loudly instead.
+      const { data: funcData, error: funcError } = await supabase.functions.invoke('sync-auth')
+      if (funcError || !funcData?.email || !funcData?.otp) {
+        console.error('sync-auth edge function failed:', funcError)
+        toast(t('profile.scan.failed'), 'danger')
+        return
       }
 
-      try {
-        const { data: funcData, error: funcError } = await supabase.functions.invoke('sync-auth')
-        if (funcError) {
-          console.warn('Edge function sync-auth failed, falling back to legacy token sync:', funcError)
-        } else if (funcData && funcData.email && funcData.otp) {
-          payload = {
-            email: funcData.email,
-            otp: funcData.otp
-          }
-        }
-      } catch (err) {
-        console.warn('Edge function sync-auth failed, falling back to legacy token sync:', err)
+      const payload = {
+        email: funcData.email,
+        otp: funcData.otp,
       }
 
       const channel = supabase.channel(`scan2sync:${targetToken}`, {

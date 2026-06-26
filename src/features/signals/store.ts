@@ -85,7 +85,14 @@ export async function recordSignal(
   }
 }
 
+// Module-level guard: prevent concurrent syncSignalsWithServer calls
+let _syncInFlight = false
+// Max pings uploaded per sync call — prevents bulk-history floods
+const SYNC_CAP = 100
+
 export async function syncSignalsWithServer(uid: string): Promise<void> {
+  if (_syncInFlight) return
+  _syncInFlight = true
   try {
     const cutoff = Date.now() - 35 * 86_400_000
     const sinceStr = new Date(cutoff).toISOString()
@@ -110,7 +117,7 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
     
     // 2. Fetch local signals that need uploading (where uploaded !== true)
     const db = await openDb()
-    const localEventsToUpload = await new Promise<Array<{ id: number; t: number; kind: SignalKind }>>((resolve, reject) => {
+    const allPending = await new Promise<Array<{ id: number; t: number; kind: SignalKind }>>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly')
       const req = tx.objectStore(STORE).getAll()
       req.onsuccess = () => {
@@ -121,6 +128,12 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
       req.onerror = () => reject(req.error)
     })
     db.close()
+
+    // Dedupe: skip anything the server already has, then cap to avoid flood
+    const dedupedPending = allPending.filter(e => !serverTimestamps.has(e.t))
+    // Take the most recent SYNC_CAP items (sort descending by t, then slice)
+    dedupedPending.sort((a, b) => b.t - a.t)
+    const localEventsToUpload = dedupedPending.slice(0, SYNC_CAP)
 
     // 3. Upload local signals that are missing on the server
     if (localEventsToUpload.length > 0) {
@@ -182,8 +195,11 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
     }
   } catch (err) {
     console.error('Failed to sync signals with server:', err)
+  } finally {
+    _syncInFlight = false
   }
 }
+
 
 export async function getAllSignals(): Promise<SignalEvent[]> {
   const db = await openDb()
