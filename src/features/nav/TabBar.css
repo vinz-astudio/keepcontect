@@ -1,15 +1,26 @@
 /* 移动端底部 Tab Bar 默认显示 */
 .tabbar {
-  position: relative;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 40;
   flex: 0 0 auto;
   display: flex;
   align-items: flex-end;
   justify-content: space-around;
   gap: 0.25rem;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
   padding: 0.4rem 0.5rem max(0.4rem, env(safe-area-inset-bottom));
   background: var(--bg-soft);
   border-top: 1px solid var(--line);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  touch-action: manipulation;
+  overscroll-behavior: contain;
 }
 
 .tabbar__btn {
@@ -23,6 +34,9 @@
   border: none;
   color: var(--fg-muted);
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
 }
 
 .tabbar__btn.is-active {

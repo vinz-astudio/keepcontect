@@ -13,7 +13,9 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "PassivePing")
 public class PassivePingPlugin extends Plugin {
-    private BroadcastReceiver eventReceiver;
+    // Split so USER_PRESENT (SystemUI uid) can be exported while charger stays not-exported.
+    private BroadcastReceiver chargingReceiver;
+    private BroadcastReceiver unlockReceiver;
 
     @PluginMethod
     public void configure(PluginCall call) {
@@ -59,30 +61,49 @@ public class PassivePingPlugin extends Plugin {
     private void refreshEventReceiver() {
         unregisterEventReceiver();
         Context context = getContext();
-        IntentFilter filter = PassivePing.eventIntentFilter(context);
-        if (filter.countActions() == 0) return;
 
-        eventReceiver = new BroadcastReceiver() {
+        IntentFilter chargingFilter = PassivePing.chargingIntentFilter(context);
+        if (chargingFilter.countActions() > 0) {
+            chargingReceiver = buildReceiver();
+            ContextCompat.registerReceiver(
+                context, chargingReceiver, chargingFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
+        }
+
+        IntentFilter unlockFilter = PassivePing.unlockIntentFilter(context);
+        if (unlockFilter.countActions() > 0) {
+            unlockReceiver = buildReceiver();
+            // EXPORTED is required: USER_PRESENT comes from SystemUI, not the system uid.
+            ContextCompat.registerReceiver(
+                context, unlockReceiver, unlockFilter, ContextCompat.RECEIVER_EXPORTED);
+        }
+    }
+
+    private BroadcastReceiver buildReceiver() {
+        return new BroadcastReceiver() {
             @Override
             public void onReceive(Context receiverContext, Intent intent) {
                 if (intent == null) return;
                 String action = intent.getAction();
+                android.util.Log.d("KeepContactPassive", "receiver onReceive: " + action);
                 if (PassivePing.shouldPingForAction(receiverContext, action)) {
                     PassivePing.ping(receiverContext);
                 }
             }
         };
-        ContextCompat.registerReceiver(context, eventReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void unregisterEventReceiver() {
-        if (eventReceiver == null) return;
+        chargingReceiver = unregister(chargingReceiver);
+        unlockReceiver = unregister(unlockReceiver);
+    }
+
+    private BroadcastReceiver unregister(BroadcastReceiver receiver) {
+        if (receiver == null) return null;
         try {
-            getContext().unregisterReceiver(eventReceiver);
+            getContext().unregisterReceiver(receiver);
         } catch (IllegalArgumentException ignored) {
             // Receiver was already gone with the Activity context.
-        } finally {
-            eventReceiver = null;
         }
+        return null;
     }
 }

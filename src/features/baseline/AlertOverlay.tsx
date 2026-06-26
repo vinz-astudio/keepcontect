@@ -146,8 +146,8 @@ export function AlertOverlay() {
                 </strong>
                 <span>
                   {lang === 'zh' 
-                    ? 'iOS 系统限制了 Web 应用程序在后台的感知能力。如需实现屏幕解锁/插拔充电器时自动报活，您稍后需要在【我】页面导入【快捷指令】并配置自动化触发器。'
-                    : 'iOS limits background Web Apps. To automate check-ins on screen unlock or charging, you will need to import and configure the Apple Shortcut later in the "Me" tab.'}
+                    ? 'iOS 系统限制了 Web 应用程序在后台的感知能力。如需实现屏幕解锁/插拔充电器时自动报活，您稍后需要在【我】页面复制个人链接，并在【快捷指令】里手动创建自动化触发器。'
+                    : 'iOS limits background Web Apps. To automate check-ins on screen unlock or charging, copy your personal link later in the "Me" tab and create the Shortcuts automation manually.'}
                 </span>
               </div>
             )}

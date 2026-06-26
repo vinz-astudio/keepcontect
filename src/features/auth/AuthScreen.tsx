@@ -25,7 +25,7 @@ import './AuthScreen.css'
 import { APP_VERSION, LATEST_URL } from '@/lib/version'
 
 type Mode = 'signin' | 'signup'
-type SocialProvider = 'google' | 'apple' | 'facebook'
+type SocialProvider = 'google' | 'facebook'
 
 const isIterationUrl = LATEST_URL.includes('iteration') || (typeof window !== 'undefined' && window.location.hostname.includes('keep-contact-git-iteration'))
 const BUILD_TAG = isIterationUrl ? `v${APP_VERSION} (Iteration)` : `v${APP_VERSION}`
@@ -85,7 +85,6 @@ function probeStorageMarker(): string {
 
 const SOCIAL: Array<{ provider: SocialProvider; label: string; icon: string }> = [
   { provider: 'google', label: 'Google', icon: 'G' },
-  { provider: 'apple', label: 'Apple', icon: '' },
   { provider: 'facebook', label: 'Facebook', icon: 'f' },
 ]
 

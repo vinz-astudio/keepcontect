@@ -23,13 +23,15 @@ const DOT: Record<ActivityStatus, string> = {
 export function GroupBoard({
   groupId,
   mode = 'group',
+  initialData = null,
 }: {
   groupId: string
   mode?: GroupActivityView
+  initialData?: GroupActivity | null
 }) {
   const { t, lang } = useI18n()
-  const [data, setData] = useState<GroupActivity | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<GroupActivity | null>(initialData)
+  const [loading, setLoading] = useState(!initialData)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,6 +45,11 @@ export function GroupBoard({
       setLoading(false)
     }
   }, [groupId, mode])
+
+  useEffect(() => {
+    setData(initialData)
+    setLoading(!initialData)
+  }, [groupId, mode, initialData])
 
   useEffect(() => {
     void load()

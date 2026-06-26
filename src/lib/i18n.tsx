@@ -356,8 +356,8 @@ const zh = {
   'passive.mode.manual': '手动配置',
   'passive.triggers': '建议至少接入:关闹钟、接上充电、拔掉充电、打开一个每天都会用的 App。它们全部共用上面同一条 URL。',
   'passive.setup': '设置说明',
-  'passive.setup.steps': '只需要一条 URL。能点"导入"的地方可直接导入快捷指令;不能自动导入时,复制这条 URL,放进"获取 URL 内容 / HTTP GET"动作即可。',
-  'passive.setup.ios': 'iOS:点"导入"创建快捷指令,然后在"快捷指令 → 自动化"里选择闹钟、充电器、App 等触发器,并设为"立即运行"。多个自动化都运行同一个快捷指令。',
+  'passive.setup.steps': '只需要一条 URL。复制这条 URL,在快捷指令里手动放进"获取 URL 内容 / HTTP GET"动作即可。',
+  'passive.setup.ios': 'iOS:请手动创建 Keep Contact Ping 快捷指令,把个人 URL 放进"获取 URL 内容 / HTTP GET",再在"快捷指令 → 自动化"里选择闹钟、充电器、App 等触发器,并设为"立即运行"。',
   'passive.setup.android': 'Android:原生 App 登录后可自动报活;浏览器/PWA 请用同一条 URL 接入系统自动化工具。',
   'passive.setup.androidNative': 'Android 原生 App:登录后会保存本机 token;充电/拔电/解锁/打开 Keep Contact 自动报活。',
   'passive.setup.androidWeb': 'Android 浏览器/PWA:系统不会允许网页在关闭时监听解锁或充电。请把同一条 URL 放进 MacroDroid、Tasker 或厂商自动化工具的 HTTP GET 动作里。',
@@ -743,8 +743,8 @@ const en: Record<I18nKey, string> = {
   'passive.mode.manual': 'Manual',
   'passive.triggers': 'Recommended minimum: alarm dismissed, charger connected, charger disconnected, and one app you open every day. They all share the same URL above.',
   'passive.setup': 'Setup notes',
-  'passive.setup.steps': 'There is only one URL. Where "Import" is available, it creates the Shortcut directly. Otherwise copy this URL into a "Get Contents of URL / HTTP GET" action.',
-  'passive.setup.ios': 'iOS: tap Import to create the Shortcut, then in Shortcuts → Automation choose alarm, charger, or app triggers and set them to Run Immediately. Multiple automations run the same Shortcut.',
+  'passive.setup.steps': 'There is only one URL. Copy it into a manual Shortcuts "Get Contents of URL / HTTP GET" action.',
+  'passive.setup.ios': 'iOS: manually create a Keep Contact Ping Shortcut, put the personal URL into "Get Contents of URL / HTTP GET", then in Shortcuts → Automation choose alarm, charger, or app triggers and set them to Run Immediately.',
   'passive.setup.android': 'Android: the native app can ping automatically after login; browser/PWA mode should connect the same URL to a system automation tool.',
   'passive.setup.androidNative': 'Native Android app: after login, the app stores this device token; charging/unplugging/unlock/opening Keep Contact report activity automatically.',
   'passive.setup.androidWeb': 'Android browser/PWA: the OS does not let a closed web page listen for unlock or charging. Put the same URL into MacroDroid, Tasker, or a vendor automation HTTP GET action.',
@@ -852,4 +852,3 @@ export function LangToggle({ className, style }: { className?: string; style?: R
     </button>
   )
 }
-

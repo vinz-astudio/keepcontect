@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   listMyCommunities,
   listMyGroups,
@@ -34,6 +34,7 @@ export function StatusBoard() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [sentTo, setSentTo] = useState<Set<string>>(new Set())
+  const defaultOpenApplied = useRef(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -65,6 +66,14 @@ export function StatusBoard() {
         }),
       )
       setGroups(built)
+      if (!defaultOpenApplied.current && built.length > 0) {
+        defaultOpenApplied.current = true
+        const keys = new Set(built.map((g) => 'g:' + g.id))
+        for (const c of comms) {
+          if (built.some((g) => g.communityId === c.id)) keys.add('c:' + c.id)
+        }
+        setOpen(keys)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : translate('err.load'))
     } finally {
@@ -144,7 +153,7 @@ export function StatusBoard() {
         {!expanded && g.activityError && (
           <p className="status__loaderr">{g.activityError}</p>
         )}
-        {expanded && <GroupBoard groupId={g.id} mode="watch" />}
+        {expanded && <GroupBoard groupId={g.id} mode="watch" initialData={g.act} />}
       </li>
     )
   }

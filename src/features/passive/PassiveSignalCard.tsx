@@ -5,7 +5,6 @@ import {
   getHeartbeatToken,
   lastPingAt,
   pingUrl,
-  shortcutImportUrl,
   summaryUrl,
 } from '@/features/passive/api'
 import { getDesktopOS, getPlatform, isTauri } from '@/lib/platform'
@@ -210,38 +209,33 @@ export function PassiveSignalCard() {
             <ol style={{ margin: 0, paddingLeft: '16px', lineHeight: '1.4', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <li>
                 {lang === 'zh' 
-                  ? '点击下方按钮，将专属的【Keep Contact Ping】快捷指令导入您的苹果设备。' 
-                  : 'Tap the button below to import the custom "Keep Contact Ping" Shortcut.'}
+                  ? '先复制下方的个人报活链接。'
+                  : 'Copy your personal heartbeat URL below.'}
               </li>
               <li>
                 {lang === 'zh'
-                  ? '打开苹果自带的【快捷指令】App，切换到下方的【自动化】标签页。'
-                  : 'Open Apple\'s built-in "Shortcuts" App, and switch to the "Automation" tab.'}
+                  ? '打开苹果自带的【快捷指令】App，手动创建一个名为 Keep Contact Ping 的快捷指令。'
+                  : 'Open Apple\'s built-in "Shortcuts" app and manually create a Shortcut named Keep Contact Ping.'}
               </li>
               <li>
                 {lang === 'zh'
-                  ? '点击右上角【+】号创建自动化。选择触发源，建议添加：【屏幕锁定 (解锁时)】或【充电器 (接通时)】。'
-                  : 'Tap the "+" icon to create a new automation. Choose a trigger: e.g. "Screen Unlock" or "Charger Connect".'}
+                  ? '在快捷指令里添加【获取 URL 内容】动作，把刚才复制的链接填进去，并使用 HTTP GET。'
+                  : 'Add a "Get Contents of URL" action, paste the copied URL, and leave it as HTTP GET.'}
               </li>
               <li>
                 {lang === 'zh'
-                  ? '在自动化配置中，将运行方式设为【立即运行】，并关闭【运行前询问】。'
-                  : 'Set execution to "Run Immediately" and turn off "Ask Before Running".'}
+                  ? '切到【自动化】标签页，新建你需要的触发器，例如解锁、连接充电器、断开充电器或每天会打开的 App。'
+                  : 'Switch to the "Automation" tab and add the triggers you need, such as unlock, charger connected, charger disconnected, or an app you open daily.'}
               </li>
               <li>
                 {lang === 'zh'
-                  ? '点击下一步，选择刚刚导入的【Keep Contact Ping】快捷指令，保存即可！'
-                  : 'Set it to run the imported "Keep Contact Ping" Shortcut, and save.'}
+                  ? '把自动化设为【立即运行】，关闭【运行前询问】，并让它运行你刚手动创建的 Keep Contact Ping 快捷指令。'
+                  : 'Set each automation to "Run Immediately", turn off "Ask Before Running", and run your manually created Keep Contact Ping Shortcut.'}
               </li>
             </ol>
           </div>
 
           <div style={{ display: 'flex', gap: '10px', marginTop: '4px', flexWrap: 'wrap' }}>
-            {token && (
-              <a className="psig__import" href={shortcutImportUrl(token)}>
-                {lang === 'zh' ? '导入快捷指令' : 'Import Shortcut'}
-              </a>
-            )}
             <button className="share" disabled={!token} onClick={() => void copy()}>
               {copied ? t('passive.copied') : (lang === 'zh' ? '复制个人报活链接' : 'Copy Heartbeat URL')}
             </button>

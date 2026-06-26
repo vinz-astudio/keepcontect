@@ -69,13 +69,24 @@ final class PassivePing {
         return false;
     }
 
-    static IntentFilter eventIntentFilter(Context context) {
+    // Charger broadcasts (POWER_CONNECTED/DISCONNECTED) originate from the system uid,
+    // so a RECEIVER_NOT_EXPORTED dynamic receiver receives them fine.
+    static IntentFilter chargingIntentFilter(Context context) {
         SharedPreferences prefs = prefs(context);
         IntentFilter filter = new IntentFilter();
         if (isConfigured(context) && prefs.getBoolean(KEY_ALLOW_CHARGING, false)) {
             filter.addAction(Intent.ACTION_POWER_CONNECTED);
             filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
         }
+        return filter;
+    }
+
+    // USER_PRESENT is dispatched by SystemUI (a different uid), so its dynamic receiver
+    // must be RECEIVER_EXPORTED to be delivered. Safe: USER_PRESENT is a protected
+    // system broadcast, so only the OS can send it.
+    static IntentFilter unlockIntentFilter(Context context) {
+        SharedPreferences prefs = prefs(context);
+        IntentFilter filter = new IntentFilter();
         if (isConfigured(context) && prefs.getBoolean(KEY_ALLOW_UNLOCK, false)) {
             filter.addAction(Intent.ACTION_USER_PRESENT);
         }

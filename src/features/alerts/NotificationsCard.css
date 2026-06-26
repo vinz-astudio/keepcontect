@@ -45,6 +45,21 @@
   cursor: default;
 }
 
+.notif-tools-toggle {
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: 58%;
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .nfeed__controls {
   display: flex;
   gap: 0.5rem;

@@ -202,8 +202,7 @@ export function NotificationsCard({
         </h2>
         {pushStatus === 'subscribed' && (
           <button
-            className="nfeed__more"
-            style={{ margin: 0, padding: '4px 8px', fontSize: '0.78rem', width: 'auto' }}
+            className="notif-tools-toggle"
             aria-expanded={showTools}
             onClick={() => setShowTools((v) => !v)}
           >
