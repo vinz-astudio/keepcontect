@@ -1,10 +1,10 @@
 ﻿import { useCallback, useEffect, useState } from 'react'
 import {
   getGroupActivity,
-  setGroupVisibility,
   setShareActivity,
   type ActivityStatus,
   type GroupActivity,
+  type GroupActivityView,
 } from '@/features/relationships/groupActivity'
 import { translate, useI18n } from '@/lib/i18n'
 import { formatGroupActivityStatus } from '@/features/relationships/groupActivityDisplay'
@@ -20,7 +20,13 @@ const DOT: Record<ActivityStatus, string> = {
   hidden: 'board__dot--unknown',
 }
 
-export function GroupBoard({ groupId }: { groupId: string }) {
+export function GroupBoard({
+  groupId,
+  mode = 'group',
+}: {
+  groupId: string
+  mode?: GroupActivityView
+}) {
   const { t, lang } = useI18n()
   const [data, setData] = useState<GroupActivity | null>(null)
   const [loading, setLoading] = useState(true)
@@ -30,13 +36,13 @@ export function GroupBoard({ groupId }: { groupId: string }) {
   const load = useCallback(async () => {
     setError(null)
     try {
-      setData(await getGroupActivity(groupId))
+      setData(await getGroupActivity(groupId, mode))
     } catch (e) {
       setError(e instanceof Error ? e.message : translate('err.load'))
     } finally {
       setLoading(false)
     }
-  }, [groupId])
+  }, [groupId, mode])
 
   useEffect(() => {
     void load()
@@ -66,7 +72,7 @@ export function GroupBoard({ groupId }: { groupId: string }) {
   return (
     <div className="board">
       {data.members.length <= 1 ? (
-        <p className="muted board__empty">{t('board.emptyMembers')}</p>
+        <p className="muted board__empty">{t(mode === 'watch' ? 'board.emptyWatch' : 'board.emptyMembers')}</p>
       ) : (
         <ul className="board__list">
           {data.members.map((m) => {
@@ -99,29 +105,8 @@ export function GroupBoard({ groupId }: { groupId: string }) {
         {t('board.share')}
       </label>
 
-      {/* ç»„ä¸»å¯åˆ‡æ¢æœ¬ç»„å¯è§èŒƒå›´ */}
-      {data.is_owner && (
-        <div className="board__vis">
-          <span className="board__vislabel">{t('board.vis.label')}</span>
-          <div className="board__visseg">
-            {(['watchers_only', 'group_wide'] as const).map((v) => (
-              <button
-                key={v}
-                className={data.visibility === v ? 'active' : ''}
-                disabled={busy}
-                onClick={() => run(() => setGroupVisibility(groupId, v))}
-              >
-                {t(v === 'watchers_only' ? 'board.vis.watchers' : 'board.vis.all')}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <p className="muted board__hint">
-        {data.visibility === 'watchers_only'
-          ? t('board.hint.watchers')
-          : t('board.hint.all')}
+        {t(mode === 'watch' ? 'board.hint.watchView' : 'board.hint.groupView')}
       </p>
     </div>
   )

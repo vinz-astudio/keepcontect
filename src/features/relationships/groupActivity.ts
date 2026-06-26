@@ -13,6 +13,7 @@ export type ActivityStatus =
   | 'hidden'
 
 export type GroupVisibility = 'watchers_only' | 'group_wide'
+export type GroupActivityView = 'watch' | 'group'
 
 export interface GroupMemberStatus {
   user_id: string
@@ -31,16 +32,29 @@ export interface GroupActivity {
   visibility: GroupVisibility
   is_owner: boolean
   i_share: boolean
+  view?: GroupActivityView
   members: GroupMemberStatus[]
 }
 
-/** 读取一个 Group 的平安看板（成员 + 粗略活跃状态） */
-export async function getGroupActivity(groupId: string): Promise<GroupActivity> {
-  const { data, error } = await supabase.rpc('get_group_activity', {
+/** 读取一个 Group 的平安看板。watch=Watch页过滤视角; group=Group页全员视角。 */
+export async function getGroupActivity(
+  groupId: string,
+  view: GroupActivityView = 'group',
+): Promise<GroupActivity> {
+  const { data, error } = await supabase.rpc('get_group_activity_view', {
     _group: groupId,
+    _view: view,
   })
-  if (error) throw error
-  return data as unknown as GroupActivity
+  if (!error) return data as unknown as GroupActivity
+
+  const missingScopedRpc =
+    error.code === 'PGRST202' ||
+    /get_group_activity_view/i.test(error.message ?? '')
+  if (!missingScopedRpc) throw error
+
+  const legacy = await supabase.rpc('get_group_activity', { _group: groupId })
+  if (legacy.error) throw legacy.error
+  return legacy.data as unknown as GroupActivity
 }
 
 /** 本人开关"公开我的活跃状态"（opt-in） */

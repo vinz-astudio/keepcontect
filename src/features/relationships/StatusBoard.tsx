@@ -50,7 +50,7 @@ export function StatusBoard() {
               id: group.id,
               name: group.name,
               communityId: group.community_id,
-              act: await getGroupActivity(group.id),
+              act: await getGroupActivity(group.id, 'watch'),
               activityError: null,
             }
           } catch (e) {
@@ -144,7 +144,7 @@ export function StatusBoard() {
         {!expanded && g.activityError && (
           <p className="status__loaderr">{g.activityError}</p>
         )}
-        {expanded && <GroupBoard groupId={g.id} />}
+        {expanded && <GroupBoard groupId={g.id} mode="watch" />}
       </li>
     )
   }

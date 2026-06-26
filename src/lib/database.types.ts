@@ -510,6 +510,10 @@ export type Database = {
       }
       become_guardian_by_code: { Args: { _code: string }; Returns: string }
       get_group_activity: { Args: { _group: string }; Returns: Json }
+      get_group_activity_view: {
+        Args: { _group: string; _view: string }
+        Returns: Json
+      }
       set_group_visibility: {
         Args: { _group: string; _visibility: string }
         Returns: undefined

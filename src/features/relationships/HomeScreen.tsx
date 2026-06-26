@@ -768,7 +768,7 @@ export function HomeScreen() {
                             {t('group.watching')}
                           </label>
                         </div>
-                        {openBoard === group.id && <GroupBoard groupId={group.id} />}
+                        {openBoard === group.id && <GroupBoard groupId={group.id} mode="group" />}
                       </li>
                     ))}
                   </ul>
