@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLivenessContext } from '@/features/baseline/LivenessProvider'
-import { RoutineInsights } from '@/features/baseline/RoutineInsights'
+import { useRoutineInsights } from '@/features/baseline/RoutineInsights'
+import { ActiveStatusBox } from '@/features/passive/ActiveStatusBox'
 import {
   setSensitivity,
 } from '@/features/baseline/configStore'
@@ -16,7 +17,11 @@ import { getRoutineProfile, updateRoutineProfile } from '@/features/profile/prof
 import { toast } from '@/lib/toast'
 import './LivenessCard.css'
 
-/** 作息/守望规则配置页：灵敏度、睡眠时间 */
+/**
+ * 作息/守望页。布局分两组(桌面左右两列、移动端上下堆叠):
+ *  短期组:守护活跃度 + 当前守望状态 + 异常沉默判断依据 + 灵敏度。
+ *  长期组:学习中的活跃节律 + 睡眠时间 + 作息模式 + 数据授权。
+ */
 export function RoutineSettings() {
   const { t, lang } = useI18n()
   const { config, reload } = useLivenessContext()
@@ -26,6 +31,9 @@ export function RoutineSettings() {
   const [sleepBusy, setSleepBusy] = useState(false)
   const [routinePattern, setRoutinePattern] = useState('regular_9to5')
   const [consentDataSharing, setConsentDataSharing] = useState(false)
+  const [statusKey, setStatusKey] = useState(0)
+
+  const { statusNode, basisNode, learningNode } = useRoutineInsights(statusKey)
 
   useEffect(() => {
     void getSleepWindow()
@@ -70,138 +78,160 @@ export function RoutineSettings() {
     }
   }
 
-  return (
-    <div className="routine-grid">
-      <RoutineInsights />
-      <section className="card">
-        <h2 className="card__title">{t('tab.routine')}</h2>
-        <p className="muted">{t('routine.desc')}</p>
+  // —— 短期:灵敏度(切换后即时刷新上方判断依据里的真实阈值)——
+  const sensitivityCard = (
+    <section className="card">
+      <div className="liveness__row">
+        <span className="liveness__rowlabel">{t('live.sensitivity')}</span>
+        <div className="liveness__seg">
+          {(['high', 'balanced', 'low'] as Sensitivity[]).map((s) => (
+            <button
+              key={s}
+              className={config.sensitivity === s ? 'active' : ''}
+              onClick={async () => {
+                setSensitivity(s)
+                await setServerSensitivity(s).catch(() => {})
+                await reload()
+                setStatusKey((k) => k + 1)
+              }}
+            >
+              {t(`live.sens.${s}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
 
-        <div className="liveness__row">
-          <span className="liveness__rowlabel">{t('live.sensitivity')}</span>
-          <div className="liveness__seg">
-            {(['high', 'balanced', 'low'] as Sensitivity[]).map((s) => (
+  // —— 长期:睡眠时间 + 作息模式 + 数据授权 ——
+  const longConfigCard = (
+    <section className="card">
+      <h2 className="card__title">{t('tab.routine')}</h2>
+      <p className="muted">{t('routine.desc')}</p>
+
+      <div className="liveness__row">
+        <span className="liveness__rowlabel">{t('live.sleep')}</span>
+        <div className="liveness__custom">
+          <input
+            type="time"
+            value={sleepStart}
+            onChange={(e) => setSleepStart(e.target.value)}
+            aria-label={t('live.sleep.start')}
+          />
+          <span>–</span>
+          <input
+            type="time"
+            value={sleepEnd}
+            onChange={(e) => setSleepEnd(e.target.value)}
+            aria-label={t('live.sleep.end')}
+          />
+          <button disabled={sleepBusy} onClick={() => void saveSleep()}>
+            {t('live.sleep.save')}
+          </button>
+          {sleepOn && (
+            <button disabled={sleepBusy} onClick={() => void turnOffSleep()}>
+              {t('live.sleep.off')}
+            </button>
+          )}
+        </div>
+      </div>
+      <p className="muted liveness__sleephint">
+        {sleepOn
+          ? t('live.sleep.on', { start: sleepStart, end: sleepEnd })
+          : t('live.sleep.disabled')}
+      </p>
+
+      {/* 作息模式选择 */}
+      <div style={{ marginTop: '0.85rem' }}>
+        <div className="liveness__rowlabel" style={{ marginBottom: '8px' }}>
+          {lang === 'zh' ? '作息模式' : 'Routine Mode'}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            { value: 'regular_9to5', label: lang === 'zh' ? '常规朝九晚五作息' : 'Regular 9-to-5' },
+            { value: 'semester_break', label: lang === 'zh' ? '学期与假期交替作息' : 'Semester & Break' },
+            { value: 'shift_irregular', label: lang === 'zh' ? '弹性/轮班不规律作息' : 'Flexible / Shift' },
+          ].map((item) => {
+            const isActive = routinePattern === item.value
+            return (
               <button
-                key={s}
-                className={config.sensitivity === s ? 'active' : ''}
+                key={item.value}
                 onClick={async () => {
-                  setSensitivity(s)
-                  void setServerSensitivity(s).catch(() => {})
-                  await reload()
+                  setRoutinePattern(item.value)
+                  try {
+                    await updateRoutineProfile({ routine_pattern: item.value })
+                    toast(lang === 'zh' ? '已更新作息模式' : 'Routine mode updated', 'ok')
+                  } catch {
+                    toast(lang === 'zh' ? '保存失败' : 'Failed to save', 'danger')
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--r-md)',
+                  background: isActive ? 'var(--accent-soft)' : 'var(--bg-soft)',
+                  border: isActive ? '1px solid var(--accent)' : '1px solid var(--line)',
+                  color: isActive ? 'var(--accent)' : 'var(--fg)',
+                  fontWeight: isActive ? '600' : 'normal',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  width: '100%',
+                  transition: 'all 0.2s ease',
                 }}
               >
-                {t(`live.sens.${s}`)}
+                <span>{item.label}</span>
+                {isActive && <span style={{ fontSize: '0.85rem' }}>✓</span>}
               </button>
-            ))}
-          </div>
+            )
+          })}
         </div>
+      </div>
 
-        <div className="liveness__row">
-          <span className="liveness__rowlabel">{t('live.sleep')}</span>
-          <div className="liveness__custom">
-            <input
-              type="time"
-              value={sleepStart}
-              onChange={(e) => setSleepStart(e.target.value)}
-              aria-label={t('live.sleep.start')}
-            />
-            <span>–</span>
-            <input
-              type="time"
-              value={sleepEnd}
-              onChange={(e) => setSleepEnd(e.target.value)}
-              aria-label={t('live.sleep.end')}
-            />
-            <button disabled={sleepBusy} onClick={() => void saveSleep()}>
-              {t('live.sleep.save')}
-            </button>
-            {sleepOn && (
-              <button disabled={sleepBusy} onClick={() => void turnOffSleep()}>
-                {t('live.sleep.off')}
-              </button>
-            )}
-          </div>
-        </div>
-        <p className="muted liveness__sleephint">
-          {sleepOn
-            ? t('live.sleep.on', { start: sleepStart, end: sleepEnd })
-            : t('live.sleep.disabled')}
-        </p>
+      {/* 匿名数据共享授权 */}
+      <div className="liveness__row" style={{ alignItems: 'flex-start' }}>
+        <label className="toggle" style={{ gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            style={{ marginTop: '3px' }}
+            checked={consentDataSharing}
+            onChange={async (e) => {
+              const checked = e.target.checked
+              setConsentDataSharing(checked)
+              try {
+                await updateRoutineProfile({ consent_data_sharing: checked })
+                toast(lang === 'zh' ? '共享协议设置已更新' : 'Data sharing agreement updated', 'ok')
+              } catch {
+                toast(lang === 'zh' ? '保存失败' : 'Failed to save', 'danger')
+              }
+            }}
+          />
+          <span style={{ fontSize: '0.85rem', color: 'var(--fg-muted)', lineHeight: '1.4' }}>
+            {lang === 'zh'
+              ? '我同意授权匿名共享我的活跃频次数据,帮助改进作息分析模型且优化新用户的冷启动样板。'
+              : 'I consent to anonymous sharing of my activity density data to help improve routine models and optimize patterns for new users.'}
+          </span>
+        </label>
+      </div>
+    </section>
+  )
 
-        {/* 作息模式选择 */}
-        <div style={{ marginTop: '0.85rem' }}>
-          <div className="liveness__rowlabel" style={{ marginBottom: '8px' }}>
-            {lang === 'zh' ? '作息模式' : 'Routine Mode'}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {[
-              { value: 'regular_9to5', label: lang === 'zh' ? '常规朝九晚五作息' : 'Regular 9-to-5' },
-              { value: 'semester_break', label: lang === 'zh' ? '学期与假期交替作息' : 'Semester & Break' },
-              { value: 'shift_irregular', label: lang === 'zh' ? '弹性/轮班不规律作息' : 'Flexible / Shift' }
-            ].map((item) => {
-              const isActive = routinePattern === item.value
-              return (
-                <button
-                  key={item.value}
-                  onClick={async () => {
-                    setRoutinePattern(item.value)
-                    try {
-                      await updateRoutineProfile({ routine_pattern: item.value })
-                      toast(lang === 'zh' ? '已更新作息模式' : 'Routine mode updated', 'ok')
-                    } catch (err) {
-                      toast(lang === 'zh' ? '保存失败' : 'Failed to save', 'danger')
-                    }
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    borderRadius: 'var(--r-md)',
-                    background: isActive ? 'var(--accent-soft)' : 'var(--bg-soft)',
-                    border: isActive ? '1px solid var(--accent)' : '1px solid var(--line)',
-                    color: isActive ? 'var(--accent)' : 'var(--fg)',
-                    fontWeight: isActive ? '600' : 'normal',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    width: '100%',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  <span>{item.label}</span>
-                  {isActive && <span style={{ fontSize: '0.85rem' }}>✓</span>}
-                </button>
-              )
-            })}
-          </div>
-        </div>
+  return (
+    <div className="routine-grid">
+      {/* 短期组:当下最关心、可即时调整的 */}
+      <div className="routine-grid__col1">
+        <ActiveStatusBox />
+        {statusNode}
+        {basisNode}
+        {sensitivityCard}
+      </div>
 
-        {/* 匿名数据共享授权 */}
-        <div className="liveness__row" style={{ alignItems: 'flex-start' }}>
-          <label className="toggle" style={{ gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              style={{ marginTop: '3px' }}
-              checked={consentDataSharing}
-              onChange={async (e) => {
-                const checked = e.target.checked
-                setConsentDataSharing(checked)
-                try {
-                  await updateRoutineProfile({ consent_data_sharing: checked })
-                  toast(lang === 'zh' ? '共享协议设置已更新' : 'Data sharing agreement updated', 'ok')
-                } catch (err) {
-                  toast(lang === 'zh' ? '保存失败' : 'Failed to save', 'danger')
-                }
-              }}
-            />
-            <span style={{ fontSize: '0.85rem', color: 'var(--fg-muted)', lineHeight: '1.4' }}>
-              {lang === 'zh' 
-                ? '我同意授权匿名共享我的活跃频次数据，帮助改进作息分析模型且优化新用户的冷启动样板。' 
-                : 'I consent to anonymous sharing of my activity density data to help improve routine models and optimize patterns for new users.'}
-            </span>
-          </label>
-        </div>
-      </section>
+      {/* 长期组:慢慢学习与长期设置 */}
+      <div className="routine-grid__col2">
+        {learningNode}
+        {longConfigCard}
+      </div>
     </div>
   )
 }

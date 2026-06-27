@@ -46,9 +46,9 @@ export function SafeAwayBar() {
   }
 
   return (
-    <section className="card">
+    <section className="card safeaway">
       <div className="liveness__row liveness__quick">
-        <span className="liveness__rowlabel">{t('live.safeaway')}</span>
+        <h2 className="safeaway__title">{t('live.safeaway')}</h2>
         <div className="liveness__seg">
           <button onClick={() => void addSafeWindow(120)}>+2h</button>
           <button onClick={() => void addSafeWindow(240)}>+4h</button>

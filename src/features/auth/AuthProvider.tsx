@@ -90,6 +90,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // 仅 DEV：从 .env.local 读一次性测试账号自动登录，方便本地把登录后的页面
+  // 跑起来做 UI 自验。生产构建里 import.meta.env.DEV 为 false，整段会被剔除。
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    const env = import.meta.env as Record<string, string | undefined>
+    const email = env.VITE_DEV_EMAIL
+    const password = env.VITE_DEV_PASSWORD
+    if (!email || !password) return
+    let cancelled = false
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelled || data.session) return
+      void supabase.auth.signInWithPassword({ email, password })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const value = useMemo<AuthState>(
     () => ({
       session,

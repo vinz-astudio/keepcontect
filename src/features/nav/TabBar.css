@@ -1,9 +1,6 @@
-/* 移动端底部 Tab Bar 默认显示 */
+/* 移动端底部 Tab Bar：作为 .home(100dvh flex 列)的 flex 子项常驻底部，
+   不用 position:fixed —— fixed 在移动端动态视口下会在底栏下方产生空白缝隙。 */
 .tabbar {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
   z-index: 40;
   flex: 0 0 auto;
   display: flex;

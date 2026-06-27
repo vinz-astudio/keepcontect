@@ -1,42 +1,16 @@
 import { Capacitor } from '@capacitor/core'
 import { useCallback, useEffect, useState } from 'react'
 import {
-  countTodayPings,
   getHeartbeatToken,
-  lastPingAt,
   pingUrl,
-  summaryUrl,
 } from '@/features/passive/api'
 import { getDesktopOS, getPlatform, isTauri } from '@/lib/platform'
-import { buildWindowsHookCmd } from '@/features/passive/windowsHook'
-import { translate, useI18n } from '@/lib/i18n'
-import { APP_VERSION, LATEST_URL } from '@/lib/version'
+import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
-import { getAllSignals } from '@/features/signals/store'
 
 import './PassiveSignalCard.css'
-
-function downloadText(name: string, text: string): void {
-  const blob = new Blob([text], { type: 'application/octet-stream' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
-}
-
-function ago(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 60) return translate('time.now')
-  if (s < 3600) return translate('time.min', { n: Math.floor(s / 60) })
-  if (s < 86400) return translate('time.hour', { n: Math.floor(s / 3600) })
-  return translate('time.day', { n: Math.floor(s / 86400) })
-}
 
 function androidRuntime(): 'native' | 'web' | null {
   if (getPlatform() !== 'android') return null
@@ -49,12 +23,9 @@ export function PassiveSignalCard() {
   const android = androidRuntime()
   const desktopOS = platform === 'desktop' ? getDesktopOS() : null
   
-  const [todayCount, setTodayCount] = useState(0)
-  const [lastAt, setLastAt] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hookConsent, setHookConsent] = useState(false)
   const [autostart, setAutostart] = useState(false)
   const [hasAutostartSupport, setHasAutostartSupport] = useState(false)
   const [_, setSensorRefresh] = useState(0)
@@ -101,21 +72,7 @@ export function PassiveSignalCard() {
     try {
       const tok = await getHeartbeatToken()
       setToken(tok)
-      if (tok) {
-        localStorage.setItem('kc.passiveToken', tok)
-        const localEvents = await getAllSignals()
-        const ps = localEvents.map((e) => ({
-          id: 0,
-          user_id: '',
-          kind: e.kind,
-          at: new Date(e.t).toISOString(),
-          created_at: new Date(e.t).toISOString(),
-        }))
-        const c = countTodayPings(ps)
-        const l = lastPingAt(ps)
-        setTodayCount(c)
-        setLastAt(l)
-      }
+      if (tok) localStorage.setItem('kc.passiveToken', tok)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -136,13 +93,11 @@ export function PassiveSignalCard() {
   }
 
 
-  const url = token ? pingUrl(token) : '...'
-
   // Accordion Sections definitions (Without duplicate update check buttons)
   const sections = [
     {
       id: 'windows_native',
-      title: lang === 'zh' ? 'Windows 原生桌面守护' : 'Windows Tray Service',
+      title: lang === 'zh' ? 'Windows 桌面 App' : 'Windows Desktop App',
       isCurrent: isTauri(),
       render: () => (
         <div>
@@ -245,7 +200,7 @@ export function PassiveSignalCard() {
     },
     {
       id: 'windows_web',
-      title: lang === 'zh' ? 'Windows 网页及自动化脚本' : 'Windows Web & CLI Script',
+      title: lang === 'zh' ? 'Windows 桌面 App' : 'Windows Desktop App',
       isCurrent: !isTauri() && desktopOS === 'windows',
       render: () => (
         <div>
@@ -257,7 +212,7 @@ export function PassiveSignalCard() {
               ? '支持开机自启、空闲自动感知、关闭窗口后后台运行与托盘小图标，体验最佳。'
               : 'Supports auto-start at login, system idle auto-ping, runs in background on close with tray icon.'}
           </p>
-          <div style={{ display: 'flex', gap: '10px', marginTop: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
             <a className="psig__import" href="/desktop/KeepContact-Setup.exe" download="KeepContact-Setup.exe">
               {lang === 'zh' ? '下载 EXE 安装包' : 'Download EXE'}
             </a>
@@ -265,43 +220,6 @@ export function PassiveSignalCard() {
               {lang === 'zh' ? '下载 MSI 安装包' : 'Download MSI'}
             </a>
           </div>
-
-          <div className="psig__hookdiv" />
-
-          <p className="muted" style={{ fontWeight: '600', color: 'var(--fg)' }}>
-            {t('hook.win.title')}
-          </p>
-          <p className="muted" style={{ fontSize: '0.82rem' }}>
-            {t('hook.win.desc')}
-          </p>
-          <p className="muted psig__hookwarn">{t('hook.win.smartscreen')}</p>
-          <label className="psig__hookconsent">
-            <input
-              type="checkbox"
-              checked={hookConsent}
-              onChange={(e) => setHookConsent(e.target.checked)}
-            />
-            <span>{t('hook.win.consent')}</span>
-          </label>
-          <button
-            className="psig__import"
-            disabled={!token || !hookConsent}
-            onClick={() => {
-              if (!token) return
-              downloadText(
-                'KeepContact-Setup.cmd',
-                buildWindowsHookCmd(
-                  pingUrl(token),
-                  summaryUrl(token),
-                  window.location.origin,
-                  LATEST_URL,
-                  APP_VERSION,
-                ),
-              )
-            }}
-          >
-            {t('hook.win.download')}
-          </button>
         </div>
       )
     },
@@ -338,40 +256,9 @@ export function PassiveSignalCard() {
 
       {error && <p className="home__error">{error}</p>}
 
-      {/* 2. Global Status Box (Now at the top!) */}
-      <div className="psig__status-box">
-        <div className="psig__status-header">
-          <strong>{lang === 'zh' ? '守护活跃度' : 'Active Status'}</strong>
-          <span className="psig__status-badge">
-            {todayCount > 0 ? (lang === 'zh' ? '运行中' : 'Running') : (lang === 'zh' ? '待活跃' : 'Idle')}
-          </span>
-        </div>
-        
-        <div className="psig__status-grid">
-          <div className="psig__status-cell">
-            <span className="psig__status-label">{lang === 'zh' ? '今日上报次数' : 'Today Pings'}</span>
-            <span className="psig__status-value">{todayCount}</span>
-          </div>
-          <div className="psig__status-cell">
-            <span className="psig__status-label">{lang === 'zh' ? '最近活跃时间' : 'Last Active'}</span>
-            <span className="psig__status-value psig__status-value--time">
-              {lastAt ? t('passive.last', { ago: ago(lastAt) }) : t('passive.never')}
-            </span>
-          </div>
-        </div>
+      {/* 守护活跃度已移至「作息」页短期组顶部(ActiveStatusBox) */}
 
-        <div className="psig__status-url-area">
-          <div className="psig__status-url-title">{lang === 'zh' ? '专属上报 Webhook 链接' : 'Personal Webhook URL'}</div>
-          <div className="psig__status-url-row">
-            <code className="psig__status-code">{url}</code>
-            <button className="psig__status-copy-btn" disabled={!token} onClick={() => void copy()}>
-              {copied ? t('passive.copied') : t('passive.copy')}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Toggleable Sensors List */}
+      {/* Toggleable Sensors List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
         <h3 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: '600' }}>
           {lang === 'zh' ? '本设备自动感知触发源' : 'Active Sensors on this Device'}
@@ -433,15 +320,15 @@ export function PassiveSignalCard() {
                 className="psig__panel-header"
                 onClick={() => setExpanded(isOpen ? null : s.id)}
               >
-                <div className="psig__panel-title-wrap">
-                  <span>{s.title}</span>
+                <span className="psig__panel-title">{s.title}</span>
+                <div className="psig__panel-right">
                   {s.isCurrent && (
                     <span className="psig__panel-badge">
                       {lang === 'zh' ? '当前设备' : 'Current Device'}
                     </span>
                   )}
+                  <span className="psig__panel-arrow">{isOpen ? '▲' : '▼'}</span>
                 </div>
-                <span className="psig__panel-arrow">{isOpen ? '▲' : '▼'}</span>
               </button>
               {isOpen && (
                 <div className="psig__panel-content">

@@ -320,10 +320,17 @@ button.psig__import {
   background: rgba(255, 255, 255, 0.02);
 }
 
-.psig__panel-title-wrap {
+.psig__panel-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.psig__panel-right {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .psig__panel-badge {
