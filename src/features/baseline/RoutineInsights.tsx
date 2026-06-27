@@ -3,6 +3,7 @@ import { useLivenessContext } from '@/features/baseline/LivenessProvider'
 import { buildBaseline } from '@/features/baseline/engine'
 import { applySensitivityToThreshold } from '@/features/baseline/usualModel'
 import { getInstalledAt } from '@/features/baseline/configStore'
+import { localizeQuietWindowReason } from '@/features/baseline/routineDisplay'
 import { getAllSignals } from '@/features/signals/store'
 import {
   type LivenessStatus,
@@ -56,13 +57,13 @@ export interface RoutineInsightNodes {
   statusLine: ReactNode
   /** 短期:判断依据内容(当前已静默 / 告警阈值 + 睡眠暂停提示),不含卡片外壳 */
   basisInner: ReactNode
-  /** 长期:学习中的活跃节律(热力图 + 学习进度),自带卡片外壳 */
-  learningNode: ReactNode
+  /** 长期:每周活跃节律(热力图 + 学习进度),不含卡片外壳 */
+  scheduleInner: ReactNode
 }
 
 /**
  * 守望状态 + 异常沉默判断依据 + 活跃节律,拆块返回,交由 RoutineSettings 组装:
- * statusLine/basisInner 合进短期「一个 block」,learningNode 进长期组。
+ * statusLine/basisInner 合进短期「一个 block」,scheduleInner 进长期 Routine block。
  * 全部在端上由本地行为时序计算;阈值/gap 取服务端真值。
  * @param refreshKey 变化时重拉服务端阈值(灵敏度切换后即时刷新)。
  */
@@ -210,6 +211,10 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
     serverStatus?.sleep_start && serverStatus.sleep_end
       ? `${serverStatus.sleep_start.slice(0, 5)}-${serverStatus.sleep_end.slice(0, 5)}`
       : null
+  const safeWindowReason =
+    status === 'safe_window'
+      ? localizeQuietWindowReason(evaluation?.reason, lang)
+      : null
 
   // 一行小字状态(进 ActiveStatusBox)
   const statusLine = (
@@ -221,8 +226,8 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
       {!loading && evaluation && (
         <span className="psig__statusline-sub">
           ·{' '}
-          {status === 'safe_window' && evaluation.reason
-            ? evaluation.reason
+          {status === 'safe_window' && safeWindowReason
+            ? safeWindowReason
             : t('live.gap', { gap: fmtDur(evaluation.currentGapMs) })}
         </span>
       )}
@@ -292,9 +297,9 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
     </div>
   )
 
-  // —— 长期:学习中的活跃节律(热力图 + 进度)——
-  const learningNode = (
-    <section className="card">
+  // —— 长期:每周时间表/学习中的活跃节律(热力图 + 进度)——
+  const scheduleInner = (
+    <div className="routine-schedule">
       <p className="muted routine-hero__desc" style={{ marginTop: 0 }}>
         {t('routine.insights.desc')}
       </p>
@@ -370,8 +375,8 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
             : t('routine.learn.done', { total: config.learningDays })}
         </p>
       </div>
-    </section>
+    </div>
   )
 
-  return { statusLine, basisInner, learningNode }
+  return { statusLine, basisInner, scheduleInner }
 }

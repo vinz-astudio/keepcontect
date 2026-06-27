@@ -20,7 +20,7 @@ import './LivenessCard.css'
 /**
  * 作息/守望页。布局分两组(桌面左右两列、移动端上下堆叠):
  *  短期组:守护活跃度 + 当前守望状态 + 异常沉默判断依据 + 灵敏度。
- *  长期组:学习中的活跃节律 + 睡眠时间 + 作息模式 + 数据授权。
+ *  长期组:Routine block 内合并每周时间表 + 睡眠时间 + 作息模式 + 数据授权。
  */
 export function RoutineSettings() {
   const { t, lang } = useI18n()
@@ -33,7 +33,7 @@ export function RoutineSettings() {
   const [consentDataSharing, setConsentDataSharing] = useState(false)
   const [statusKey, setStatusKey] = useState(0)
 
-  const { statusLine, basisInner, learningNode } = useRoutineInsights(statusKey)
+  const { statusLine, basisInner, scheduleInner } = useRoutineInsights(statusKey)
 
   useEffect(() => {
     void getSleepWindow()
@@ -101,11 +101,11 @@ export function RoutineSettings() {
     </div>
   )
 
-  // —— 长期:睡眠时间 + 作息模式 + 数据授权 ——
+  // —— 长期:每周时间表 + 睡眠时间 + 作息模式 + 数据授权 ——
   const longConfigCard = (
     <section className="card">
       <h2 className="card__title">{t('tab.routine')}</h2>
-      <p className="muted">{t('routine.desc')}</p>
+      {scheduleInner}
 
       <div className="liveness__row">
         <span className="liveness__rowlabel">{t('live.sleep')}</span>
@@ -140,11 +140,11 @@ export function RoutineSettings() {
       </p>
 
       {/* 作息模式选择 */}
-      <div style={{ marginTop: '0.85rem' }}>
-        <div className="liveness__rowlabel" style={{ marginBottom: '8px' }}>
+      <div className="routine-mode">
+        <div className="liveness__rowlabel routine-mode__label">
           {lang === 'zh' ? '作息模式' : 'Routine Mode'}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="routine-mode__list">
           {[
             { value: 'regular_9to5', label: lang === 'zh' ? '常规朝九晚五作息' : 'Regular 9-to-5' },
             { value: 'semester_break', label: lang === 'zh' ? '学期与假期交替作息' : 'Semester & Break' },
@@ -154,6 +154,7 @@ export function RoutineSettings() {
             return (
               <button
                 key={item.value}
+                className={`routine-mode__button${isActive ? ' is-active' : ''}`}
                 onClick={async () => {
                   setRoutinePattern(item.value)
                   try {
@@ -163,24 +164,9 @@ export function RoutineSettings() {
                     toast(lang === 'zh' ? '保存失败' : 'Failed to save', 'danger')
                   }
                 }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  borderRadius: 'var(--r-md)',
-                  background: isActive ? 'var(--accent-soft)' : 'var(--bg-soft)',
-                  border: isActive ? '1px solid var(--accent)' : '1px solid var(--line)',
-                  color: isActive ? 'var(--accent)' : 'var(--fg)',
-                  fontWeight: isActive ? '600' : 'normal',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  width: '100%',
-                  transition: 'all 0.2s ease',
-                }}
               >
                 <span>{item.label}</span>
-                {isActive && <span style={{ fontSize: '0.85rem' }}>✓</span>}
+                {isActive && <span className="routine-mode__check">✓</span>}
               </button>
             )
           })}
@@ -228,7 +214,6 @@ export function RoutineSettings() {
 
       {/* 长期组:慢慢学习与长期设置 */}
       <div className="routine-grid__col2">
-        {learningNode}
         {longConfigCard}
       </div>
     </div>

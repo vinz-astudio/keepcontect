@@ -67,7 +67,7 @@ export function useLiveness(): LivenessState {
     for (let dow = 0; dow < 7; dow++) {
       quietWindows.push({
         kind: 'recurring',
-        label: '睡眠',
+        label: 'sleep',
         dow,
         startMin,
         endMin,
