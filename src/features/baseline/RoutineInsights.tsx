@@ -10,6 +10,7 @@ import {
 } from '@/features/baseline/types'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { supabase } from '@/lib/supabase'
 import './LivenessCard.css'
 
 const HOUR = 3_600_000
@@ -73,6 +74,25 @@ export function RoutineInsights() {
         if (on) setEvents(e)
       })
       .catch(() => {})
+    return () => {
+      on = false
+    }
+  }, [])
+
+  // 服务端真实状态:silence_threshold(当前时段真正触发告警的阈值)+ 最后行为时间
+  const [serverStatus, setServerStatus] = useState<{
+    threshold_seconds: number
+    last_behavior_at: string | null
+  } | null>(null)
+  useEffect(() => {
+    let on = true
+    void supabase.rpc('my_routine_status').then(({ data }) => {
+      if (on && data) {
+        setServerStatus(
+          data as { threshold_seconds: number; last_behavior_at: string | null },
+        )
+      }
+    })
     return () => {
       on = false
     }
@@ -188,17 +208,21 @@ export function RoutineInsights() {
     }
   }, [config.sensitivity, activeExpected, lang])
 
-  const heroThresholdVal = inLearning
-    ? fmtDur(evaluation?.thresholdMs)
-    : fmtDur(calculatedThresholdMs)
+  // 优先用服务端真实阈值/gap;加载中回退本地估算,永不显示 '—'
+  const serverThresholdMs =
+    serverStatus != null ? serverStatus.threshold_seconds * 1000 : null
+  const serverGapMs = serverStatus?.last_behavior_at
+    ? Date.now() - new Date(serverStatus.last_behavior_at).getTime()
+    : null
+  const heroThresholdVal =
+    serverThresholdMs != null
+      ? fmtDur(serverThresholdMs)
+      : fmtDur(calculatedThresholdMs)
 
-  const thresholdSubtext = inLearning
-    ? lang === 'zh'
-      ? `学习期保底保护中。学习结束后预计为 ${fmtDur(calculatedThresholdMs)}。`
-      : `Learning phase fallback active. Expected to be ${fmtDur(calculatedThresholdMs)} after learning.`
-    : lang === 'zh'
-      ? '系统基于此限度监控异常，超出即会发送通知。'
-      : 'Silence exceeding this limit will trigger alert notifications.'
+  const thresholdSubtext =
+    lang === 'zh'
+      ? '这是当前时段真正会触发告警的静默上限（随作息 / AI 自适应）。'
+      : 'The real silence limit that triggers an alert for this time of day (adapts to your routine / AI).'
 
   return (
     <>
@@ -332,7 +356,7 @@ export function RoutineInsights() {
               {lang === 'zh' ? '当前已静默时间' : 'Current Silence'}
             </span>
             <span style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--fg)' }}>
-              {fmtDur(evaluation?.currentGapMs)}
+              {fmtDur(serverGapMs ?? evaluation?.currentGapMs)}
             </span>
           </div>
 

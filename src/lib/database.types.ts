@@ -583,6 +583,7 @@ export type Database = {
       }
       am_i_gm: { Args: never; Returns: boolean }
       gm_list_clients: { Args: never; Returns: Json }
+      my_routine_status: { Args: never; Returns: Json }
       gm_nudge_update: { Args: { _target: string }; Returns: undefined }
       gm_send_concern: { Args: { _target: string }; Returns: undefined }
       gm_delete_user: { Args: { _target: string }; Returns: undefined }

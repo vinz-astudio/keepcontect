@@ -1,3 +1,6 @@
+// DEPLOY NOTE: deploy this function with verify_jwt=false. It authenticates via the
+// cron_secret (Authorization: Bearer <cron_secret>), NOT a Supabase JWT. With verify_jwt=true
+// the gateway 401s the weekly cron (trigger_weekly_routine_updates) before this code runs.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const supabase = createClient(
@@ -98,7 +101,13 @@ Deno.serve(async (req) => {
   }
 
   const geminiKey = Deno.env.get('GEMINI_API_KEY')
-  const results: Array<{ user_id: string; status: string; method: 'gemini' | 'rule-based'; error?: string }> = []
+  const results: Array<{
+    user_id: string
+    status: string
+    method: 'gemini' | 'rule-based'
+    model?: string
+    error?: string
+  }> = []
 
   // 4. Process each user
   for (const uid of usersToProcess) {
@@ -149,7 +158,13 @@ Deno.serve(async (req) => {
       // Check if Gemini is available and if user consented or if it's personal optimization
       if (geminiKey && aggregates && aggregates.length > 0) {
         let success = false
-        const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite']
+        const modelsToTry = [
+          'gemini-3.1-flash-lite',
+          'gemini-3.5-flash',
+          'gemini-3-flash-preview',
+          'gemini-2.5-flash-lite',
+          'gemini-2.5-flash',
+        ]
         let lastErrorMsg = ''
 
         const historyStr = aggregates
@@ -234,7 +249,7 @@ Ensure the returned thresholds represent the maximum allowed silence (in hours) 
             })
 
             console.log(`Successfully updated routine profile using model ${modelName} for user ${uid}`)
-            results.push({ user_id: uid, status: 'success', method: 'gemini' })
+            results.push({ user_id: uid, status: 'success', method: 'gemini', model: modelName })
             success = true
             break
           } catch (modelErr) {
