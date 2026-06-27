@@ -25,6 +25,7 @@ type GapStats = {
   p50: number
   p75: number
   p90: number
+  p95: number
 }
 
 const clamp = (value: number, min: number, max: number) =>
@@ -68,8 +69,26 @@ function summarizeGapStats(pings: Array<{ at: string }>, timeZone: string): Arra
       p50: percentile(bucket, 0.5),
       p75: percentile(bucket, 0.75),
       p90: percentile(bucket, 0.9),
+      p95: percentile(bucket, 0.95),
     }
   })
+}
+
+function confidenceFromSamples(samples: number): number {
+  return clamp(samples / 30, 0.05, 1)
+}
+
+function hourlyConfidence(gapStats: Array<GapStats | null>): number[] {
+  return gapStats.map((stats) => stats ? confidenceFromSamples(stats.samples) : 0)
+}
+
+function modelConfidence(gapStats: Array<GapStats | null>): number {
+  const total = gapStats.reduce((sum, stats) => sum + (stats?.samples ?? 0), 0)
+  return clamp(total / 1000, 0, 1)
+}
+
+function gapStatsJson(gapStats: Array<GapStats | null>) {
+  return gapStats.map((stats, hour) => stats ? { hour, ...stats } : { hour, samples: 0 })
 }
 
 function tightenThresholdsWithGapStats(
@@ -267,18 +286,20 @@ Deno.serve(async (req) => {
         const gapStatsStr = gapStats
           .map((stats, hour) =>
             stats
-              ? `${hour}: samples=${stats.samples}, p50=${stats.p50.toFixed(2)}h, p75=${stats.p75.toFixed(2)}h, p90=${stats.p90.toFixed(2)}h`
+              ? `${hour}: samples=${stats.samples}, p50=${stats.p50.toFixed(2)}h, p75=${stats.p75.toFixed(2)}h, p90=${stats.p90.toFixed(2)}h, p95=${stats.p95.toFixed(2)}h`
               : `${hour}: no recent sub-12h gap samples`,
           )
           .join('\n')
+        const modelConfidenceValue = modelConfidence(gapStats)
+        const hourlyConfidenceValue = hourlyConfidence(gapStats)
 
         const promptText = `You are the Keep Contact Adaptive Routine Engine.
-Analyze the user's activity aggregates, real behavior gap percentiles, and routine settings to output a balanced 24-hour timeout threshold profile (in hours) for silence detection.
+Analyze the user's activity aggregates, real behavior gap percentiles, and routine settings to output a neutral usual behavior model for silence detection.
 
 Inputs:
 1. Routine Pattern: "${pattern}"
 2. User Timezone: "${timezone}"
-3. User Sensitivity Setting: "${sensitivity}" (server applies this later; output a balanced baseline profile)
+3. User Sensitivity Setting: "${sensitivity}" (do not bake this into the model; sensitivity is only a user-facing adjustment tool)
 4. Sleep Window: "${settings?.sleep_start_utc || 'not set'}" to "${settings?.sleep_end_utc || 'not set'}" local time
 5. Historical Daily Activity Density Matrix:
 ${historyStr}
@@ -291,9 +312,10 @@ Guidelines for generating thresholds (in hours):
 - Off-hours / Transition Hours: Set moderate thresholds (e.g., 3.0 to 4.5 hours).
 - Shift / Irregular Pattern: If "shift_irregular" is chosen, or if the density matrix shows erratic hours, keep thresholds flatter and wider (e.g., 5.0 to 6.5 hours) to prevent false alerts.
 - Weekend Multiplier: Typically between 1.0 and 1.5. If the user shifts their sleep/wake cycle on weekends, output a multiplier to scale thresholds.
-- Sensitivity: Do not bake sensitivity into the profile. The server will shorten or lengthen the final alert threshold.
+- Sensitivity: Do not bake sensitivity into the profile. The server applies it later: sensitive ~= model threshold + 30 minutes, balanced/relaxed wait longer.
+- Confidence: Consider sample counts, stable active windows, and recent gap distributions. Low sample hours should have lower confidence.
 
-Ensure the returned thresholds represent the maximum allowed silence (in hours) before triggering an alert. High values = low sensitivity (fewer false alerts but slower alarm), low values = high sensitivity (quick alarm but higher false alert risk). Thresholds must be double precision floats between 1.0 and 12.0.
+Ensure the returned thresholds represent the neutral usual silence baseline (in hours) before sensitivity adjustment. Thresholds must be double precision floats between 1.0 and 12.0.
 `
 
         for (const modelName of modelsToTry) {
@@ -324,6 +346,19 @@ Ensure the returned thresholds represent the maximum allowed silence (in hours) 
                           type: 'STRING',
                           description: 'Brief explanation of the routine analysis',
                         },
+                        model_confidence: {
+                          type: 'NUMBER',
+                          description: 'Overall confidence from 0.0 to 1.0',
+                        },
+                        hourly_confidence: {
+                          type: 'ARRAY',
+                          description: '24 confidence values from 0.0 to 1.0 starting from hour 0 to hour 23',
+                          items: { type: 'NUMBER' },
+                        },
+                        model_explanation: {
+                          type: 'STRING',
+                          description: 'User-readable explanation of the usual behavior model and confidence',
+                        },
                       },
                       required: ['hourly_thresholds', 'weekend_multiplier'],
                     },
@@ -352,11 +387,31 @@ Ensure the returned thresholds represent the maximum allowed silence (in hours) 
               gapStats,
             )
             const weekend_multiplier = clamp(Number(parsed.weekend_multiplier) || 1.0, 0.8, 2.0)
+            const parsedHourlyConfidence = Array.isArray(parsed.hourly_confidence) && parsed.hourly_confidence.length === 24
+              ? parsed.hourly_confidence.map((value: unknown, hour: number) =>
+                clamp(Number(value) || hourlyConfidenceValue[hour] || 0, 0, 1))
+              : hourlyConfidenceValue
+            const parsedModelConfidence = clamp(
+              Number(parsed.model_confidence) || modelConfidenceValue,
+              0,
+              1,
+            )
+            const modelExplanation =
+              typeof parsed.model_explanation === 'string' && parsed.model_explanation.trim()
+                ? parsed.model_explanation.trim()
+                : typeof parsed.reasoning === 'string' && parsed.reasoning.trim()
+                  ? parsed.reasoning.trim()
+                  : `Usual behavior model from ${pings?.length ?? 0} recent pings; confidence ${parsedModelConfidence.toFixed(2)}.`
 
             await supabase.from('user_activity_profiles').upsert({
               user_id: uid,
               hourly_thresholds,
               weekend_multiplier,
+              model_version: 'usual_behavior_v1',
+              model_confidence: parsedModelConfidence,
+              hourly_confidence: parsedHourlyConfidence,
+              gap_stats: gapStatsJson(gapStats),
+              model_explanation: modelExplanation,
               updated_at: new Date().toISOString(),
             })
 
@@ -379,10 +434,16 @@ Ensure the returned thresholds represent the maximum allowed silence (in hours) 
 
       // 5. Rule-based fallback
       const { hourly_thresholds, weekend_multiplier } = getRuleBasedProfile(pattern, gapStats)
+      const fallbackModelConfidence = modelConfidence(gapStats)
       await supabase.from('user_activity_profiles').upsert({
         user_id: uid,
         hourly_thresholds,
         weekend_multiplier,
+        model_version: 'usual_behavior_v1_rule_based',
+        model_confidence: fallbackModelConfidence,
+        hourly_confidence: hourlyConfidence(gapStats),
+        gap_stats: gapStatsJson(gapStats),
+        model_explanation: `Rule-based usual behavior model from ${(pings || []).length} recent pings; confidence ${fallbackModelConfidence.toFixed(2)}. Gemini fallback reason: ${fallbackReason}`,
         updated_at: new Date().toISOString(),
       })
 

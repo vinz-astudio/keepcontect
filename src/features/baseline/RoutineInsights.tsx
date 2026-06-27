@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useLivenessContext } from '@/features/baseline/LivenessProvider'
 import { buildBaseline } from '@/features/baseline/engine'
+import { applySensitivityToThreshold } from '@/features/baseline/usualModel'
 import { getInstalledAt } from '@/features/baseline/configStore'
 import { getAllSignals } from '@/features/signals/store'
 import {
-  SENSITIVITY_PRESETS,
   type LivenessStatus,
   type SignalEvent,
 } from '@/features/baseline/types'
@@ -88,6 +88,9 @@ export function RoutineInsights() {
     sleep_end?: string | null
     timezone?: string | null
     in_sleep_window?: boolean
+    model_confidence?: number | null
+    model_explanation?: string | null
+    model_version?: string | null
   } | null>(null)
   useEffect(() => {
     let on = true
@@ -102,6 +105,9 @@ export function RoutineInsights() {
             sleep_end?: string | null
             timezone?: string | null
             in_sleep_window?: boolean
+            model_confidence?: number | null
+            model_explanation?: string | null
+            model_version?: string | null
           },
         )
       }
@@ -184,11 +190,10 @@ export function RoutineInsights() {
   const baselineMs =
     model.sampleCount > 0 ? model.expectedGapByHour[nowHour] : null
 
-  const preset = SENSITIVITY_PRESETS[config.sensitivity]
-  
   // Calculate dynamic threshold based on sensitivity
   const activeExpected = baselineMs ?? model.globalExpectedGap
-  const calculatedThresholdMs = Math.max(activeExpected * preset.multiplier, preset.floorHours * HOUR)
+  const calculatedThresholdMs =
+    applySensitivityToThreshold(activeExpected / HOUR, config.sensitivity) * HOUR
 
   const status: LivenessStatus = evaluation?.status ?? 'learning'
   const statusHint = loading
@@ -203,17 +208,17 @@ export function RoutineInsights() {
   const sensitivityDesc = useMemo(() => {
     if (serverSensitivity === 'high') {
       return lang === 'zh'
-        ? '敏感：缩短作息阈值，醒着时更快提醒。'
-        : 'Sensitive: shortens the routine threshold for faster awake-hour alerts.'
+        ? '敏感：贴近模型算出的 usual 阈值，约多等 30 分钟就提醒。'
+        : 'Sensitive: stays close to the learned usual threshold, with about a 30-minute buffer.'
     }
     if (serverSensitivity === 'balanced') {
       return lang === 'zh'
-        ? '平衡：按作息画像使用当前阈值。'
-        : 'Balanced: uses the current routine threshold as learned.'
+        ? '平衡：在模型阈值上多等一段时间，减少偶发误报。'
+        : 'Balanced: waits longer than the learned threshold to reduce one-off false alerts.'
     }
     return lang === 'zh'
-      ? '保守：放宽作息阈值，减少误报但提醒更慢。'
-      : 'Relaxed: lengthens the routine threshold to reduce false alerts.'
+      ? '放宽：等待最久，适合先减少误报但会更慢提醒。'
+      : 'Relaxed: waits the longest, reducing false alerts but slowing alerts.'
   }, [serverSensitivity, lang])
 
   // 优先用服务端真实阈值/gap;加载中回退本地估算,永不显示 '—'
@@ -236,8 +241,8 @@ export function RoutineInsights() {
       ? `当前在睡眠时间${sleepWindowLabel ? ` (${sleepWindowLabel})` : ''}内，静默告警会暂停；醒来后才按上方阈值判断。`
       : `Sleep hours${sleepWindowLabel ? ` (${sleepWindowLabel})` : ''} are active, so silence alerts are paused; after waking, the limit above applies.`
     : lang === 'zh'
-      ? '这是当前时段真正会触发告警的静默上限，已综合作息画像、灵敏度和周末调整；睡眠时间内会暂停静默告警。'
-      : 'This is the real server alert limit for this hour, combining routine profile, sensitivity, and weekend adjustment; sleep hours pause silence alerts.'
+      ? '这是当前时段真正会触发告警的静默上限：先由 usual behavior model 算出基线，再由灵敏度作为工具调整；睡眠时间内会暂停静默告警。'
+      : 'This is the real server alert limit for this hour: the usual behavior model sets the baseline, then sensitivity adjusts it as a user tool; sleep hours pause silence alerts.'
 
   return (
     <>

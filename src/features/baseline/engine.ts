@@ -2,12 +2,12 @@
 // 思路：对比用户自身的"时段感知"作息基线；当前静默时长超过该时段的常态阈值即告警。
 
 import {
-  SENSITIVITY_PRESETS,
   type BaselineConfig,
   type Evaluation,
   type QuietWindow,
   type SignalEvent,
 } from '@/features/baseline/types'
+import { applySensitivityToThreshold } from '@/features/baseline/usualModel'
 
 const HOUR = 3_600_000
 const DAY = 86_400_000
@@ -138,9 +138,8 @@ export function evaluate(
   }
 
   const m = model ?? buildBaseline(events)
-  const preset = SENSITIVITY_PRESETS[config.sensitivity]
   const expected = m.expectedGapByHour[hourOf(lastT)] || m.globalExpectedGap
-  const thresholdMs = Math.max(expected * preset.multiplier, preset.floorHours * HOUR)
+  const thresholdMs = applySensitivityToThreshold(expected / HOUR, config.sensitivity) * HOUR
 
   if (currentGapMs > thresholdMs) {
     return {

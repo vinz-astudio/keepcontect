@@ -34,14 +34,18 @@ export interface BaselineConfig {
   quietWindows: QuietWindow[]
 }
 
-/** 灵敏度档 → 阈值倍数 + 绝对下限（小时），由用户/家人首次设置时自选 */
+/**
+ * Sensitivity is a user-facing adjustment tool, not part of the learned model.
+ * The model should output a neutral usual threshold; this preset only decides
+ * how much longer to wait before labeling silence as unusual.
+ */
 export const SENSITIVITY_PRESETS: Record<
   Sensitivity,
-  { multiplier: number; floorHours: number }
+  { multiplier: number; bufferHours: number; floorHours: number }
 > = {
-  high: { multiplier: 1.3, floorHours: 1.5 },
-  balanced: { multiplier: 1.8, floorHours: 3 },
-  low: { multiplier: 2.6, floorHours: 6 },
+  high: { multiplier: 1, bufferHours: 0.5, floorHours: 1 },
+  balanced: { multiplier: 1.35, bufferHours: 0.5, floorHours: 2 },
+  low: { multiplier: 2.2, bufferHours: 1, floorHours: 6 },
 }
 
 export const DEFAULT_CONFIG: BaselineConfig = {

@@ -130,6 +130,37 @@ describe('灵敏度档影响阈值', () => {
       evaluate(events, now, { ...DEFAULT_CONFIG, sensitivity: 'low' }, installedAt).status,
     ).toBe('normal')
   })
+
+  it('sensitive 档贴近模型阈值，balanced / relaxed 只作为更长等待工具', () => {
+    const recentEvents = [
+      ...history,
+      { t: new Date(2025, 0, 21, 14, 0).getTime(), kind: 'interaction' as const },
+    ]
+    const checkAt = new Date(2025, 0, 21, 14, 10).getTime()
+    const sensitive = evaluate(
+      recentEvents,
+      checkAt,
+      { ...DEFAULT_CONFIG, sensitivity: 'high' },
+      installedAt,
+    )
+    const balanced = evaluate(
+      recentEvents,
+      checkAt,
+      { ...DEFAULT_CONFIG, sensitivity: 'balanced' },
+      installedAt,
+    )
+    const relaxed = evaluate(
+      recentEvents,
+      checkAt,
+      { ...DEFAULT_CONFIG, sensitivity: 'low' },
+      installedAt,
+    )
+
+    expect(sensitive.thresholdMs).not.toBeNull()
+    expect(sensitive.thresholdMs!).toBeLessThanOrEqual(60 * MIN)
+    expect(balanced.thresholdMs!).toBeGreaterThan(sensitive.thresholdMs!)
+    expect(relaxed.thresholdMs!).toBeGreaterThan(balanced.thresholdMs!)
+  })
 })
 
 describe('安静窗抑制告警', () => {
