@@ -20,7 +20,78 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, 'Content-Type': 'application/json' },
   })
 
-function getRuleBasedProfile(pattern: string): { hourly_thresholds: number[]; weekend_multiplier: number } {
+type GapStats = {
+  samples: number
+  p50: number
+  p75: number
+  p90: number
+}
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value))
+
+function percentile(values: number[], p: number): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const idx = Math.min(sorted.length - 1, Math.floor(p * sorted.length))
+  return sorted[idx]
+}
+
+function getLocalHour(iso: string, timeZone: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour: 'numeric',
+      hour12: false,
+    }).formatToParts(new Date(iso))
+    const hour = Number(parts.find((part) => part.type === 'hour')?.value)
+    return Number.isFinite(hour) ? hour % 24 : new Date(iso).getUTCHours()
+  } catch {
+    return new Date(iso).getUTCHours()
+  }
+}
+
+function summarizeGapStats(pings: Array<{ at: string }>, timeZone: string): Array<GapStats | null> {
+  const buckets = Array.from({ length: 24 }, () => [] as number[])
+  for (let i = 1; i < pings.length; i++) {
+    const prev = new Date(pings[i - 1].at).getTime()
+    const curr = new Date(pings[i].at).getTime()
+    const gapHours = (curr - prev) / 3_600_000
+    if (!Number.isFinite(gapHours) || gapHours <= 0 || gapHours > 12) continue
+    buckets[getLocalHour(pings[i - 1].at, timeZone)].push(gapHours)
+  }
+
+  return buckets.map((bucket) => {
+    if (bucket.length === 0) return null
+    return {
+      samples: bucket.length,
+      p50: percentile(bucket, 0.5),
+      p75: percentile(bucket, 0.75),
+      p90: percentile(bucket, 0.9),
+    }
+  })
+}
+
+function tightenThresholdsWithGapStats(
+  thresholds: number[],
+  gapStats: Array<GapStats | null>,
+): number[] {
+  return thresholds.map((raw, hour) => {
+    const base = clamp(Number(raw) || 6, 1, 12)
+    const stats = gapStats[hour]
+    if (!stats || stats.samples < 3) return base
+
+    const behaviorLimit = Math.max(1.5, stats.p90 * 1.8)
+    const activeHourCap =
+      stats.p90 <= 2 ? 3.0 : stats.p90 <= 3 ? 4.0 : stats.p90 <= 4 ? 5.0 : 6.0
+    return clamp(Math.min(base, behaviorLimit), 1.5, activeHourCap)
+  })
+}
+
+function getRuleBasedProfile(
+  pattern: string,
+  gapStats: Array<GapStats | null>,
+): { hourly_thresholds: number[]; weekend_multiplier: number } {
   const hourly_thresholds = new Array<number>(24)
   let weekend_multiplier = 1.0
 
@@ -50,7 +121,10 @@ function getRuleBasedProfile(pattern: string): { hourly_thresholds: number[]; we
     }
   }
 
-  return { hourly_thresholds, weekend_multiplier }
+  return {
+    hourly_thresholds: tightenThresholdsWithGapStats(hourly_thresholds, gapStats),
+    weekend_multiplier,
+  }
 }
 
 Deno.serve(async (req) => {
@@ -122,6 +196,13 @@ Deno.serve(async (req) => {
       }
 
       const pattern = profile.routine_pattern || 'regular_9to5'
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('timezone, sensitivity, sleep_start_utc, sleep_end_utc')
+        .eq('user_id', uid)
+        .maybeSingle()
+      const timezone = settings?.timezone || 'UTC'
+      const sensitivity = settings?.sensitivity || 'balanced'
 
       // Query historical aggregates (last 90 days)
       let { data: aggregates, error: aggErr } = await supabase
@@ -153,6 +234,19 @@ Deno.serve(async (req) => {
         }
       }
 
+      const since = new Date(Date.now() - 90 * 24 * 3_600_000).toISOString()
+      const { data: pings, error: pingsErr } = await supabase
+        .from('behavior_pings')
+        .select('at')
+        .eq('user_id', uid)
+        .gte('at', since)
+        .order('at', { ascending: true })
+        .limit(10000)
+      if (pingsErr) {
+        throw new Error(`Failed to query behavior pings: ${pingsErr.message}`)
+      }
+      const gapStats = summarizeGapStats(pings || [], timezone)
+
       let fallbackReason = 'Gemini Key is missing in Deno env'
 
       // Check if Gemini is available and if user consented or if it's personal optimization
@@ -170,21 +264,34 @@ Deno.serve(async (req) => {
         const historyStr = aggregates
           .map((a) => `${a.date}: [${(a.hourly_density as number[]).join(',')}]`)
           .join('\n')
+        const gapStatsStr = gapStats
+          .map((stats, hour) =>
+            stats
+              ? `${hour}: samples=${stats.samples}, p50=${stats.p50.toFixed(2)}h, p75=${stats.p75.toFixed(2)}h, p90=${stats.p90.toFixed(2)}h`
+              : `${hour}: no recent sub-12h gap samples`,
+          )
+          .join('\n')
 
         const promptText = `You are the Keep Contact Adaptive Routine Engine.
-Analyze the user's daily activity aggregates and routine pattern settings to output a dynamic 24-hour timeout threshold profile (in hours) for silence detection.
+Analyze the user's activity aggregates, real behavior gap percentiles, and routine settings to output a balanced 24-hour timeout threshold profile (in hours) for silence detection.
 
 Inputs:
 1. Routine Pattern: "${pattern}"
-2. Historical Daily Activity Density Matrix:
+2. User Timezone: "${timezone}"
+3. User Sensitivity Setting: "${sensitivity}" (server applies this later; output a balanced baseline profile)
+4. Sleep Window: "${settings?.sleep_start_utc || 'not set'}" to "${settings?.sleep_end_utc || 'not set'}" local time
+5. Historical Daily Activity Density Matrix:
 ${historyStr}
+6. Real Behavior Gap Percentiles by prior local hour (only gaps <= 12h, in hours):
+${gapStatsStr}
 
 Guidelines for generating thresholds (in hours):
 - Sleep Hours: Set higher tolerance thresholds (e.g., 6.5 to 8.5 hours) during hours when the user is regularly asleep.
-- Standard Active/Commute Hours: Set tighter thresholds (e.g., 1.5 to 2.5 hours) when pings are frequent and regular.
+- Standard Active/Commute Hours: Set tighter thresholds (e.g., 1.5 to 2.5 hours) when pings are frequent and regular. If an hour has enough gap samples and p90 is near 1 hour, do not output 3.5+ hours for that hour.
 - Off-hours / Transition Hours: Set moderate thresholds (e.g., 3.0 to 4.5 hours).
 - Shift / Irregular Pattern: If "shift_irregular" is chosen, or if the density matrix shows erratic hours, keep thresholds flatter and wider (e.g., 5.0 to 6.5 hours) to prevent false alerts.
 - Weekend Multiplier: Typically between 1.0 and 1.5. If the user shifts their sleep/wake cycle on weekends, output a multiplier to scale thresholds.
+- Sensitivity: Do not bake sensitivity into the profile. The server will shorten or lengthen the final alert threshold.
 
 Ensure the returned thresholds represent the maximum allowed silence (in hours) before triggering an alert. High values = low sensitivity (fewer false alerts but slower alarm), low values = high sensitivity (quick alarm but higher false alert risk). Thresholds must be double precision floats between 1.0 and 12.0.
 `
@@ -240,11 +347,16 @@ Ensure the returned thresholds represent the maximum allowed silence (in hours) 
             if (!Array.isArray(parsed.hourly_thresholds) || parsed.hourly_thresholds.length !== 24) {
               throw new Error('Invalid hourly thresholds array size returned by Gemini')
             }
+            const hourly_thresholds = tightenThresholdsWithGapStats(
+              parsed.hourly_thresholds,
+              gapStats,
+            )
+            const weekend_multiplier = clamp(Number(parsed.weekend_multiplier) || 1.0, 0.8, 2.0)
 
             await supabase.from('user_activity_profiles').upsert({
               user_id: uid,
-              hourly_thresholds: parsed.hourly_thresholds,
-              weekend_multiplier: parsed.weekend_multiplier || 1.0,
+              hourly_thresholds,
+              weekend_multiplier,
               updated_at: new Date().toISOString(),
             })
 
@@ -266,7 +378,7 @@ Ensure the returned thresholds represent the maximum allowed silence (in hours) 
       }
 
       // 5. Rule-based fallback
-      const { hourly_thresholds, weekend_multiplier } = getRuleBasedProfile(pattern)
+      const { hourly_thresholds, weekend_multiplier } = getRuleBasedProfile(pattern, gapStats)
       await supabase.from('user_activity_profiles').upsert({
         user_id: uid,
         hourly_thresholds,

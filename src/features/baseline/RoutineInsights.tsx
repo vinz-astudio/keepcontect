@@ -83,13 +83,26 @@ export function RoutineInsights() {
   const [serverStatus, setServerStatus] = useState<{
     threshold_seconds: number
     last_behavior_at: string | null
+    sensitivity?: 'high' | 'balanced' | 'low'
+    sleep_start?: string | null
+    sleep_end?: string | null
+    timezone?: string | null
+    in_sleep_window?: boolean
   } | null>(null)
   useEffect(() => {
     let on = true
     void supabase.rpc('my_routine_status').then(({ data }) => {
       if (on && data) {
         setServerStatus(
-          data as { threshold_seconds: number; last_behavior_at: string | null },
+          data as {
+            threshold_seconds: number
+            last_behavior_at: string | null
+            sensitivity?: 'high' | 'balanced' | 'low'
+            sleep_start?: string | null
+            sleep_end?: string | null
+            timezone?: string | null
+            in_sleep_window?: boolean
+          },
         )
       }
     })
@@ -184,29 +197,24 @@ export function RoutineInsights() {
       ? (evaluation?.reason ?? t(HINT_KEY[status]))
       : t(HINT_KEY[status])
 
-  // Compute concrete duration result for each preset without showing the abstract formulas
+  const serverSensitivity = serverStatus?.sensitivity ?? config.sensitivity
+
+  // Explain how the selected sensitivity changes the real server threshold.
   const sensitivityDesc = useMemo(() => {
-    if (!activeExpected) return '—'
-    const preset = SENSITIVITY_PRESETS[config.sensitivity]
-    const calculated = activeExpected * preset.multiplier
-    const floor = preset.floorHours * HOUR
-    const resultMs = Math.max(calculated, floor)
-    const formatted = fmtDur(resultMs)
-    
-    if (config.sensitivity === 'high') {
+    if (serverSensitivity === 'high') {
       return lang === 'zh'
-        ? `敏感 (静默超过 ${formatted} 即告警)`
-        : `Sensitive (Alerts if silence > ${formatted})`
-    } else if (config.sensitivity === 'balanced') {
-      return lang === 'zh'
-        ? `平衡 (静默超过 ${formatted} 即告警)`
-        : `Balanced (Alerts if silence > ${formatted})`
-    } else {
-      return lang === 'zh'
-        ? `保守 (静默超过 ${formatted} 即告警)`
-        : `Relaxed (Alerts if silence > ${formatted})`
+        ? '敏感：缩短作息阈值，醒着时更快提醒。'
+        : 'Sensitive: shortens the routine threshold for faster awake-hour alerts.'
     }
-  }, [config.sensitivity, activeExpected, lang])
+    if (serverSensitivity === 'balanced') {
+      return lang === 'zh'
+        ? '平衡：按作息画像使用当前阈值。'
+        : 'Balanced: uses the current routine threshold as learned.'
+    }
+    return lang === 'zh'
+      ? '保守：放宽作息阈值，减少误报但提醒更慢。'
+      : 'Relaxed: lengthens the routine threshold to reduce false alerts.'
+  }, [serverSensitivity, lang])
 
   // 优先用服务端真实阈值/gap;加载中回退本地估算,永不显示 '—'
   const serverThresholdMs =
@@ -219,10 +227,17 @@ export function RoutineInsights() {
       ? fmtDur(serverThresholdMs)
       : fmtDur(calculatedThresholdMs)
 
-  const thresholdSubtext =
-    lang === 'zh'
-      ? '这是当前时段真正会触发告警的静默上限（随作息 / AI 自适应）。'
-      : 'The real silence limit that triggers an alert for this time of day (adapts to your routine / AI).'
+  const sleepWindowLabel =
+    serverStatus?.sleep_start && serverStatus.sleep_end
+      ? `${serverStatus.sleep_start.slice(0, 5)}-${serverStatus.sleep_end.slice(0, 5)}`
+      : null
+  const thresholdSubtext = serverStatus?.in_sleep_window
+    ? lang === 'zh'
+      ? `当前在睡眠时间${sleepWindowLabel ? ` (${sleepWindowLabel})` : ''}内，静默告警会暂停；醒来后才按上方阈值判断。`
+      : `Sleep hours${sleepWindowLabel ? ` (${sleepWindowLabel})` : ''} are active, so silence alerts are paused; after waking, the limit above applies.`
+    : lang === 'zh'
+      ? '这是当前时段真正会触发告警的静默上限，已综合作息画像、灵敏度和周末调整；睡眠时间内会暂停静默告警。'
+      : 'This is the real server alert limit for this hour, combining routine profile, sensitivity, and weekend adjustment; sleep hours pause silence alerts.'
 
   return (
     <>
