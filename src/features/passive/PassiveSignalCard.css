@@ -232,6 +232,44 @@ button.psig__import {
   word-break: break-all;
 }
 
+/* 短期组合成一卡:内部纵向间距 */
+.psig__short {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.psig__short .liveness__row {
+  margin-top: 0;
+}
+
+/* 一行小字守望状态(放在 Active Status 标题与 pings 之间) */
+.psig__statusline {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.7rem;
+  font-size: 0.82rem;
+  color: var(--fg);
+}
+
+.psig__statusline .status__dot {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.psig__statusline-sub {
+  color: var(--fg-muted);
+}
+
+/* 判断依据小标题 */
+.psig__subhead {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
 .psig__status-url-area {
   border-top: 1px dashed var(--line);
   padding-top: 0.8rem;

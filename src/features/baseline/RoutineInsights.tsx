@@ -29,12 +29,6 @@ const STATUS_KEY: Record<LivenessStatus, I18nKey> = {
   alert: 'live.alert',
   safe_window: 'live.safe',
 }
-const HINT_KEY: Record<LivenessStatus, I18nKey> = {
-  normal: 'live.hint.normal',
-  learning: 'live.hint.learning',
-  alert: 'live.hint.alert',
-  safe_window: 'live.safe',
-}
 
 /** 时长(ms)→本地化人话,复用 live.* 文案 */
 function fmtDur(ms: number | null | undefined): string {
@@ -58,18 +52,19 @@ function level(count: number, max: number): number {
 }
 
 export interface RoutineInsightNodes {
-  /** 短期:当前守望状态(safe/normal/alert + 当前已静默) */
-  statusNode: ReactNode
-  /** 短期:异常沉默判断依据(当前已静默 vs 告警阈值 + 灵敏度说明) */
-  basisNode: ReactNode
-  /** 长期:学习中的活跃节律(热力图 + 学习进度) */
+  /** 短期:当前守望状态,一行小字(放进 ActiveStatusBox 标题与 pings 之间) */
+  statusLine: ReactNode
+  /** 短期:判断依据内容(当前已静默 / 告警阈值 + 睡眠暂停提示),不含卡片外壳 */
+  basisInner: ReactNode
+  /** 长期:学习中的活跃节律(热力图 + 学习进度),自带卡片外壳 */
   learningNode: ReactNode
 }
 
 /**
- * 守望状态 + 作息可视化 + 异常沉默判断依据,拆成三块返回,交由 RoutineSettings
- * 按「短期 / 长期」分组摆放。全部在端上由本地行为时序计算,绝不上传。
- * @param refreshKey 变化时重新拉取服务端真实阈值(灵敏度切换后即时刷新)。
+ * 守望状态 + 异常沉默判断依据 + 活跃节律,拆块返回,交由 RoutineSettings 组装:
+ * statusLine/basisInner 合进短期「一个 block」,learningNode 进长期组。
+ * 全部在端上由本地行为时序计算;阈值/gap 取服务端真值。
+ * @param refreshKey 变化时重拉服务端阈值(灵敏度切换后即时刷新)。
  */
 export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
   const { t, lang } = useI18n()
@@ -92,14 +87,9 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
   const [serverStatus, setServerStatus] = useState<{
     threshold_seconds: number
     last_behavior_at: string | null
-    sensitivity?: 'high' | 'balanced' | 'low'
     sleep_start?: string | null
     sleep_end?: string | null
-    timezone?: string | null
     in_sleep_window?: boolean
-    model_confidence?: number | null
-    model_explanation?: string | null
-    model_version?: string | null
   } | null>(null)
   useEffect(() => {
     let on = true
@@ -109,14 +99,9 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
           data as {
             threshold_seconds: number
             last_behavior_at: string | null
-            sensitivity?: 'high' | 'balanced' | 'low'
             sleep_start?: string | null
             sleep_end?: string | null
-            timezone?: string | null
             in_sleep_window?: boolean
-            model_confidence?: number | null
-            model_explanation?: string | null
-            model_version?: string | null
           },
         )
       }
@@ -199,45 +184,25 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
   const baselineMs =
     model.sampleCount > 0 ? model.expectedGapByHour[nowHour] : null
 
-  // Calculate dynamic threshold based on sensitivity
+  // 加载中回退本地估算,永不显示 '—'
   const activeExpected = baselineMs ?? model.globalExpectedGap
   const calculatedThresholdMs =
     applySensitivityToThreshold(activeExpected / HOUR, config.sensitivity) * HOUR
 
   const status: LivenessStatus = evaluation?.status ?? 'learning'
-  const statusHint = loading
-    ? t('live.hint.loading')
-    : status === 'safe_window'
-      ? (evaluation?.reason ?? t(HINT_KEY[status]))
-      : t(HINT_KEY[status])
+  const inSleep = serverStatus?.in_sleep_window ?? false
 
-  const serverSensitivity = serverStatus?.sensitivity ?? config.sensitivity
-
-  // Explain how the selected sensitivity changes the real server threshold.
-  const sensitivityDesc = useMemo(() => {
-    if (serverSensitivity === 'high') {
-      return lang === 'zh'
-        ? '敏感:贴近模型算出的 usual 阈值,约多等 30 分钟就提醒。'
-        : 'Sensitive: stays close to the learned usual threshold, with about a 30-minute buffer.'
-    }
-    if (serverSensitivity === 'balanced') {
-      return lang === 'zh'
-        ? '平衡:在模型阈值上多等一段时间,减少偶发误报。'
-        : 'Balanced: waits longer than the learned threshold to reduce one-off false alerts.'
-    }
-    return lang === 'zh'
-      ? '放宽:等待最久,适合先减少误报但会更慢提醒。'
-      : 'Relaxed: waits the longest, reducing false alerts but slowing alerts.'
-  }, [serverSensitivity, lang])
-
-  // 优先用服务端真实阈值/gap;加载中回退本地估算,永不显示 '—'
+  // 优先用服务端真实阈值/gap;睡眠时段静默告警已暂停,阈值显示「暂停」更直观
   const serverThresholdMs =
     serverStatus != null ? serverStatus.threshold_seconds * 1000 : null
   const serverGapMs = serverStatus?.last_behavior_at
     ? Date.now() - new Date(serverStatus.last_behavior_at).getTime()
     : null
-  const heroThresholdVal =
-    serverThresholdMs != null
+  const thresholdVal = inSleep
+    ? lang === 'zh'
+      ? '已暂停'
+      : 'Paused'
+    : serverThresholdMs != null
       ? fmtDur(serverThresholdMs)
       : fmtDur(calculatedThresholdMs)
 
@@ -245,108 +210,86 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
     serverStatus?.sleep_start && serverStatus.sleep_end
       ? `${serverStatus.sleep_start.slice(0, 5)}-${serverStatus.sleep_end.slice(0, 5)}`
       : null
-  const thresholdSubtext = serverStatus?.in_sleep_window
-    ? lang === 'zh'
-      ? `当前在睡眠时间${sleepWindowLabel ? ` (${sleepWindowLabel})` : ''}内,静默告警会暂停;醒来后才按上方阈值判断。`
-      : `Sleep hours${sleepWindowLabel ? ` (${sleepWindowLabel})` : ''} are active, so silence alerts are paused; after waking, the limit above applies.`
-    : lang === 'zh'
-      ? '这是当前时段真正会触发告警的静默上限:先由 usual behavior model 算出基线,再由灵敏度作为工具调整;睡眠时间内会暂停静默告警。'
-      : 'This is the real server alert limit for this hour: the usual behavior model sets the baseline, then sensitivity adjusts it as a user tool; sleep hours pause silence alerts.'
 
-  // —— 短期:当前守望状态 ——
-  const statusNode = (
-    <section className="card">
-      <div className={`routine-hero__status ${STATUS_CLS[status]}`}>
-        <span className="status__dot" aria-hidden />
-        <div className="routine-hero__statustext">
-          <p className="routine-hero__label">{t(STATUS_KEY[status])}</p>
-          <p className="routine-hero__hint">
-            {statusHint}
-            {evaluation && status !== 'safe_window' && (
-              <span className="liveness__gap">
-                {' '}
-                · {t('live.gap', { gap: fmtDur(evaluation.currentGapMs) })}
-              </span>
-            )}
-          </p>
-        </div>
-      </div>
-    </section>
+  // 一行小字状态(进 ActiveStatusBox)
+  const statusLine = (
+    <span className={`psig__statusline ${STATUS_CLS[status]}`}>
+      <span className="status__dot" aria-hidden />
+      <span className="psig__statusline-label">
+        {loading ? t('live.hint.loading') : t(STATUS_KEY[status])}
+      </span>
+      {!loading && evaluation && (
+        <span className="psig__statusline-sub">
+          ·{' '}
+          {status === 'safe_window' && evaluation.reason
+            ? evaluation.reason
+            : t('live.gap', { gap: fmtDur(evaluation.currentGapMs) })}
+        </span>
+      )}
+    </span>
   )
 
-  // —— 短期:异常沉默判断依据 ——
-  const basisNode = (
-    <section className="card">
-      <h2 className="card__title">{t('routine.basis.title')}</h2>
-      <p className="muted">{t('routine.basis.desc')}</p>
-
+  // 判断依据(无外壳):当前已静默 vs 告警阈值,睡眠时附一行短提示
+  const basisInner = (
+    <div>
+      <h3 className="psig__subhead">{t('routine.basis.title')}</h3>
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-          gap: '12px',
-          marginBottom: '1rem',
-          marginTop: '1rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+          gap: '10px',
+          marginTop: '0.5rem',
         }}
       >
-        {/* 当前已静默 */}
         <div
           style={{
             background: 'var(--bg-soft)',
             border: '1px solid var(--line)',
             borderRadius: 'var(--r-md)',
-            padding: '1rem',
+            padding: '0.85rem',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             textAlign: 'center',
-            gap: '4px',
+            gap: '3px',
           }}
         >
-          <span style={{ fontSize: '0.8rem', color: 'var(--fg-muted)', fontWeight: '500' }}>
-            {lang === 'zh' ? '当前已静默时间' : 'Current Silence'}
+          <span style={{ fontSize: '0.76rem', color: 'var(--fg-muted)', fontWeight: 500 }}>
+            {lang === 'zh' ? '当前已静默' : 'Current Silence'}
           </span>
-          <span style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--fg)' }}>
+          <span style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--fg)' }}>
             {fmtDur(serverGapMs ?? evaluation?.currentGapMs)}
           </span>
         </div>
-
-        {/* 告警触发阈值(高亮) */}
         <div
           style={{
             background: 'var(--accent-soft)',
             border: '1px solid var(--accent-line)',
             borderRadius: 'var(--r-md)',
-            padding: '1rem',
+            padding: '0.85rem',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             textAlign: 'center',
-            gap: '4px',
+            gap: '3px',
           }}
         >
-          <span style={{ fontSize: '0.8rem', color: 'var(--accent)', fontWeight: '600' }}>
-            {lang === 'zh' ? '告警触发阈值' : 'Alert Threshold'}
+          <span style={{ fontSize: '0.76rem', color: 'var(--accent)', fontWeight: 600 }}>
+            {lang === 'zh' ? '告警阈值' : 'Alert Threshold'}
           </span>
-          <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--accent)' }}>
-            {heroThresholdVal}
+          <span style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--accent)' }}>
+            {thresholdVal}
           </span>
         </div>
       </div>
-
-      <p className="muted" style={{ fontSize: '0.8rem', textAlign: 'center', margin: '0 0 1.25rem 0' }}>
-        {thresholdSubtext}
-      </p>
-
-      <ul className="basis">
-        <li className="basis__row">
-          <span>{t('routine.basis.sensitivity')}</span>
-          <strong>{sensitivityDesc}</strong>
-        </li>
-      </ul>
-
-      <p className="basis__tune">{t('routine.basis.tune')}</p>
-    </section>
+      {inSleep && (
+        <p className="muted" style={{ fontSize: '0.76rem', textAlign: 'center', margin: '0.5rem 0 0' }}>
+          {lang === 'zh'
+            ? `睡眠时段${sleepWindowLabel ? `(${sleepWindowLabel})` : ''}已暂停静默告警,醒后恢复。`
+            : `Sleep hours${sleepWindowLabel ? ` (${sleepWindowLabel})` : ''} — paused until you wake.`}
+        </p>
+      )}
+    </div>
   )
 
   // —— 长期:学习中的活跃节律(热力图 + 进度)——
@@ -430,5 +373,5 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
     </section>
   )
 
-  return { statusNode, basisNode, learningNode }
+  return { statusLine, basisInner, learningNode }
 }

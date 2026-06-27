@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   countTodayPings,
   getHeartbeatToken,
@@ -21,7 +21,7 @@ function ago(iso: string): string {
  * 现搬到「作息」页短期组顶部——这是最贴近当下、用户最关心的一块。
  * 数据全在端上由本地 signals 计算，绝不上传，与「判断完全线下」一致。
  */
-export function ActiveStatusBox() {
+export function ActiveStatusBox({ statusLine }: { statusLine?: ReactNode } = {}) {
   const { t, lang } = useI18n()
   const [todayCount, setTodayCount] = useState(0)
   const [lastAt, setLastAt] = useState<string | null>(null)
@@ -65,6 +65,8 @@ export function ActiveStatusBox() {
               : 'Idle'}
         </span>
       </div>
+
+      {statusLine}
 
       <div className="psig__status-grid">
         <div className="psig__status-cell">

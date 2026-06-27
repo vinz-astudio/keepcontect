@@ -33,7 +33,7 @@ export function RoutineSettings() {
   const [consentDataSharing, setConsentDataSharing] = useState(false)
   const [statusKey, setStatusKey] = useState(0)
 
-  const { statusNode, basisNode, learningNode } = useRoutineInsights(statusKey)
+  const { statusLine, basisInner, learningNode } = useRoutineInsights(statusKey)
 
   useEffect(() => {
     void getSleepWindow()
@@ -79,28 +79,26 @@ export function RoutineSettings() {
   }
 
   // —— 短期:灵敏度(切换后即时刷新上方判断依据里的真实阈值)——
-  const sensitivityCard = (
-    <section className="card">
-      <div className="liveness__row">
-        <span className="liveness__rowlabel">{t('live.sensitivity')}</span>
-        <div className="liveness__seg">
-          {(['high', 'balanced', 'low'] as Sensitivity[]).map((s) => (
-            <button
-              key={s}
-              className={config.sensitivity === s ? 'active' : ''}
-              onClick={async () => {
-                setSensitivity(s)
-                await setServerSensitivity(s).catch(() => {})
-                await reload()
-                setStatusKey((k) => k + 1)
-              }}
-            >
-              {t(`live.sens.${s}`)}
-            </button>
-          ))}
-        </div>
+  const sensitivityRow = (
+    <div className="liveness__row">
+      <span className="liveness__rowlabel">{t('live.sensitivity')}</span>
+      <div className="liveness__seg">
+        {(['high', 'balanced', 'low'] as Sensitivity[]).map((s) => (
+          <button
+            key={s}
+            className={config.sensitivity === s ? 'active' : ''}
+            onClick={async () => {
+              setSensitivity(s)
+              await setServerSensitivity(s).catch(() => {})
+              await reload()
+              setStatusKey((k) => k + 1)
+            }}
+          >
+            {t(`live.sens.${s}`)}
+          </button>
+        ))}
       </div>
-    </section>
+    </div>
   )
 
   // —— 长期:睡眠时间 + 作息模式 + 数据授权 ——
@@ -219,12 +217,13 @@ export function RoutineSettings() {
 
   return (
     <div className="routine-grid">
-      {/* 短期组:当下最关心、可即时调整的 */}
+      {/* 短期组:守护活跃度 + 判断依据 + 灵敏度,合成一个 block */}
       <div className="routine-grid__col1">
-        <ActiveStatusBox />
-        {statusNode}
-        {basisNode}
-        {sensitivityCard}
+        <section className="card psig__short">
+          <ActiveStatusBox statusLine={statusLine} />
+          {basisInner}
+          {sensitivityRow}
+        </section>
       </div>
 
       {/* 长期组:慢慢学习与长期设置 */}
