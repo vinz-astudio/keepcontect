@@ -9,6 +9,7 @@ import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
+import { openAccessibilitySettings } from '@/features/passive/native'
 
 import './PassiveSignalCard.css'
 
@@ -293,6 +294,10 @@ export function PassiveSignalCard() {
                   onChange={async (e) => {
                     await setSensorEnabled(sensor.key, e.target.checked)
                     setSensorRefresh(v => v + 1)
+                    // Accessibility needs an explicit system grant; deep-link there.
+                    if (sensor.key === 'app_activity' && e.target.checked) {
+                      void openAccessibilitySettings()
+                    }
                   }}
                 />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>

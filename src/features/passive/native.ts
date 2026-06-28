@@ -6,11 +6,13 @@ interface PassivePingPlugin {
   configure(options: {
     supabaseUrl: string
     token: string
-    allowUnlock?: boolean
     allowCharging?: boolean
+    allowAppActivity?: boolean
   }): Promise<void>
   clear(): Promise<void>
   pingApp(): Promise<void>
+  openAccessibilitySettings(): Promise<void>
+  isAccessibilityEnabled(): Promise<{ enabled: boolean }>
 }
 
 const PassivePing = registerPlugin<PassivePingPlugin>('PassivePing')
@@ -24,16 +26,38 @@ export async function configureNativePassivePing(
       await PassivePing.clear()
       return
     }
-    const allowUnlock = isSensorEnabled('phone_unlock')
     const allowCharging = isSensorEnabled('phone_charger')
+    const allowAppActivity = isSensorEnabled('app_activity')
     await PassivePing.configure({
       supabaseUrl: SUPABASE_URL,
       token,
-      allowUnlock,
       allowCharging,
+      allowAppActivity,
     })
     await PassivePing.pingApp()
   } catch {
     // Native bridge is best-effort; PWA ping URLs remain the fallback.
+  }
+}
+
+/** Open the system Accessibility settings so the user can enable the background
+ *  app-activity sensor (AppActivityService). Android-only, best-effort. */
+export async function openAccessibilitySettings(): Promise<void> {
+  if (Capacitor.getPlatform() !== 'android') return
+  try {
+    await PassivePing.openAccessibilitySettings()
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Whether the AppActivityService accessibility service is currently enabled. */
+export async function isAccessibilityEnabled(): Promise<boolean> {
+  if (Capacitor.getPlatform() !== 'android') return false
+  try {
+    const res = await PassivePing.isAccessibilityEnabled()
+    return !!res?.enabled
+  } catch {
+    return false
   }
 }

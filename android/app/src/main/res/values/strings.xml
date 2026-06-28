@@ -4,4 +4,5 @@
     <string name="title_activity_main">Keep Contact</string>
     <string name="package_name">com.keepcontact.app</string>
     <string name="custom_url_scheme">com.keepcontact.app</string>
+    <string name="accessibility_service_description">Lets Keep Contact notice when you actively use your phone (any app coming to the foreground) and send a content-free “still active” heartbeat in the background, even when the app is closed. It never reads screen content and never uploads which apps you use.</string>
 </resources>

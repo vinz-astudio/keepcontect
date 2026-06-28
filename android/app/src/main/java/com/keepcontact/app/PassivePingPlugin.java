@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.provider.Settings;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -13,23 +14,23 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "PassivePing")
 public class PassivePingPlugin extends Plugin {
-    // Split so USER_PRESENT (SystemUI uid) can be exported while charger stays not-exported.
+    // Charger events use a runtime receiver; unlock detection was removed (it only
+    // worked while the process was alive) and replaced by AppActivityService.
     private BroadcastReceiver chargingReceiver;
-    private BroadcastReceiver unlockReceiver;
 
     @PluginMethod
     public void configure(PluginCall call) {
         String supabaseUrl = call.getString("supabaseUrl");
         String token = call.getString("token");
-        Boolean allowUnlockValue = call.getBoolean("allowUnlock");
         Boolean allowChargingValue = call.getBoolean("allowCharging");
-        boolean allowUnlock = allowUnlockValue != null && allowUnlockValue;
+        Boolean allowAppActivityValue = call.getBoolean("allowAppActivity");
         boolean allowCharging = allowChargingValue != null && allowChargingValue;
+        boolean allowAppActivity = allowAppActivityValue != null && allowAppActivityValue;
         if (supabaseUrl == null || token == null || token.length() == 0) {
             call.reject("supabaseUrl and token are required");
             return;
         }
-        PassivePing.configure(getContext(), supabaseUrl, token, allowUnlock, allowCharging);
+        PassivePing.configure(getContext(), supabaseUrl, token, allowCharging, allowAppActivity);
         refreshEventReceiver();
         call.resolve(new JSObject());
     }
@@ -45,6 +46,33 @@ public class PassivePingPlugin extends Plugin {
     public void pingApp(PluginCall call) {
         PassivePing.pingApp(getContext());
         call.resolve(new JSObject());
+    }
+
+    /** Deep-link the user to the system Accessibility settings to enable AppActivityService. */
+    @PluginMethod
+    public void openAccessibilitySettings(PluginCall call) {
+        Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(intent);
+        call.resolve(new JSObject());
+    }
+
+    /** Report whether our AppActivityService is currently enabled in system settings. */
+    @PluginMethod
+    public void isAccessibilityEnabled(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("enabled", isAccessibilityServiceEnabled());
+        call.resolve(ret);
+    }
+
+    private boolean isAccessibilityServiceEnabled() {
+        String enabled = Settings.Secure.getString(
+            getContext().getContentResolver(),
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        if (enabled == null || enabled.isEmpty()) return false;
+        String pkg = getContext().getPackageName();
+        return enabled.contains(pkg + "/" + AppActivityService.class.getName())
+            || enabled.contains(pkg + "/.AppActivityService");
     }
 
     @Override
@@ -68,14 +96,6 @@ public class PassivePingPlugin extends Plugin {
             ContextCompat.registerReceiver(
                 context, chargingReceiver, chargingFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
         }
-
-        IntentFilter unlockFilter = PassivePing.unlockIntentFilter(context);
-        if (unlockFilter.countActions() > 0) {
-            unlockReceiver = buildReceiver();
-            // EXPORTED is required: USER_PRESENT comes from SystemUI, not the system uid.
-            ContextCompat.registerReceiver(
-                context, unlockReceiver, unlockFilter, ContextCompat.RECEIVER_EXPORTED);
-        }
     }
 
     private BroadcastReceiver buildReceiver() {
@@ -94,7 +114,6 @@ public class PassivePingPlugin extends Plugin {
 
     private void unregisterEventReceiver() {
         chargingReceiver = unregister(chargingReceiver);
-        unlockReceiver = unregister(unlockReceiver);
     }
 
     private BroadcastReceiver unregister(BroadcastReceiver receiver) {

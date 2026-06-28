@@ -21,20 +21,20 @@ final class PassivePing {
     private static final String KEY_SUPABASE_URL = "supabase_url";
     private static final String KEY_TOKEN = "token";
     private static final String KEY_LAST_PING = "last_ping";
-    private static final String KEY_ALLOW_UNLOCK = "allow_unlock";
+    private static final String KEY_ALLOW_APP_ACTIVITY = "allow_app_activity";
     private static final String KEY_ALLOW_CHARGING = "allow_charging";
     private static final long APP_THROTTLE_MS = 5 * 60 * 1000;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
 
     private PassivePing() {}
 
-    static void configure(Context context, String supabaseUrl, String token, boolean allowUnlock, boolean allowCharging) {
+    static void configure(Context context, String supabaseUrl, String token, boolean allowCharging, boolean allowAppActivity) {
         prefs(context)
             .edit()
             .putString(KEY_SUPABASE_URL, trimSlash(supabaseUrl))
             .putString(KEY_TOKEN, token)
-            .putBoolean(KEY_ALLOW_UNLOCK, allowUnlock)
             .putBoolean(KEY_ALLOW_CHARGING, allowCharging)
+            .putBoolean(KEY_ALLOW_APP_ACTIVITY, allowAppActivity)
             .apply();
     }
 
@@ -60,13 +60,16 @@ final class PassivePing {
     static boolean shouldPingForAction(Context context, String action) {
         if (!isConfigured(context) || action == null) return false;
         SharedPreferences prefs = prefs(context);
-        if (Intent.ACTION_USER_PRESENT.equals(action)) {
-            return prefs.getBoolean(KEY_ALLOW_UNLOCK, false);
-        }
         if (Intent.ACTION_POWER_CONNECTED.equals(action) || Intent.ACTION_POWER_DISCONNECTED.equals(action)) {
             return prefs.getBoolean(KEY_ALLOW_CHARGING, false);
         }
         return false;
+    }
+
+    // Background liveness via the AccessibilityService (AppActivityService): only
+    // pings when the user enabled the sensor and a heartbeat token is configured.
+    static boolean isAppActivityAllowed(Context context) {
+        return isConfigured(context) && prefs(context).getBoolean(KEY_ALLOW_APP_ACTIVITY, false);
     }
 
     // Charger broadcasts (POWER_CONNECTED/DISCONNECTED) originate from the system uid,
@@ -77,18 +80,6 @@ final class PassivePing {
         if (isConfigured(context) && prefs.getBoolean(KEY_ALLOW_CHARGING, false)) {
             filter.addAction(Intent.ACTION_POWER_CONNECTED);
             filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
-        }
-        return filter;
-    }
-
-    // USER_PRESENT is dispatched by SystemUI (a different uid), so its dynamic receiver
-    // must be RECEIVER_EXPORTED to be delivered. Safe: USER_PRESENT is a protected
-    // system broadcast, so only the OS can send it.
-    static IntentFilter unlockIntentFilter(Context context) {
-        SharedPreferences prefs = prefs(context);
-        IntentFilter filter = new IntentFilter();
-        if (isConfigured(context) && prefs.getBoolean(KEY_ALLOW_UNLOCK, false)) {
-            filter.addAction(Intent.ACTION_USER_PRESENT);
         }
         return filter;
     }

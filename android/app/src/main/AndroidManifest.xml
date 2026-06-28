@@ -42,6 +42,10 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
+        <!-- Charger connect/disconnect: exempt broadcasts, so a manifest receiver
+             still gets them while the app is backgrounded. (USER_PRESENT was removed:
+             Android 8+ won't deliver it to manifest receivers, and it only worked via
+             a runtime receiver while the process was alive — see AppActivityService.) -->
         <receiver
             android:name=".PassivePingReceiver"
             android:enabled="true"
@@ -49,9 +53,24 @@
             <intent-filter>
                 <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
                 <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
-                <action android:name="android.intent.action.USER_PRESENT" />
             </intent-filter>
         </receiver>
+
+        <!-- Reliable background liveness: an AccessibilityService keeps running after
+             the app process is killed and restarts on boot. It only reads the
+             foreground package name on window-state changes and fires a content-free
+             heartbeat; it never reads window content (see accessibility_service_config). -->
+        <service
+            android:name=".AppActivityService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
     </application>
 
     <!-- Permissions -->
