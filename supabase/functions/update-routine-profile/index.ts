@@ -91,19 +91,27 @@ function gapStatsJson(gapStats: Array<GapStats | null>) {
   return gapStats.map((stats, hour) => stats ? { hour, ...stats } : { hour, samples: 0 })
 }
 
+// Confidence-weighted blend between the cold-start template and the user's own
+// gap distribution. With no data we keep the template; as real intervals
+// accumulate per hour (confidence -> 1 around ~30 samples) the threshold leans
+// fully personal — so it can move *up or down* to match the user's true rhythm,
+// not only tighten. This is the cold-start "gradually import personal intervals"
+// behavior: a quiet person whose real gaps exceed the template is no longer
+// clamped down into constant false alarms.
 function tightenThresholdsWithGapStats(
   thresholds: number[],
   gapStats: Array<GapStats | null>,
 ): number[] {
   return thresholds.map((raw, hour) => {
-    const base = clamp(Number(raw) || 6, 1, 12)
+    const template = clamp(Number(raw) || 6, 1, 12)
     const stats = gapStats[hour]
-    if (!stats || stats.samples < 3) return base
+    if (!stats || stats.samples < 1) return template
 
-    const behaviorLimit = Math.max(1.5, stats.p90 * 1.8)
-    const activeHourCap =
-      stats.p90 <= 2 ? 3.0 : stats.p90 <= 3 ? 4.0 : stats.p90 <= 4 ? 5.0 : 6.0
-    return clamp(Math.min(base, behaviorLimit), 1.5, activeHourCap)
+    // Personal "usual ceiling": a margin above the 90th-percentile real gap.
+    const personal = clamp(Math.max(1.5, stats.p90 * 1.8), 1, 12)
+    // Weight grows with per-hour sample count (shrinkage toward the prior).
+    const w = clamp(stats.samples / 30, 0, 1)
+    return clamp(w * personal + (1 - w) * template, 1, 12)
   })
 }
 
