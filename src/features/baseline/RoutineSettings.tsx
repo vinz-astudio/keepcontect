@@ -82,7 +82,7 @@ export function RoutineSettings() {
   const sensitivityRow = (
     <div className="liveness__row">
       <span className="liveness__rowlabel">{t('live.sensitivity')}</span>
-      <div className="liveness__seg">
+      <div className="liveness__seg liveness__seg--stacked">
         {(['high', 'balanced', 'low'] as Sensitivity[]).map((s) => (
           <button
             key={s}
@@ -94,7 +94,10 @@ export function RoutineSettings() {
               setStatusKey((k) => k + 1)
             }}
           >
-            {t(`live.sens.${s}`)}
+            <span className="liveness__seg-name">{t(`live.sens.${s}`)}</span>
+            <span className="liveness__seg-delta">
+              {s === 'high' ? '+0m' : s === 'balanced' ? '+45m' : '+90m'}
+            </span>
           </button>
         ))}
       </div>
