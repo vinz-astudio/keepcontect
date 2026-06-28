@@ -43,9 +43,9 @@ export const SENSITIVITY_PRESETS: Record<
   Sensitivity,
   { multiplier: number; bufferHours: number; floorHours: number }
 > = {
-  high: { multiplier: 1, bufferHours: 0.5, floorHours: 1 },
-  balanced: { multiplier: 1.35, bufferHours: 0.5, floorHours: 2 },
-  low: { multiplier: 2.2, bufferHours: 1, floorHours: 6 },
+  high: { multiplier: 1, bufferHours: 0.25, floorHours: 1 },
+  balanced: { multiplier: 1, bufferHours: 0.5, floorHours: 2 },
+  low: { multiplier: 1, bufferHours: 1.5, floorHours: 3 },
 }
 
 export const DEFAULT_CONFIG: BaselineConfig = {

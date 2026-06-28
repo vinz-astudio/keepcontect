@@ -125,10 +125,10 @@ describe('灵敏度档影响阈值', () => {
       evaluate(events, now, { ...DEFAULT_CONFIG, sensitivity: 'high' }, installedAt).status,
     ).toBe('alert')
   })
-  it('low 档（下限 6h）→ 5h 仍 normal', () => {
+  it('low 档不再用 6h 硬下限 → 5h 明显静默仍可 alert', () => {
     expect(
       evaluate(events, now, { ...DEFAULT_CONFIG, sensitivity: 'low' }, installedAt).status,
-    ).toBe('normal')
+    ).toBe('alert')
   })
 
   it('sensitive 档贴近模型阈值，balanced / relaxed 只作为更长等待工具', () => {

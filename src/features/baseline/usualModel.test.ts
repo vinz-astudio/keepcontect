@@ -43,10 +43,11 @@ describe('buildUsualBehaviorModel', () => {
     const balanced = applySensitivityToThreshold(baseHours, 'balanced')
     const relaxed = applySensitivityToThreshold(baseHours, 'low')
 
-    expect(sensitive).toBeLessThanOrEqual(baseHours + 0.5)
+    expect(sensitive).toBeLessThanOrEqual(baseHours + 0.25)
     expect(balanced).toBeGreaterThan(sensitive)
     expect(relaxed).toBeGreaterThan(balanced)
-    expect(relaxed).toBeGreaterThanOrEqual(6)
+    expect(relaxed).toBeLessThan(4)
+    expect(relaxed).toBeGreaterThanOrEqual(3)
   })
 
   it('uses low confidence when there are too few behavior samples', () => {
