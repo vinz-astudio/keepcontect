@@ -48,12 +48,18 @@ export function getAvailableSensors(): SensorConfig[] {
   ]
 }
 
+const SENSOR_DEFAULTS: Record<string, boolean> = {
+  app_activity: false,
+}
+
 export function isSensorEnabled(key: string): boolean {
   try {
     const val = localStorage.getItem(`kc.sensor.${key}`)
-    return val !== 'false' // default to true
+    if (val === 'true') return true
+    if (val === 'false') return false
+    return SENSOR_DEFAULTS[key] ?? true
   } catch {
-    return true
+    return SENSOR_DEFAULTS[key] ?? true
   }
 }
 

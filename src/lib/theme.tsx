@@ -63,8 +63,8 @@ export function ThemeToggle({ className, style }: { className?: string; style?: 
       style={{ cursor: 'pointer', ...style }}
     >
       {theme === 'dark'
-        ? lang === 'zh' ? '明亮' : 'Light'
-        : lang === 'zh' ? '暗黑' : 'Dark'}
+        ? lang === 'zh' ? '浅色' : 'Light'
+        : lang === 'zh' ? '深色' : 'Dark'}
     </button>
   )
 }

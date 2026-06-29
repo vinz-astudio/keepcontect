@@ -9,7 +9,7 @@ import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
-import { openAccessibilitySettings } from '@/features/passive/native'
+import { isAccessibilityEnabled, openAccessibilitySettings } from '@/features/passive/native'
 
 import './PassiveSignalCard.css'
 
@@ -245,6 +245,40 @@ export function PassiveSignalCard() {
   const currentSectionId = sections.find(s => s.isCurrent)?.id || 'general'
   const [expanded, setExpanded] = useState<string | null>(currentSectionId)
 
+  const syncAppActivityPermission = useCallback(async () => {
+    if (Capacitor.getPlatform() !== 'android') return
+    const enabled = await isAccessibilityEnabled()
+    const current = isSensorEnabled('app_activity')
+    const pending = localStorage.getItem('kc.sensor.app_activity.pendingAccessibility') === 'true'
+    if (enabled && pending) {
+      localStorage.removeItem('kc.sensor.app_activity.pendingAccessibility')
+      await setSensorEnabled('app_activity', true)
+      setSensorRefresh(v => v + 1)
+      return
+    }
+    if (!enabled && current) {
+      localStorage.removeItem('kc.sensor.app_activity.pendingAccessibility')
+      await setSensorEnabled('app_activity', false)
+      setSensorRefresh(v => v + 1)
+    }
+  }, [])
+
+  useEffect(() => {
+    void syncAppActivityPermission()
+    const onResume = () => void syncAppActivityPermission()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') onResume()
+    }
+    window.addEventListener('focus', onResume)
+    window.addEventListener('pageshow', onResume)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', onResume)
+      window.removeEventListener('pageshow', onResume)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [syncAppActivityPermission])
+
   const availableSensors = getAvailableSensors()
 
   return (
@@ -292,12 +326,29 @@ export function PassiveSignalCard() {
                   checked={isEnabled}
                   style={{ marginTop: '3px' }}
                   onChange={async (e) => {
-                    await setSensorEnabled(sensor.key, e.target.checked)
-                    setSensorRefresh(v => v + 1)
-                    // Accessibility needs an explicit system grant; deep-link there.
-                    if (sensor.key === 'app_activity' && e.target.checked) {
-                      void openAccessibilitySettings()
+                    const checked = e.target.checked
+                    if (sensor.key === 'app_activity' && checked) {
+                      const alreadyGranted = await isAccessibilityEnabled()
+                      if (!alreadyGranted) {
+                        const ok = window.confirm(
+                          lang === 'zh'
+                            ? 'App activity tracking 需要先开启系统「无障碍」权限。确认后会打开 Android 设置；开启 Keep Contact 后返回 App，开关会自动变为启用。'
+                            : 'App activity tracking needs Android Accessibility access. Continue to settings, enable Keep Contact, then return to the app and this switch will turn on automatically.',
+                        )
+                        await setSensorEnabled(sensor.key, false)
+                        if (ok) {
+                          localStorage.setItem('kc.sensor.app_activity.pendingAccessibility', 'true')
+                          void openAccessibilitySettings()
+                        }
+                        setSensorRefresh(v => v + 1)
+                        return
+                      }
                     }
+                    await setSensorEnabled(sensor.key, checked)
+                    if (sensor.key === 'app_activity' && !checked) {
+                      localStorage.removeItem('kc.sensor.app_activity.pendingAccessibility')
+                    }
+                    setSensorRefresh(v => v + 1)
                   }}
                 />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>

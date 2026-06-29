@@ -42,3 +42,62 @@ export async function subscribeAlertSignals(
     void supabase.removeChannel(channel)
   }
 }
+
+
+const GROUP_STATUS_TABLES = [
+  'alerts',
+  'device_state',
+  'behavior_pings',
+  'group_members',
+  'community_members',
+  'groups',
+  'communities',
+  'user_settings',
+  'profiles',
+] as const
+
+const GM_STATUS_TABLES = [
+  'alerts',
+  'behavior_pings',
+  'device_state',
+  'clients',
+  'profiles',
+] as const
+
+async function subscribeTableInvalidation(
+  name: string,
+  tables: readonly string[],
+  onChange: () => void,
+): Promise<Unsubscribe> {
+  const { data } = await supabase.auth.getUser()
+  const uid = data.user?.id
+  if (!uid) return () => {}
+
+  let channel = supabase.channel(
+    name + ':' + uid + ':' + Math.random().toString(36).slice(2),
+  )
+  for (const table of tables) {
+    channel = channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table },
+      onChange,
+    )
+  }
+  channel.subscribe()
+
+  return () => {
+    void supabase.removeChannel(channel)
+  }
+}
+
+export async function subscribeGroupStatusSignals(
+  onChange: () => void,
+): Promise<Unsubscribe> {
+  return subscribeTableInvalidation('group-status-signals', GROUP_STATUS_TABLES, onChange)
+}
+
+export async function subscribeGmStatusSignals(
+  onChange: () => void,
+): Promise<Unsubscribe> {
+  return subscribeTableInvalidation('gm-status-signals', GM_STATUS_TABLES, onChange)
+}

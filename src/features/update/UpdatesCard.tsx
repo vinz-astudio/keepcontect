@@ -4,6 +4,7 @@ import { isTauri, getPlatform } from '@/lib/platform'
 import { APP_VERSION, LATEST_URL } from '@/lib/version'
 import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
+import { launchUpdate } from '@/features/update/launchUpdate'
 import { fetchLatest, isNewer } from '@/features/update/versionCheck'
 
 interface UpdatesCardProps {
@@ -87,36 +88,13 @@ export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
   }
 
   async function handleTriggerUpdate() {
-    if (isTauri() && updateUrls.exeUrl) {
-      setUpdBusy(true)
-      setProgress(0)
-      try {
-        const internals = (window as any).__TAURI_INTERNALS__
-        if (internals && typeof internals.invoke === 'function') {
-          await internals.invoke('download_and_install', { url: updateUrls.exeUrl })
-        } else {
-          window.open(updateUrls.exeUrl, '_blank')
-        }
-      } catch (err) {
-        console.error('Tauri update failed:', err)
-        try {
-          const internals = (window as any).__TAURI_INTERNALS__
-          if (internals && typeof internals.invoke === 'function') {
-            await internals.invoke('open_in_browser', { url: updateUrls.exeUrl })
-          } else {
-            window.open(updateUrls.exeUrl, '_blank')
-          }
-        } catch {
-          window.open(updateUrls.exeUrl, '_blank')
-        }
-      } finally {
-        setUpdBusy(false)
-        setProgress(null)
-      }
-    } else if (Capacitor.isNativePlatform() && updateUrls.apkUrl) {
-      window.open(updateUrls.apkUrl, '_blank')
-    } else {
-      window.location.reload()
+    setUpdBusy(true)
+    if (isTauri() && updateUrls.exeUrl) setProgress(0)
+    try {
+      await launchUpdate(updateUrls)
+    } finally {
+      setUpdBusy(false)
+      setProgress(null)
     }
   }
 

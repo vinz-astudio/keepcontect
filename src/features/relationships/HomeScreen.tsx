@@ -13,7 +13,7 @@ import { AlertOverlay } from '@/features/baseline/AlertOverlay'
 import { NotificationsCard } from '@/features/alerts/NotificationsCard'
 import { TabBar, type Tab } from '@/features/nav/TabBar'
 import { listMyNotifications, raiseSos } from '@/features/alerts/api'
-import { subscribeAlertSignals } from '@/features/alerts/realtime'
+import { subscribeAlertSignals, subscribeGroupStatusSignals } from '@/features/alerts/realtime'
 import { setBadge } from '@/lib/badge'
 import { reportClient } from '@/lib/clientReport'
 import { GMScreen } from '@/features/gm/GMScreen'
@@ -323,6 +323,32 @@ export function HomeScreen() {
   useEffect(() => {
     if (tab === 'circles') void refresh()
   }, [refresh, tab])
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined
+    let pending = false
+    const scheduleRefresh = () => {
+      if (pending) return
+      pending = true
+      window.setTimeout(() => {
+        pending = false
+        void refresh()
+      }, 500)
+    }
+    void subscribeGroupStatusSignals(scheduleRefresh).then((fn) => {
+      unsubscribe = fn
+    })
+    const timer = window.setInterval(() => void refresh(), 60_000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      unsubscribe?.()
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [refresh])
 
   // 邀请链接自动加入：打开链接 →（登录后）自动完成加入
   useEffect(() => {
@@ -646,7 +672,11 @@ export function HomeScreen() {
                           <button
                             className="leave"
                             disabled={busy}
-                            onClick={() => run(() => leaveGroup(group.id))}
+                            onClick={() => {
+                              if (window.confirm(t('group.leave.confirm'))) {
+                                run(() => leaveGroup(group.id))
+                              }
+                            }}
                           >
                             {t('group.leave')}
                           </button>

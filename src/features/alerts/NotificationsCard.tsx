@@ -26,8 +26,8 @@ import {
   sendTestUnlock,
   type PushStatus,
 } from '@/features/push/pushApi'
-import { isTauri } from '@/lib/platform'
-import { Capacitor } from '@capacitor/core'
+import { launchUpdate, PRODUCTION_UPDATE_URLS } from '@/features/update/launchUpdate'
+import { fetchLatest } from '@/features/update/versionCheck'
 import './NotificationsCard.css'
 
 interface ResponderItem {
@@ -475,25 +475,12 @@ export function NotificationsCard({
                         if (!n.read_at) {
                           void markNotificationRead(n.id).then(refresh)
                         }
-                        if (isTauri()) {
-                          setUpdBusy(n.id)
-                          try {
-                            const internals = (window as any).__TAURI_INTERNALS__
-                            if (internals && typeof internals.invoke === 'function') {
-                              await internals.invoke('download_and_install', { url: 'https://keep-contact-mauve.vercel.app/desktop/KeepContact-Setup.exe' })
-                            } else {
-                              window.open('https://keep-contact-mauve.vercel.app/desktop/KeepContact-Setup.exe', '_blank')
-                            }
-                          } catch (err) {
-                            console.error('Tauri update failed:', err)
-                            window.open('https://keep-contact-mauve.vercel.app/desktop/KeepContact-Setup.exe', '_blank')
-                          } finally {
-                            setUpdBusy(null)
-                          }
-                        } else if (Capacitor.isNativePlatform()) {
-                          window.open('https://keep-contact-mauve.vercel.app/keep-contact.apk', '_blank')
-                        } else {
-                          window.location.reload()
+                        setUpdBusy(n.id)
+                        try {
+                          const latest = await fetchLatest()
+                          await launchUpdate(latest ?? PRODUCTION_UPDATE_URLS)
+                        } finally {
+                          setUpdBusy(null)
                         }
                       }}
                     >

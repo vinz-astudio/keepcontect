@@ -6,6 +6,7 @@ import {
   gmDeleteAccount,
   type GmClient,
 } from '@/features/gm/gmApi'
+import { subscribeGmStatusSignals } from '@/features/alerts/realtime'
 import { translate, useI18n } from '@/lib/i18n'
 import { toast } from '@/lib/toast'
 import { Icon } from '@/features/common/Icon'
@@ -214,7 +215,28 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     if (!active) return
     void load()
     const timer = window.setInterval(() => void load(), 30_000)
-    return () => window.clearInterval(timer)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    let unsubscribe: (() => void) | undefined
+    let pending = false
+    const scheduleLoad = () => {
+      if (pending) return
+      pending = true
+      window.setTimeout(() => {
+        pending = false
+        void load()
+      }, 500)
+    }
+    void subscribeGmStatusSignals(scheduleLoad).then((fn) => {
+      unsubscribe = fn
+    })
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      unsubscribe?.()
+    }
   }, [load, active])
 
   async function act(key: string, fn: () => Promise<void>, okMsg: string) {

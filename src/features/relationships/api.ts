@@ -129,12 +129,16 @@ export async function renameCommunity(
 
 export async function leaveGroup(groupId: string): Promise<void> {
   const uid = await requireUid()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('group_members')
     .delete()
     .eq('group_id', groupId)
     .eq('user_id', uid)
+    .select('group_id')
   if (error) throw error
+  if (!data || data.length === 0) {
+    throw new Error('You have already left this group or no longer have permission to leave it.')
+  }
 }
 
 export async function setMonitoringDirection(

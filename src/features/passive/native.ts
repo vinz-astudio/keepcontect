@@ -27,7 +27,8 @@ export async function configureNativePassivePing(
       return
     }
     const allowCharging = isSensorEnabled('phone_charger')
-    const allowAppActivity = isSensorEnabled('app_activity')
+    const allowAppActivity =
+      isSensorEnabled('app_activity') && (await readAccessibilityEnabled())
     await PassivePing.configure({
       supabaseUrl: SUPABASE_URL,
       token,
@@ -52,7 +53,7 @@ export async function openAccessibilitySettings(): Promise<void> {
 }
 
 /** Whether the AppActivityService accessibility service is currently enabled. */
-export async function isAccessibilityEnabled(): Promise<boolean> {
+async function readAccessibilityEnabled(): Promise<boolean> {
   if (Capacitor.getPlatform() !== 'android') return false
   try {
     const res = await PassivePing.isAccessibilityEnabled()
@@ -60,4 +61,8 @@ export async function isAccessibilityEnabled(): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+export async function isAccessibilityEnabled(): Promise<boolean> {
+  return readAccessibilityEnabled()
 }

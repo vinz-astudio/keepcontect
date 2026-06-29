@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Capacitor } from '@capacitor/core'
-import { Browser } from '@capacitor/browser'
 import { useUpdateStatus } from '@/features/update/versionCheck'
 import { useI18n } from '@/lib/i18n'
 import { isTauri } from '@/lib/platform'
+import { launchUpdate } from '@/features/update/launchUpdate'
 import './UpdateNotice.css'
 
 const SNOOZE_KEY = 'kc.update.snoozeUntil'
@@ -55,30 +54,13 @@ export function UpdateNotice() {
   if (!outdated || dismissed || Date.now() < snoozedUntil) return null
 
   const upgrade = async () => {
-    if (isTauri() && latest?.exeUrl) {
-      setBusy(true)
-      setProgress(0)
-      try {
-        const internals = (window as any).__TAURI_INTERNALS__
-        if (internals && typeof internals.invoke === 'function') {
-          await internals.invoke('download_and_install', { url: latest.exeUrl })
-        } else {
-          window.open(latest.exeUrl, '_blank')
-        }
-      } catch (err) {
-        console.error('Tauri update failed:', err)
-        window.open(latest.exeUrl, '_blank')
-      } finally {
-        setBusy(false)
-        setProgress(null)
-      }
-    } else if (Capacitor.isNativePlatform() && latest?.apkUrl) {
-      void Browser.open({ url: latest.apkUrl }).catch((err) => {
-        console.error('Failed to open APK URL with Capacitor Browser:', err)
-        window.open(latest.apkUrl, '_blank')
-      })
-    } else {
-      window.location.reload()
+    setBusy(true)
+    if (isTauri() && latest?.exeUrl) setProgress(0)
+    try {
+      await launchUpdate({ apkUrl: latest?.apkUrl, exeUrl: latest?.exeUrl })
+    } finally {
+      setBusy(false)
+      setProgress(null)
     }
   }
   const snooze = () => {

@@ -7,6 +7,7 @@ import {
   type GroupActivityView,
 } from '@/features/relationships/groupActivity'
 import { translate, useI18n } from '@/lib/i18n'
+import { subscribeGroupStatusSignals } from '@/features/alerts/realtime'
 import { formatGroupActivityStatus } from '@/features/relationships/groupActivityDisplay'
 import './GroupBoard.css'
 
@@ -54,7 +55,28 @@ export function GroupBoard({
   useEffect(() => {
     void load()
     const timer = window.setInterval(() => void load(), 30_000)
-    return () => window.clearInterval(timer)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    let unsubscribe: (() => void) | undefined
+    let pending = false
+    const scheduleLoad = () => {
+      if (pending) return
+      pending = true
+      window.setTimeout(() => {
+        pending = false
+        void load()
+      }, 500)
+    }
+    void subscribeGroupStatusSignals(scheduleLoad).then((fn) => {
+      unsubscribe = fn
+    })
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      unsubscribe?.()
+    }
   }, [load])
 
   async function run(fn: () => Promise<unknown>) {

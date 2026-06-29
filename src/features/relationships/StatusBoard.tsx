@@ -11,7 +11,7 @@ import {
 } from '@/features/relationships/groupActivity'
 import { GroupBoard } from '@/features/relationships/GroupBoard'
 import { onAlertChange } from '@/features/alerts/alertBus'
-import { subscribeAlertSignals } from '@/features/alerts/realtime'
+import { subscribeGroupStatusSignals } from '@/features/alerts/realtime'
 import { translate, useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import './GroupBoard.css'
@@ -90,9 +90,18 @@ export function StatusBoard() {
     document.addEventListener('visibilitychange', onVisible)
     // 本机任一界面「确认安全/报平安」后立即刷新看板（联动）
     const offBus = onAlertChange(() => void load())
-    // 其它设备/成员的告警变更经 realtime 通知后也刷新
+    // Other members' status/member changes invalidate the derived watch list.
     let unsubscribe: (() => void) | undefined
-    void subscribeAlertSignals(() => void load()).then((fn) => {
+    let pending = false
+    const scheduleLoad = () => {
+      if (pending) return
+      pending = true
+      window.setTimeout(() => {
+        pending = false
+        void load()
+      }, 500)
+    }
+    void subscribeGroupStatusSignals(scheduleLoad).then((fn) => {
       unsubscribe = fn
     })
     return () => {
