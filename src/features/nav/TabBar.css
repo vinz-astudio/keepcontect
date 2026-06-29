@@ -10,7 +10,7 @@
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  padding: 0.4rem 0.5rem max(0.4rem, env(safe-area-inset-bottom));
+  padding: 0.4rem 0.5rem;
   background: var(--bg-soft);
   border-top: 1px solid var(--line);
   user-select: none;
@@ -18,6 +18,15 @@
   -webkit-user-drag: none;
   touch-action: none;
   overscroll-behavior: none;
+}
+
+/* Only standalone PWAs need to reserve iOS home-indicator safe area here.
+   Browser/webview modes (for example Facebook in-app browser) report this inset too,
+   which turns into a visible blank band under the navbar. */
+@media (display-mode: standalone) {
+  .tabbar {
+    padding-bottom: max(0.4rem, env(safe-area-inset-bottom));
+  }
 }
 
 .tabbar__btn {
