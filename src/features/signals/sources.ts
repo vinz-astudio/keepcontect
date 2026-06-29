@@ -1,6 +1,6 @@
 // 信号源：优雅降级。
 // - Web/通用保底：App 互动（可见/聚焦/触摸）——浏览器与双端均可用。
-// - 原生加分（需真机，待接 Capacitor 插件）：运动/步数（Health）、Android 解锁事件。
+// - 原生加分：Tauri 系统空闲；Android 充电/App activity 由 Capacitor 插件侧处理。
 //   这些通过同一 record 回调汇入本地时序；未接入的平台自动跳过。
 
 import { Capacitor } from '@capacitor/core'
@@ -100,12 +100,11 @@ function startTauriIdleSource(record: Recorder): () => void {
 }
 
 /**
- * 原生加分信号占位：运动/步数、Android 解锁。
- * 需安装并接入对应 Capacitor 插件后实现；当前在原生平台先返回空清理函数。
- * TODO(P2-native): 接 @capacitor/health 或社区步数插件；Android 自定义解锁广播插件。
+ * 原生信号占位：Android 充电/App activity 已由 PassivePing 插件配置；
+ * 这里保留空实现，避免重复在 Web signal loop 中登记同一类后台信号。
  */
 function startNativeSources(_record: Recorder): () => void {
-  // 占位：保持架构完整，真机接入后在此 record('steps') / record('unlock')
+  // 占位：后台原生信号由各 native bridge 自行上报。
   return () => {}
 }
 

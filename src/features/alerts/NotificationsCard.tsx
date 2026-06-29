@@ -298,7 +298,7 @@ export function NotificationsCard({
                     {/* Live GPS Map */}
                     {emergency?.latitude != null && emergency?.longitude != null ? (
                       <div style={{ display: 'flex', gap: '6px', borderTop: '1px dashed var(--line)', paddingTop: '6px' }}>
-                        <span>📍</span>
+                        <span>{lang === 'zh' ? '位置' : 'Loc.'}</span>
                         <div>
                           <strong>{lang === 'zh' ? '手机实时定位 (Live Map)' : 'Mobile Live Map'}</strong>
                           <div style={{ marginTop: '2px' }}>
@@ -327,7 +327,7 @@ export function NotificationsCard({
                       /* Fallback: alert SOS location */
                       alert.sos_lat != null && alert.sos_lng != null && (
                         <div style={{ display: 'flex', gap: '6px', borderTop: '1px dashed var(--line)', paddingTop: '6px' }}>
-                          <span>📍</span>
+                          <span>{lang === 'zh' ? '位置' : 'Loc.'}</span>
                           <div>
                             <strong>{lang === 'zh' ? 'SOS 触发时定位' : 'SOS Trigger Location'}</strong>
                             <div style={{ marginTop: '2px' }}>
@@ -361,7 +361,7 @@ export function NotificationsCard({
  
                     {emergency?.medical_notes && (
                       <div style={{ display: 'flex', gap: '6px', borderTop: '1px dashed var(--line)', paddingTop: '6px' }}>
-                        <span>🩺</span>
+                        <span>{lang === 'zh' ? '医疗' : 'Med'}</span>
                         <div>
                           <strong>{lang === 'zh' ? '病史与备注' : 'Medical Notes'}</strong>
                           <div style={{ marginTop: '2px' }}>{emergency.medical_notes}</div>
@@ -373,7 +373,7 @@ export function NotificationsCard({
                     {clients && clients.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px dashed var(--line)', paddingTop: '6px', fontSize: '0.82rem' }}>
                         <div style={{ fontWeight: '600', opacity: 0.8 }}>
-                          💻 {lang === 'zh' ? '多设备活跃状态' : 'Active Devices Status'}
+                          {lang === 'zh' ? '多设备活跃状态' : 'Active devices status'}
                         </div>
                         <ul style={{ margin: 0, paddingLeft: '20px', listStyleType: 'circle', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           {clients.map((c) => (
@@ -394,7 +394,7 @@ export function NotificationsCard({
                   /* If no emergency info, show basic SOS location if available */
                   alert.sos_lat != null && alert.sos_lng != null && (
                     <div className="resp__loc" style={{ marginTop: '8px' }}>
-                      📍{' '}
+                      {lang === 'zh' ? '位置：' : 'Location: '}
                       <a
                         href={`https://www.google.com/maps?q=${alert.sos_lat},${alert.sos_lng}`}
                         target="_blank"

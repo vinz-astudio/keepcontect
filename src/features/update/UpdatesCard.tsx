@@ -204,7 +204,7 @@ export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontWeight: '700', fontSize: '0.82rem', color: 'var(--accent)' }}>
-              {lang === 'zh' ? '🔁 迭代测试通道 (Iteration Branch)' : '🔁 Iteration Test Channel'}
+              {lang === 'zh' ? '迭代测试通道' : 'Iteration test channel'}
             </span>
             <span style={{
               fontSize: '0.7rem',
@@ -244,7 +244,7 @@ export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
                   fontWeight: '600',
                 }}
               >
-                {lang === 'zh' ? '🌐 打开网页版' : '🌐 Web Version'}
+                {lang === 'zh' ? '打开网页版' : 'Web version'}
               </a>
               <a
                 href={`${iterationBaseUrl}/keep-contact-iteration.apk`}
@@ -261,7 +261,7 @@ export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
                   fontWeight: '600',
                 }}
               >
-                {lang === 'zh' ? '🤖 下载 APK' : '🤖 Download APK'}
+                {lang === 'zh' ? '下载 APK' : 'Download APK'}
               </a>
               <a
                 href={`${iterationBaseUrl}/desktop/KeepContact-Iteration-Setup.exe`}
@@ -278,7 +278,7 @@ export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
                   fontWeight: '600',
                 }}
               >
-                {lang === 'zh' ? '💻 下载 Windows 版' : '💻 Download Windows'}
+                {lang === 'zh' ? '下载 Windows 版' : 'Download Windows'}
               </a>
             </div>
           )}

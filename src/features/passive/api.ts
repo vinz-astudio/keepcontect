@@ -34,25 +34,6 @@ export function pingUrl(token: string): string {
   return `${SUPABASE_URL}/functions/v1/ping?${params.toString()}`
 }
 
-/** Token-authorized tiny summary (status/unread/today) for the desktop tray. */
-export function summaryUrl(token: string): string {
-  const params = new URLSearchParams({ token })
-  return `${SUPABASE_URL}/functions/v1/summary?${params.toString()}`
-}
-
-export function shortcutDownloadUrl(token: string): string {
-  return `${SUPABASE_URL}/functions/v1/shortcut?${new URLSearchParams({
-    token,
-  }).toString()}`
-}
-
-export function shortcutImportUrl(token: string): string {
-  const name = 'Keep Contact Ping'
-  return `shortcuts://import-shortcut?url=${encodeURIComponent(
-    shortcutDownloadUrl(token),
-  )}&name=${encodeURIComponent(name)}`
-}
-
 /** Recent pings used for the lightweight activity summary. */
 export async function listRecentPings(): Promise<BehaviorPing[]> {
   const { data: u } = await supabase.auth.getUser()

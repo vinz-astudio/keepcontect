@@ -5,7 +5,6 @@ import {
   lastPingAt,
   pingUrl,
   shouldSendPassiveWebPing,
-  shortcutImportUrl,
   type BehaviorPing,
   calculateWebHmac,
 } from '@/features/passive/api'
@@ -15,16 +14,6 @@ describe('passive ping helpers', () => {
     expect(pingUrl('abc123')).toBe(
       'https://byekgmqyqlftgoveqnku.supabase.co/functions/v1/ping?token=abc123',
     )
-  })
-
-  it('builds one iOS shortcut import URL for the generic ping', () => {
-    const url = shortcutImportUrl('token123')
-
-    expect(url.startsWith('shortcuts://import-shortcut?')).toBe(true)
-    expect(decodeURIComponent(url)).toContain(
-      'https://byekgmqyqlftgoveqnku.supabase.co/functions/v1/shortcut?token=token123',
-    )
-    expect(decodeURIComponent(url)).toContain('Keep Contact Ping')
   })
 
   it('summarizes activity without caring which trigger fired', () => {

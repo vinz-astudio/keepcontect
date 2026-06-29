@@ -33,8 +33,8 @@ export function getAvailableSensors(): SensorConfig[] {
       key: 'app_activity',
       labelZh: 'App 使用活跃(后台守护)',
       labelEn: 'App Activity (background)',
-      descZh: '开启系统「无障碍」权限后，使用任意 App 都会在后台静默上报；即使本 App 被系统关闭也照常守护(取代旧的解锁触发)。只记录"在用手机"，绝不上传用的是哪个 App',
-      descEn: 'After you grant Accessibility access, using any app quietly pings in the background — keeps watching even after the app is closed (replaces the old unlock trigger). It only records that you are active, never which app',
+      descZh: '开启系统「无障碍」权限后，使用任意 App 都会在后台静默上报；即使本 App 被系统关闭也照常守护。只记录"在用手机"，绝不上传用的是哪个 App',
+      descEn: 'After you grant Accessibility access, using any app quietly pings in the background and keeps watching even after Keep Contact is closed. It only records that you are active, never which app',
       supported: Capacitor.getPlatform() === 'android'
     },
     {

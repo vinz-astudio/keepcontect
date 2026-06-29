@@ -7,6 +7,7 @@ import {
 import { getDesktopOS, getPlatform, isTauri } from '@/lib/platform'
 import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
+import { APK_URL } from '@/features/install/apk'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
 import { isAccessibilityEnabled, openAccessibilitySettings } from '@/features/passive/native'
@@ -133,7 +134,7 @@ export function PassiveSignalCard() {
           </p>
           {android !== 'native' && (
             <div style={{ marginTop: '12px', marginBottom: '12px' }}>
-              <a className="psig__import" href="https://keep-contact-mauve.vercel.app/keep-contact.apk" download>
+              <a className="psig__import" href={APK_URL} download>
                 {lang === 'zh' ? '下载安卓安装包 (.apk)' : 'Download Android APK'}
               </a>
             </div>
@@ -154,8 +155,8 @@ export function PassiveSignalCard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
             {lang === 'zh'
-              ? '由于 iOS 系统的后台限制，Web 应用程序（PWA）在后台运行时无法自动捕获解锁或充电事件。您可以通过 Apple 快捷指令来实现全自动的守护：'
-              : 'Due to iOS background restrictions, PWAs cannot automatically run screen unlock or charging checks. You can configure Apple Shortcuts to achieve full automation:'}
+              ? '由于 iOS 系统的后台限制，网页/PWA 关闭后无法自己捕获充电、闹钟或打开 App 等事件。你可以用 Apple 快捷指令自动化来触发报活：'
+              : 'Due to iOS background restrictions, web/PWA mode cannot observe charging, alarms, or app-open events after it is closed. Use Apple Shortcuts automations to trigger check-ins:'}
           </p>
           
           <div style={{ background: 'var(--accent-soft)', borderLeft: '3px solid var(--accent)', padding: '10px', borderRadius: 'var(--r-sm)', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -180,8 +181,8 @@ export function PassiveSignalCard() {
               </li>
               <li>
                 {lang === 'zh'
-                  ? '切到【自动化】标签页，新建你需要的触发器，例如解锁、连接充电器、断开充电器或每天会打开的 App。'
-                  : 'Switch to the "Automation" tab and add the triggers you need, such as unlock, charger connected, charger disconnected, or an app you open daily.'}
+                  ? '切到【自动化】标签页，新建你需要的触发器，例如关闹钟、连接/断开充电器或每天会打开的 App。'
+                  : 'Switch to the "Automation" tab and add triggers such as alarm dismissed, charger connected/disconnected, or an app you open daily.'}
               </li>
               <li>
                 {lang === 'zh'
@@ -206,7 +207,7 @@ export function PassiveSignalCard() {
       render: () => (
         <div>
           <p className="muted" style={{ fontWeight: '600', color: 'var(--fg)' }}>
-            {lang === 'zh' ? '安装桌面原生 App (仅 7MB，推荐)' : 'Install Native Desktop App (7MB, Recommended)'}
+            {lang === 'zh' ? '安装桌面原生 App（推荐）' : 'Install Native Desktop App (Recommended)'}
           </p>
           <p className="muted" style={{ fontSize: '0.82rem' }}>
             {lang === 'zh'
@@ -332,7 +333,7 @@ export function PassiveSignalCard() {
                       if (!alreadyGranted) {
                         const ok = window.confirm(
                           lang === 'zh'
-                            ? 'App activity tracking 需要先开启系统「无障碍」权限。确认后会打开 Android 设置；开启 Keep Contact 后返回 App，开关会自动变为启用。'
+                            ? 'App 使用活跃需要先开启系统「无障碍」权限。确认后会打开 Android 设置；开启 Keep Contact 后返回 App，开关会自动变为启用。'
                             : 'App activity tracking needs Android Accessibility access. Continue to settings, enable Keep Contact, then return to the app and this switch will turn on automatically.',
                         )
                         await setSensorEnabled(sensor.key, false)

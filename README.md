@@ -14,7 +14,7 @@
 ## 技术形态
 
 - **Hybrid**：React + Vite（Web UI）通过 **Capacitor** 打包为 Android / iOS 原生 App。
-- 被动信号靠原生插件（运动/步数、App 互动、Android 解锁事件）。
+- 被动信号来自 Web/App 互动、Android 原生充电事件、Android App activity（用户授权无障碍后）与 iOS 快捷指令自动化。
 - 双端同时为目标。
 
 ## 开发
@@ -83,7 +83,7 @@ npx cap open android       # 用 Android Studio 打开并运行
 - [x] **P0** 脚手架：React+Vite+TS + Capacitor（Android 已加），Web 构建与类型检查通过。
 - [x] **P1** 账号 + 关系：邮箱密码登录、Community/Group 创建与邀请码加入、监护方向（被守望/守望他人）开关、守护人（守护码邀请 + 撤销）、紧急信息/住址录入。全部端到端验证（含 RLS 隔离、触发器、join/guardian RPC、守护人可读被守护者紧急信息）。
 - [x] **P2** 信号 + 基线：时段感知统计基线判断引擎（14 个单元测试覆盖学习期/冷启动/基线判定/时段感知/灵敏度/安静窗）、IndexedDB 本地时序、Web 互动信号源、localStorage 配置、首页 LivenessCard（实时状态 + 报平安打卡 + 灵敏度档 + 安全但不在）。已浏览器验证。
-  - 待真机：原生信号源（运动/步数 Health、Android 解锁）已留接口（`src/features/signals/sources.ts`），需装插件 + 真机/模拟器接入；周期性安静窗（睡眠作息）引擎已支持，仅缺 UI。
+  - Android 原生 App 已接入充电/拔电与 App activity 后台守护（需用户开启无障碍权限）；iOS 仍通过快捷指令自动化接入关闹钟、充电器、常用 App 等触发器。
 - [x] **P3** 本地告警闭环 + 心跳：告警自证遮罩（pattern 九宫格手势，解不开则不解除）、`send_heartbeat` 设备心跳（G1 设备侧）、`resolve_my_alert` 自解除。浏览器验证。
 - [x] **P4** 服务器升级时钟 + 救援触达：`process_escalations` pg_cron 每分钟跑，self→group→community→terminal 服务器权威升级；两段式确认（`ack_alert` 暂停 / `resolve_alert` 解除）；暗设备（心跳中断）兜底；站内通知 feed；G3 紧急信息按 RLS 在告警升级时对授权响应者解锁。SQL + 浏览器（双人场景）验证。
 - [x] **P5** SOS：超大按钮 → `raise_sos` 立即 group 阶段并通知守望者。浏览器验证。
@@ -100,7 +100,7 @@ npx cap open android       # 用 Android Studio 打开并运行
 ## 待真机 / 待接（iOS 在 Mac 上完成）
 
 - **iOS 原生壳**：在 Mac 上 `npx cap add ios` → Xcode 构建。Windows 无法编译 iOS。
-- **被动信号（iOS）**：运动/步数（HealthKit）需原生插件接入 `src/features/signals/sources.ts` 的 `startNativeSources`；iOS 拿不到解锁事件。
+- **被动信号（iOS）**：当前走快捷指令自动化触发个人 ping URL；iOS 网页/PWA 关闭后不能自行监听充电、闹钟或打开 App。
 - **后台心跳 / 推送**：浏览器/前台已发心跳；iOS 后台心跳需原生 + 静默推送，告警通知需 APNs。当前用站内通知 feed 兜底（前台可见）。
 - **多通道兜底（G4）**：Push + 短信 + 语音需接 APNs/FCM + Twilio（服务器侧），当前为站内通知。
 - **Supabase 控制台建议**：Auth 设置里开启 "Confirm email"（正式）或关闭（开发顺滑）；并建议开启 "Leaked password protection"。
