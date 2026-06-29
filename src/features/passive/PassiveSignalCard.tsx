@@ -98,32 +98,6 @@ export function PassiveSignalCard() {
   // Accordion Sections definitions (Without duplicate update check buttons)
   const sections = [
     {
-      id: 'windows_native',
-      title: lang === 'zh' ? 'Windows 桌面 App' : 'Windows Desktop App',
-      isCurrent: isTauri(),
-      render: () => (
-        <div>
-          <p className="muted">
-            {lang === 'zh' 
-              ? '当前已运行在 Keep Contact 原生桌面版中。支持后台系统空闲自动感知上报，即使关闭窗口仍会在系统托盘中维持守护状态。'
-              : 'Currently running inside Keep Contact native desktop app. Supports automatic idle detection reporting and runs in system tray when closed.'}
-          </p>
-          {hasAutostartSupport && (
-            <div className="psig__autostart-option" style={{ marginTop: '12px', borderTop: '1px dashed var(--line)', paddingTop: '10px' }}>
-              <label className="psig__hookconsent" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={autostart}
-                  onChange={(e) => void toggleAutostart(e.target.checked)}
-                />
-                <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>{t('hook.win.autostart')}</span>
-              </label>
-            </div>
-          )}
-        </div>
-      )
-    },
-    {
       id: 'android_native',
       title: lang === 'zh' ? 'Android 原生自动化报活' : 'Android Native Service',
       isCurrent: android === 'native',
@@ -203,9 +177,28 @@ export function PassiveSignalCard() {
     {
       id: 'windows_web',
       title: lang === 'zh' ? 'Windows 桌面 App' : 'Windows Desktop App',
-      isCurrent: !isTauri() && desktopOS === 'windows',
+      isCurrent: isTauri() || desktopOS === 'windows',
       render: () => (
         <div>
+          {isTauri() && (
+            <p className="muted">
+              {lang === 'zh'
+                ? '当前已运行在 Keep Contact 原生桌面版中；支持后台系统空闲自动感知、关闭窗口后托盘守护和开机自启。'
+                : 'Currently running inside the Keep Contact desktop app. It supports background idle sensing, tray running after close, and auto-start at login.'}
+            </p>
+          )}
+          {isTauri() && hasAutostartSupport && (
+            <div className="psig__autostart-option" style={{ marginTop: '12px', borderTop: '1px dashed var(--line)', paddingTop: '10px' }}>
+              <label className="psig__hookconsent" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={autostart}
+                  onChange={(e) => void toggleAutostart(e.target.checked)}
+                />
+                <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>{t('hook.win.autostart')}</span>
+              </label>
+            </div>
+          )}
           <p className="muted" style={{ fontWeight: '600', color: 'var(--fg)' }}>
             {lang === 'zh' ? '安装桌面原生 App（推荐）' : 'Install Native Desktop App (Recommended)'}
           </p>
