@@ -20,14 +20,9 @@
   overscroll-behavior: none;
 }
 
-/* Only standalone PWAs need to reserve iOS home-indicator safe area here.
-   Browser/webview modes (for example Facebook in-app browser) report this inset too,
-   which turns into a visible blank band under the navbar. */
-@media (display-mode: standalone) {
-  .tabbar {
-    padding-bottom: max(0.4rem, env(safe-area-inset-bottom));
-  }
-}
+/* Keep bottom padding compact in every display mode. iOS standalone reports
+   env(safe-area-inset-bottom), but reserving it inside this flex child creates
+   a visible empty band under the nav items. */
 
 .tabbar__btn {
   flex: 1;

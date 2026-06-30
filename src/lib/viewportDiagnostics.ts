@@ -230,8 +230,8 @@ function buildSuspects(args: {
   if (tabbarVisualGapBelow != null && Math.abs(tabbarVisualGapBelow) > 2) {
     suspects.push('tabbar bottom is ' + tabbarVisualGapBelow + 'px from visualViewport bottom')
   }
-  if (args.mode !== 'standalone' && tabbarPaddingBottomPx != null && tabbarPaddingBottomPx > 14) {
-    suspects.push('browser/webview tabbar padding-bottom is high: ' + tabbarPaddingBottomPx + 'px')
+  if (tabbarPaddingBottomPx != null && tabbarPaddingBottomPx > 14) {
+    suspects.push(args.mode + ' tabbar padding-bottom is high: ' + tabbarPaddingBottomPx + 'px')
   }
   if (args.mode === 'standalone' && tabbarPaddingBottomPx != null && tabbarPaddingBottomPx < 6) {
     suspects.push('standalone tabbar padding-bottom is unexpectedly low: ' + tabbarPaddingBottomPx + 'px')
