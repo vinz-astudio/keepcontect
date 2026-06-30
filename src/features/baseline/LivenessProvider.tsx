@@ -27,6 +27,7 @@ import { getConfig, setConfig } from '@/features/baseline/configStore'
 import { hasPattern } from '@/features/pattern/patternStore'
 import { primeAlarm } from '@/features/baseline/alarm'
 import type { BaselineConfig, Evaluation } from '@/features/baseline/types'
+import { shouldShowSelfCheckForNotificationKind } from '@/features/alerts/notificationRouting'
 import { recordViewportTrace } from '@/lib/viewportDiagnostics'
 
 /** 解锁遮罩的非告警模式：演练（验证已设手势）/ 设置（首次或修改手势） */
@@ -86,9 +87,12 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     promptedRef.current = true
     primeAlarm() // 解锁应用内告警声（iOS 需首个手势）
     
-    // 冷启动从通知点开（SW openWindow('/?from=notif')）：清掉参数，但不盲目设 alertHint，仅在真有告警时才弹
-    if (new URLSearchParams(window.location.search).get('from') === 'notif') {
-      recordViewportTrace('liveness-from-notification-query')
+    // 冷启动从通知点开：只有 self/concern 通知可先乐观弹自证；group 通知只刷新列表
+    const launchParams = new URLSearchParams(window.location.search)
+    if (launchParams.get('from') === 'notif') {
+      const notificationKind = launchParams.get('notifKind')
+      recordViewportTrace('liveness-from-notification-query', { notificationKind })
+      if (shouldShowSelfCheckForNotificationKind(notificationKind)) setAlertHint(true)
       window.history.replaceState(null, '', window.location.pathname) // 清掉参数，避免刷新再触发
     }
 
@@ -218,11 +222,15 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     const onVisible = () => {
       if (document.visibilityState === 'visible') void refreshAlert()
     }
-    // 从通知点进来：Service Worker 发消息，立刻顶出解锁界面 + 查告警确认
+    // 从通知点进来：Service Worker 发消息；仅 self/concern 可先弹自证，其余只刷新告警/通知
     const onSwMsg = (e: MessageEvent) => {
-      if ((e.data as { type?: string } | null)?.type === 'kc-open-alert') {
-        recordViewportTrace('liveness-service-worker-open-alert', { source: (e.data as { source?: string } | null)?.source ?? 'unknown' })
-        setAlertHint(true)
+      const data = e.data as { type?: string; source?: string; notificationKind?: string | null } | null
+      if (data?.type === 'kc-open-alert') {
+        recordViewportTrace('liveness-service-worker-open-alert', {
+          source: data.source ?? 'unknown',
+          notificationKind: data.notificationKind ?? null,
+        })
+        if (shouldShowSelfCheckForNotificationKind(data.notificationKind)) setAlertHint(true)
         void refreshAlert()
       }
     }

@@ -76,7 +76,7 @@ self.addEventListener('push', (event) => {
     badge: '/icons/icon-192.png',
     silent: false, // 明确要求系统出声（最终仍受设备通知设置控制）
     vibrate: [200, 100, 200], // Android 震动提示；iOS 忽略，无害
-    data: { url: '/' },
+    data: { url: '/', kind: data.kind, alertId: data.alertId },
   }
   // 同一告警的多条推送合并；renotify 让“更新”仍重新提醒而非静默替换
   // 注意：renotify 必须与 tag 一起出现，否则部分浏览器会抛错
@@ -99,13 +99,21 @@ self.addEventListener('notificationclick', (event) => {
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((list) => {
+        const notificationData = event.notification.data || {}
+        const kindQuery = notificationData.kind ? '&notifKind=' + encodeURIComponent(notificationData.kind) : ''
         for (const c of list) {
           if ('focus' in c) {
-            c.postMessage({ type: 'kc-open-alert', source: 'notificationclick', clickedAt: Date.now() })
+            c.postMessage({
+              type: 'kc-open-alert',
+              source: 'notificationclick',
+              clickedAt: Date.now(),
+              notificationKind: notificationData.kind || null,
+              alertId: notificationData.alertId || null,
+            })
             return c.focus()
           }
         }
-        return self.clients.openWindow('/?from=notif&swts=' + Date.now())
+        return self.clients.openWindow('/?from=notif&swts=' + Date.now() + kindQuery)
       }),
   )
 })
