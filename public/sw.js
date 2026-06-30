@@ -101,11 +101,11 @@ self.addEventListener('notificationclick', (event) => {
       .then((list) => {
         for (const c of list) {
           if ('focus' in c) {
-            c.postMessage({ type: 'kc-open-alert' })
+            c.postMessage({ type: 'kc-open-alert', source: 'notificationclick', clickedAt: Date.now() })
             return c.focus()
           }
         }
-        return self.clients.openWindow('/?from=notif')
+        return self.clients.openWindow('/?from=notif&swts=' + Date.now())
       }),
   )
 })

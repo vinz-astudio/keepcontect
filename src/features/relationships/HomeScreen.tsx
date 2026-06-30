@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { EmergencyInfoCard } from '@/features/profile/EmergencyInfoCard'
+import { ViewportDiagnosticsCard } from '@/features/profile/ViewportDiagnosticsCard'
 import { GuardiansCard } from '@/features/guardians/GuardiansCard'
 import { SafeAwayBar } from '@/features/baseline/SafeAwayBar'
 import { RoutineSettings } from '@/features/baseline/RoutineSettings'
@@ -482,6 +483,7 @@ export function HomeScreen() {
             </div>
             <div className="profile-grid__col2">
               <UpdatesCard isGm={isGm} />
+              <ViewportDiagnosticsCard />
               <PassiveSignalCard />
             </div>
           </div>

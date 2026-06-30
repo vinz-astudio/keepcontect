@@ -27,6 +27,7 @@ import { getConfig, setConfig } from '@/features/baseline/configStore'
 import { hasPattern } from '@/features/pattern/patternStore'
 import { primeAlarm } from '@/features/baseline/alarm'
 import type { BaselineConfig, Evaluation } from '@/features/baseline/types'
+import { recordViewportTrace } from '@/lib/viewportDiagnostics'
 
 /** 解锁遮罩的非告警模式：演练（验证已设手势）/ 设置（首次或修改手势） */
 export type OverlayMode = 'none' | 'practice' | 'setup'
@@ -87,6 +88,7 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     
     // 冷启动从通知点开（SW openWindow('/?from=notif')）：清掉参数，但不盲目设 alertHint，仅在真有告警时才弹
     if (new URLSearchParams(window.location.search).get('from') === 'notif') {
+      recordViewportTrace('liveness-from-notification-query')
       window.history.replaceState(null, '', window.location.pathname) // 清掉参数，避免刷新再触发
     }
 
@@ -219,12 +221,16 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     // 从通知点进来：Service Worker 发消息，立刻顶出解锁界面 + 查告警确认
     const onSwMsg = (e: MessageEvent) => {
       if ((e.data as { type?: string } | null)?.type === 'kc-open-alert') {
+        recordViewportTrace('liveness-service-worker-open-alert', { source: (e.data as { source?: string } | null)?.source ?? 'unknown' })
         setAlertHint(true)
         void refreshAlert()
       }
     }
     // iOS 主屏 PWA 回到页面常走 bfcache，focus/visibility 不一定触发 → 兜底
-    const onPageShow = () => void refreshAlert()
+    const onPageShow = () => {
+      recordViewportTrace('liveness-pageshow-refresh-alert')
+      void refreshAlert()
+    }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', refreshAlert)
     window.addEventListener('pageshow', onPageShow)
