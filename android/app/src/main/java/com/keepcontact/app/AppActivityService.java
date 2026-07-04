@@ -26,9 +26,18 @@ public class AppActivityService extends AccessibilityService {
     private String lastPackage = null;
 
     @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        // Liveness breadcrumb: proves the system actually bound the service
+        // (HyperOS/MIUI can show the toggle ON while never binding).
+        PassivePing.markGuardConnected(this);
+    }
+
+    @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
         if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
+        PassivePing.markGuardEvent(this);
 
         CharSequence pkg = event.getPackageName();
         if (pkg == null || pkg.length() == 0) return;

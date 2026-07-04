@@ -10,7 +10,7 @@ import { Icon } from '@/features/common/Icon'
 import { APK_URL } from '@/features/install/apk'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
-import { isAccessibilityEnabled, openAccessibilitySettings, openAutostartSettings } from '@/features/passive/native'
+import { getGuardStatus, isAccessibilityEnabled, openAccessibilitySettings, openAutostartSettings, type GuardStatus } from '@/features/passive/native'
 
 import './PassiveSignalCard.css'
 
@@ -31,8 +31,8 @@ export function PassiveSignalCard() {
   const [autostart, setAutostart] = useState(false)
   const [hasAutostartSupport, setHasAutostartSupport] = useState(false)
   const [_, setSensorRefresh] = useState(0)
-  // Android:无障碍后台守护是否真的已开启(轮询,用户从设置返回后自动刷新)
-  const [a11yOn, setA11yOn] = useState<boolean | null>(null)
+  // Android:无障碍后台守护实况(设置开关 + 真实绑定/事件时间戳;轮询自动刷新)
+  const [guard, setGuard] = useState<GuardStatus | null>(null)
 
 
   // Tauri autostart check
@@ -81,7 +81,7 @@ export function PassiveSignalCard() {
       setError(err instanceof Error ? err.message : String(err))
     }
     if (Capacitor.getPlatform() === 'android') {
-      setA11yOn(await isAccessibilityEnabled())
+      setGuard(await getGuardStatus())
     }
   }, [])
 
@@ -120,24 +120,51 @@ export function PassiveSignalCard() {
           )}
           {android === 'native' && (
             <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '8px 10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
-                <span style={{ fontSize: '0.85rem' }}>
-                  {lang === 'zh' ? '后台守护(无障碍)' : 'Background guard (Accessibility)'}
-                  {' · '}
-                  <strong style={{ color: a11yOn ? 'var(--ok)' : 'var(--danger)' }}>
-                    {a11yOn == null
-                      ? '…'
-                      : a11yOn
-                        ? lang === 'zh' ? '已开启' : 'On'
-                        : lang === 'zh' ? '未开启' : 'Off'}
-                  </strong>
-                </span>
-                {!a11yOn && (
-                  <button className="share" onClick={() => void openAccessibilitySettings()}>
-                    {lang === 'zh' ? '去开启' : 'Enable'}
-                  </button>
-                )}
-              </div>
+              {(() => {
+                // 三态:未开启 / 已开启·运行中 / 已开启但服务没在运行(HyperOS 常见)。
+                // 打开本 App 本身就会产生一次窗口事件,所以「最近事件」足以判活。
+                const alive =
+                  guard != null &&
+                  guard.lastEventAt > 0 &&
+                  Date.now() - guard.lastEventAt < 10 * 60 * 1000
+                const state: 'loading' | 'off' | 'running' | 'dead' =
+                  guard == null ? 'loading' : !guard.enabled ? 'off' : alive ? 'running' : 'dead'
+                const label =
+                  state === 'loading'
+                    ? '…'
+                    : state === 'off'
+                      ? lang === 'zh' ? '未开启' : 'Off'
+                      : state === 'running'
+                        ? lang === 'zh' ? '运行中' : 'Running'
+                        : lang === 'zh' ? '已开启但未运行' : 'Enabled but not running'
+                return (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '8px 10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
+                      <span style={{ fontSize: '0.85rem' }}>
+                        {lang === 'zh' ? '后台守护(无障碍)' : 'Background guard (Accessibility)'}
+                        {' · '}
+                        <strong style={{ color: state === 'running' ? 'var(--ok)' : 'var(--danger)' }}>
+                          {label}
+                        </strong>
+                      </span>
+                      {(state === 'off' || state === 'dead') && (
+                        <button className="share" onClick={() => void openAccessibilitySettings()}>
+                          {state === 'off'
+                            ? lang === 'zh' ? '去开启' : 'Enable'
+                            : lang === 'zh' ? '去修复' : 'Fix'}
+                        </button>
+                      )}
+                    </div>
+                    {state === 'dead' && (
+                      <p className="muted" style={{ margin: 0, fontSize: '0.78rem', color: 'var(--danger)' }}>
+                        {lang === 'zh'
+                          ? '系统显示无障碍已开启,但守护服务实际没在运行(小米/HyperOS 常见)。请到无障碍设置把 Keep Contact 的开关关掉再打开;仍不行就重启手机后再开一次。'
+                          : 'The system shows Accessibility as enabled, but the guard service is not actually running (common on Xiaomi/HyperOS). Toggle Keep Contact off and on again in Accessibility settings; if that fails, reboot and re-enable.'}
+                      </p>
+                    )}
+                  </>
+                )
+              })()}
               <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
                 {lang === 'zh'
                   ? '小米/HyperOS 等国产系统还需：开启「自启动」、把省电策略设为「无限制」、不要在最近任务里清理本 App，否则守护会被系统杀掉。首次从应用商店外安装还需在「应用详情 → 右上角 ⋮ → 允许受限设置」解锁后才能打开无障碍。'

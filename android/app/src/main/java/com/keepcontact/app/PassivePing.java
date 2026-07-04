@@ -72,6 +72,30 @@ final class PassivePing {
         return isConfigured(context) && prefs(context).getBoolean(KEY_ALLOW_APP_ACTIVITY, false);
     }
 
+    // —— Guard liveness instrumentation ——
+    // HyperOS/MIUI are known to show the accessibility toggle as ON while the
+    // service is not actually bound. Record real bind/event timestamps so the UI
+    // can tell "enabled and running" apart from "enabled but dead".
+    static void markGuardConnected(Context context) {
+        prefs(context).edit().putLong("a11y_connected_at", System.currentTimeMillis()).apply();
+    }
+
+    static void markGuardEvent(Context context) {
+        prefs(context).edit().putLong("a11y_last_event", System.currentTimeMillis()).apply();
+    }
+
+    static long guardConnectedAt(Context context) {
+        return prefs(context).getLong("a11y_connected_at", 0);
+    }
+
+    static long guardLastEventAt(Context context) {
+        return prefs(context).getLong("a11y_last_event", 0);
+    }
+
+    static long lastPingAt(Context context) {
+        return prefs(context).getLong(KEY_LAST_PING, 0);
+    }
+
     // Charger broadcasts (POWER_CONNECTED/DISCONNECTED) originate from the system uid,
     // so a RECEIVER_NOT_EXPORTED dynamic receiver receives them fine.
     static IntentFilter chargingIntentFilter(Context context) {

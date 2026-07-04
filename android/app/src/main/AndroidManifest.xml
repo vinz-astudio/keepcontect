@@ -77,4 +77,7 @@
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+: without declaring this, the app's notification toggle in
+         system settings is greyed out and nothing can ever be posted. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

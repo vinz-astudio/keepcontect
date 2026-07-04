@@ -14,6 +14,12 @@ interface PassivePingPlugin {
   openAccessibilitySettings(): Promise<void>
   openAutostartSettings(): Promise<void>
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>
+  getGuardStatus(): Promise<{
+    enabled: boolean
+    connectedAt: number
+    lastEventAt: number
+    lastPingAt: number
+  }>
 }
 
 const PassivePing = registerPlugin<PassivePingPlugin>('PassivePing')
@@ -77,4 +83,22 @@ async function readAccessibilityEnabled(): Promise<boolean> {
 
 export async function isAccessibilityEnabled(): Promise<boolean> {
   return readAccessibilityEnabled()
+}
+
+export interface GuardStatus {
+  enabled: boolean
+  connectedAt: number
+  lastEventAt: number
+  lastPingAt: number
+}
+
+/** Guard liveness (settings toggle + real bind/event/ping timestamps). Null on
+ *  non-Android or when the bridge fails. */
+export async function getGuardStatus(): Promise<GuardStatus | null> {
+  if (Capacitor.getPlatform() !== 'android') return null
+  try {
+    return await PassivePing.getGuardStatus()
+  } catch {
+    return null
+  }
 }

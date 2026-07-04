@@ -87,6 +87,20 @@ public class PassivePingPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** Guard liveness: settings toggle + real bind/event/ping timestamps, so the UI
+     *  can tell "enabled and running" apart from "toggle on but service dead"
+     *  (a known HyperOS/MIUI failure mode). */
+    @PluginMethod
+    public void getGuardStatus(PluginCall call) {
+        Context context = getContext();
+        JSObject ret = new JSObject();
+        ret.put("enabled", isAccessibilityServiceEnabled());
+        ret.put("connectedAt", PassivePing.guardConnectedAt(context));
+        ret.put("lastEventAt", PassivePing.guardLastEventAt(context));
+        ret.put("lastPingAt", PassivePing.lastPingAt(context));
+        call.resolve(ret);
+    }
+
     private boolean isAccessibilityServiceEnabled() {
         String enabled = Settings.Secure.getString(
             getContext().getContentResolver(),
