@@ -12,6 +12,7 @@ interface PassivePingPlugin {
   clear(): Promise<void>
   pingApp(): Promise<void>
   openAccessibilitySettings(): Promise<void>
+  openAutostartSettings(): Promise<void>
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>
 }
 
@@ -47,6 +48,17 @@ export async function openAccessibilitySettings(): Promise<void> {
   if (Capacitor.getPlatform() !== 'android') return
   try {
     await PassivePing.openAccessibilitySettings()
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Open the OEM autostart whitelist (MIUI/HyperOS) or the app-details page.
+ *  Chinese ROMs kill background services unless the app is whitelisted. */
+export async function openAutostartSettings(): Promise<void> {
+  if (Capacitor.getPlatform() !== 'android') return
+  try {
+    await PassivePing.openAutostartSettings()
   } catch {
     /* ignore */
   }

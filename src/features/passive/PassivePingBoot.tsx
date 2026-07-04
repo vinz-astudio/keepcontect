@@ -66,6 +66,25 @@ export function PassivePingBoot() {
     }
   }, [pingWeb])
 
+  // Android:回到前台时重新同步原生配置。用户从「无障碍设置」授权返回后,
+  // native.ts 里的 allowAppActivity 门控需要重算,否则 SharedPreferences 里的
+  // allow_app_activity 停在 false,无障碍服务收到事件也不会上报。
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'android') return
+    const resync = () => {
+      if (tokenRef.current) void configureNativePassivePing(tokenRef.current)
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') resync()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', resync)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', resync)
+    }
+  }, [])
+
   useEffect(() => {
     const ping = () => void pingWeb()
     const onVisibility = () => {

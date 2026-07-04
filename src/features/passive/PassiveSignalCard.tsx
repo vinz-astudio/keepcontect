@@ -10,7 +10,7 @@ import { Icon } from '@/features/common/Icon'
 import { APK_URL } from '@/features/install/apk'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
-import { isAccessibilityEnabled, openAccessibilitySettings } from '@/features/passive/native'
+import { isAccessibilityEnabled, openAccessibilitySettings, openAutostartSettings } from '@/features/passive/native'
 
 import './PassiveSignalCard.css'
 
@@ -31,6 +31,8 @@ export function PassiveSignalCard() {
   const [autostart, setAutostart] = useState(false)
   const [hasAutostartSupport, setHasAutostartSupport] = useState(false)
   const [_, setSensorRefresh] = useState(0)
+  // Android:无障碍后台守护是否真的已开启(轮询,用户从设置返回后自动刷新)
+  const [a11yOn, setA11yOn] = useState<boolean | null>(null)
 
 
   // Tauri autostart check
@@ -78,6 +80,9 @@ export function PassiveSignalCard() {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
+    if (Capacitor.getPlatform() === 'android') {
+      setA11yOn(await isAccessibilityEnabled())
+    }
   }, [])
 
   useEffect(() => {
@@ -113,11 +118,50 @@ export function PassiveSignalCard() {
               </a>
             </div>
           )}
-          <p className="muted" style={{ marginTop: '8px', fontSize: '0.82rem', color: 'var(--accent)' }}>
-            {lang === 'zh'
-              ? '提示：请在系统设置中允许本应用在后台运行，并关闭电池优化以获得最稳定的守护。'
-              : 'Tip: Please allow background running in system settings and disable battery optimization for best stability.'}
-          </p>
+          {android === 'native' && (
+            <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '8px 10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
+                <span style={{ fontSize: '0.85rem' }}>
+                  {lang === 'zh' ? '后台守护(无障碍)' : 'Background guard (Accessibility)'}
+                  {' · '}
+                  <strong style={{ color: a11yOn ? 'var(--ok)' : 'var(--danger)' }}>
+                    {a11yOn == null
+                      ? '…'
+                      : a11yOn
+                        ? lang === 'zh' ? '已开启' : 'On'
+                        : lang === 'zh' ? '未开启' : 'Off'}
+                  </strong>
+                </span>
+                {!a11yOn && (
+                  <button className="share" onClick={() => void openAccessibilitySettings()}>
+                    {lang === 'zh' ? '去开启' : 'Enable'}
+                  </button>
+                )}
+              </div>
+              <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
+                {lang === 'zh'
+                  ? '小米/HyperOS 等国产系统还需：开启「自启动」、把省电策略设为「无限制」、不要在最近任务里清理本 App，否则守护会被系统杀掉。首次从应用商店外安装还需在「应用详情 → 右上角 ⋮ → 允许受限设置」解锁后才能打开无障碍。'
+                  : 'On Xiaomi/HyperOS and similar ROMs, also enable Autostart, set battery saver to "No restrictions", and don\'t swipe this app away in recents — otherwise the system kills the guard. Sideloaded installs must first unlock "Allow restricted settings" (App info → ⋮) before Accessibility can be enabled.'}
+              </p>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button className="share" onClick={() => void openAutostartSettings()}>
+                  {lang === 'zh' ? '打开自启动/应用设置' : 'Open Autostart / App settings'}
+                </button>
+              </div>
+              <p className="muted" style={{ margin: 0, fontSize: '0.78rem' }}>
+                {lang === 'zh'
+                  ? '守护上报最快每 5 分钟一次——测试时请与上次打开本 App 间隔 5 分钟以上再看效果。'
+                  : 'The guard reports at most once every 5 minutes — when testing, wait 5+ minutes after last opening this app.'}
+              </p>
+            </div>
+          )}
+          {android !== 'native' && (
+            <p className="muted" style={{ marginTop: '8px', fontSize: '0.82rem', color: 'var(--accent)' }}>
+              {lang === 'zh'
+                ? '提示：请在系统设置中允许本应用在后台运行，并关闭电池优化以获得最稳定的守护。'
+                : 'Tip: Please allow background running in system settings and disable battery optimization for best stability.'}
+            </p>
+          )}
         </div>
       )
     },

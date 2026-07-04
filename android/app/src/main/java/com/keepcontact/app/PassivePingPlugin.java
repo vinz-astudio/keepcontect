@@ -57,6 +57,28 @@ public class PassivePingPlugin extends Plugin {
         call.resolve(new JSObject());
     }
 
+    /** Best-effort deep link to the OEM autostart whitelist (MIUI/HyperOS), falling back
+     *  to the app-details page. Chinese ROMs kill background services (including
+     *  accessibility) unless the app is whitelisted for autostart. */
+    @PluginMethod
+    public void openAutostartSettings(PluginCall call) {
+        Context context = getContext();
+        Intent miui = new Intent();
+        miui.setClassName(
+            "com.miui.securitycenter",
+            "com.miui.permcenter.autostart.AutoStartManagementActivity");
+        miui.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            context.startActivity(miui);
+        } catch (Exception e) {
+            Intent fallback = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            fallback.setData(android.net.Uri.parse("package:" + context.getPackageName()));
+            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(fallback);
+        }
+        call.resolve(new JSObject());
+    }
+
     /** Report whether our AppActivityService is currently enabled in system settings. */
     @PluginMethod
     public void isAccessibilityEnabled(PluginCall call) {
