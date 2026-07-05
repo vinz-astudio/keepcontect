@@ -77,7 +77,10 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
   const serverNeedsConfirm =
     serverAlert != null &&
     serverAlert.status === 'open' &&
-    (serverAlert.cause === 'silence' || serverAlert.cause === 'dark_device')
+    (serverAlert.cause === 'silence' ||
+      serverAlert.cause === 'dark_device' ||
+      // concern 是"别人点名要你报平安":被动 ping 不会解除,必须本人解锁
+      serverAlert.cause === 'concern')
   const realAlert = serverNeedsConfirm
 
   // 首次进入且本机还没设过手势：自动同步服务器，若无则弹出"设置手势"引导

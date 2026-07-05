@@ -25,17 +25,32 @@ export function AlertOverlay() {
   const [sosSent, setSosSent] = useState(false)
   const [_, setRefresh] = useState(0)
 
-  // 真告警：本地引擎判 alert，或 服务器已开告警（沉默/暗设备；SOS 本人主动发的不弹）
+  // 真告警：本地引擎判 alert，或 服务器已开告警（沉默/暗设备/被关心；SOS 本人主动发的不弹）
   const serverNeedsConfirm =
     serverAlert != null &&
     serverAlert.status === 'open' &&
-    (serverAlert.cause === 'silence' || serverAlert.cause === 'dark_device')
+    (serverAlert.cause === 'silence' ||
+      serverAlert.cause === 'dark_device' ||
+      serverAlert.cause === 'concern')
   const realAlert = serverNeedsConfirm
   // 从通知点进来时先乐观顶出解锁界面（alertHint），待 getMyOpenAlert 确认
   const showAsAlert = realAlert || alertHint
 
   // 弹遮罩：告警(含乐观)，或 用户主动进入的演练/设置
   const show = showAsAlert || mode !== 'none'
+
+  // setup 模式（非告警时）：修改手势。已有手势必须先画当前手势验证身份,
+  // 再画新手势并重复一次确认(防误触/防他人趁解锁状态偷改)。
+  const forceSetup = mode === 'setup' && !showAsAlert
+  const [setupStep, setSetupStep] = useState<'verify' | 'draw' | 'confirm'>('draw')
+  const [firstSeq, setFirstSeq] = useState<number[] | null>(null)
+  useEffect(() => {
+    if (forceSetup) {
+      setSetupStep(hasPattern() ? 'verify' : 'draw')
+      setFirstSeq(null)
+      setError(null)
+    }
+  }, [forceSetup])
 
   // 已确认的真告警且 App 在前台：应用内主动发声 + 震动（不依赖系统通知设置）
   useEffect(() => {
@@ -48,24 +63,42 @@ export function AlertOverlay() {
 
   if (!show) return null
 
-  // setup 模式（非告警时）强制设置——首次或"修改手势"，覆盖旧手势
-  const forceSetup = mode === 'setup' && !showAsAlert
-  const needSetup = forceSetup || !hasPattern()
+  // 告警路径:还没设过手势的用户在告警时现场设置(危机场景不加验证摩擦)
+  const needSetup = !forceSetup && !hasPattern()
   // 告警不能"跳过"；演练/设置可以退出
   const exitable = !showAsAlert && mode !== 'none'
 
   const title = showAsAlert
-    ? t('overlay.title')
+    ? serverAlert?.cause === 'concern'
+      ? lang === 'zh'
+        ? '有人在关心你'
+        : 'Someone is checking on you'
+      : t('overlay.title')
     : mode === 'setup'
       ? t('overlay.setup.title')
       : t('overlay.practice.title')
 
+  const setupSub =
+    setupStep === 'verify'
+      ? lang === 'zh'
+        ? '为确认是你本人，请先画出当前手势。'
+        : 'First draw your current pattern to verify it is you.'
+      : setupStep === 'confirm'
+        ? lang === 'zh'
+          ? '请再画一次新手势以确认。'
+          : 'Draw the new pattern once more to confirm.'
+        : t('overlay.setup.sub')
+
   const sub = showAsAlert
-    ? needSetup
-      ? t('overlay.sub.setup')
-      : t('overlay.sub.verify')
+    ? serverAlert?.cause === 'concern'
+      ? lang === 'zh'
+        ? '画出手势，让关心你的人知道你安好。'
+        : 'Draw your pattern so they know you are OK.'
+      : needSetup
+        ? t('overlay.sub.setup')
+        : t('overlay.sub.verify')
     : mode === 'setup'
-      ? t('overlay.setup.sub')
+      ? setupSub
       : needSetup
         ? t('overlay.practice.setup')
         : t('overlay.practice.verify')
@@ -74,6 +107,39 @@ export function AlertOverlay() {
     setBusy(true)
     setError(null)
     try {
+      if (forceSetup) {
+        // 修改手势三段式:验旧 → 画新 → 重画确认
+        if (setupStep === 'verify') {
+          if (await verifyPattern(seq)) {
+            setSetupStep('draw')
+          } else {
+            setError(t('overlay.error'))
+          }
+        } else if (setupStep === 'draw') {
+          setFirstSeq(seq)
+          setSetupStep('confirm')
+        } else if (
+          firstSeq &&
+          seq.length === firstSeq.length &&
+          seq.every((v, i) => v === firstSeq[i])
+        ) {
+          await setPattern(seq)
+          const localHash = localStorage.getItem('kc.patternHash')
+          if (localHash) {
+            await setServerPatternHash(localHash)
+          }
+          closeOverlay()
+        } else {
+          setError(
+            lang === 'zh'
+              ? '两次手势不一致，请重新绘制新手势。'
+              : 'Patterns did not match — draw the new pattern again.',
+          )
+          setFirstSeq(null)
+          setSetupStep('draw')
+        }
+        return
+      }
       if (needSetup) {
         await setPattern(seq)
         const localHash = localStorage.getItem('kc.patternHash')
@@ -156,7 +222,15 @@ export function AlertOverlay() {
 
         <PatternLock
           onComplete={onComplete}
-          hint={needSetup ? t('overlay.hint.setup') : t('overlay.hint.verify')}
+          hint={
+            forceSetup
+              ? setupStep === 'verify'
+                ? t('overlay.hint.verify')
+                : t('overlay.hint.setup')
+              : needSetup
+                ? t('overlay.hint.setup')
+                : t('overlay.hint.verify')
+          }
         />
         {error && <p className="overlay__error">{error}</p>}
         {busy && <p className="overlay__busy">{t('overlay.busy')}</p>}
