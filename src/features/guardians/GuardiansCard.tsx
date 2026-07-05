@@ -372,6 +372,8 @@ export function GuardiansCard() {
 
       {isScanning && (
         <ScanSyncModal
+          title={t('guard.scanToBecome')}
+          hint={t('guard.scanHint')}
           onClose={() => setIsScanning(false)}
           onScan={async (data) => {
             setIsScanning(false)

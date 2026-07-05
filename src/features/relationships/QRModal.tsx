@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import QRCode from 'qrcode'
 import { useI18n } from '@/lib/i18n'
 
@@ -25,7 +26,9 @@ export function QRModal({ url, title, onClose }: QRModalProps) {
     }
   }, [url])
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div
       style={{
         position: 'fixed',
@@ -89,6 +92,7 @@ export function QRModal({ url, title, onClose }: QRModalProps) {
           {t('profile.scan.cancel')}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

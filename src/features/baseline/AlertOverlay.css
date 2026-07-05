@@ -27,7 +27,16 @@
 }
 
 .overlay__card.is-setup .overlay__title {
-  color: var(--fg);
+  align-self: center;
+  color: #ffd7c2;
+  background: rgba(224, 133, 95, 0.18);
+  border: 1px solid rgba(255, 215, 194, 0.52);
+  border-radius: var(--r-md);
+  padding: 0.45rem 0.8rem;
+  font-size: 1.85rem;
+  font-weight: 800;
+  line-height: 1.15;
+  box-shadow: 0 0 0 1px rgba(224, 133, 95, 0.14);
 }
 
 .overlay__sub {

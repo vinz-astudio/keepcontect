@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import jsQR from 'jsqr'
 import { useI18n } from '@/lib/i18n'
 import './ScanSyncModal.css'
@@ -6,9 +7,11 @@ import './ScanSyncModal.css'
 interface Props {
   onClose: () => void
   onScan: (data: string) => void
+  title?: string
+  hint?: string
 }
 
-export function ScanSyncModal({ onClose, onScan }: Props) {
+export function ScanSyncModal({ onClose, onScan, title, hint }: Props) {
   const { t } = useI18n()
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -78,11 +81,13 @@ export function ScanSyncModal({ onClose, onScan }: Props) {
     return () => cancelAnimationFrame(animId)
   }, [onScan])
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div className="scansync-overlay">
       <div className="scansync-modal">
         <div className="scansync-header">
-          <h3>{t('profile.scan')}</h3>
+          <h3>{title ?? t('profile.scan')}</h3>
           <button className="scansync-close-btn" onClick={onClose} aria-label={t('profile.scan.cancel')}>
             ✕
           </button>
@@ -103,10 +108,11 @@ export function ScanSyncModal({ onClose, onScan }: Props) {
             </div>
           )}
           <p className="scansync-hint">
-            {t('auth.scan2sync.desc')}
+            {hint ?? t('auth.scan2sync.desc')}
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
