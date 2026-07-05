@@ -57,6 +57,10 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     // Native notification poller (NotifyWorker): survives process death, reboots.
     implementation "androidx.work:work-runtime:2.9.1"
+    // FCM fast path (ADR-0004 Phase 2): data-only wake tickle; content is always
+    // pulled from notify-feed, never carried through Google.
+    implementation platform("com.google.firebase:firebase-bom:33.7.0")
+    implementation "com.google.firebase:firebase-messaging"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

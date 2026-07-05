@@ -141,7 +141,7 @@ export async function respondTask(task: CheckinTask, accept: boolean): Promise<v
   const { error } = await supabase.rpc('respond_checkin_task', {
     _task: task.id,
     _accept: accept,
-    _first_due: firstDue,
+    _first_due: firstDue ?? undefined,
   })
   if (error) throw error
 }

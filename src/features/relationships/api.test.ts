@@ -36,7 +36,7 @@ describe('relationship api', () => {
     expect(rpc).toHaveBeenCalledWith('set_monitoring_direction', {
       _group: 'group-1',
       _monitored: false,
-      _watching: null,
+      _watching: undefined,
     })
   })
 
@@ -45,7 +45,7 @@ describe('relationship api', () => {
 
     expect(rpc).toHaveBeenCalledWith('set_monitoring_direction', {
       _group: 'group-1',
-      _monitored: null,
+      _monitored: undefined,
       _watching: false,
     })
   })

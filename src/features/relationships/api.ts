@@ -103,7 +103,8 @@ export async function setGroupCommunity(
 ): Promise<void> {
   const { error } = await supabase.rpc('set_group_community', {
     _group: groupId,
-    _community: communityId,
+    // 省略参数 = SQL 端默认 null(解绑社区),与旧传 null 语义一致
+    _community: communityId ?? undefined,
   })
   if (error) throw error
 }
@@ -148,8 +149,8 @@ export async function setMonitoringDirection(
   await requireUid()
   const { error } = await supabase.rpc('set_monitoring_direction', {
     _group: groupId,
-    _monitored: patch.monitored ?? null,
-    _watching: patch.watching ?? null,
+    _monitored: patch.monitored ?? undefined,
+    _watching: patch.watching ?? undefined,
   })
   if (error) throw error
 }

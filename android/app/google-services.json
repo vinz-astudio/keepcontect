@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "336945812261",
+    "project_id": "keep-contect",
+    "storage_bucket": "keep-contect.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:336945812261:android:e5cd151a66d5f90a6180cc",
+        "android_client_info": {
+          "package_name": "com.keepcontact.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCVCjCTI_I4U_gnQ3n7YF0VehXI63CG6WQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

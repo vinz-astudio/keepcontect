@@ -25,8 +25,8 @@ export async function raiseSos(
   accuracy?: number | null,
 ): Promise<string> {
   const { data, error } = await supabase.rpc('raise_sos', {
-    _lat: lat ?? null,
-    _lng: lng ?? null,
+    _lat: lat ?? undefined,
+    _lng: lng ?? undefined,
   })
   if (error) throw error
   if (lat && lng) {

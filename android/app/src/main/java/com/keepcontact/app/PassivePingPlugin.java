@@ -107,6 +107,27 @@ public class PassivePingPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** Fetch the device's FCM registration token (empty string when Google
+     *  services are unavailable — e.g. GMS-less Chinese ROMs — or Firebase is
+     *  not configured). The web layer uploads it via the register_fcm_token RPC. */
+    @PluginMethod
+    public void getFcmToken(PluginCall call) {
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                .getToken()
+                .addOnCompleteListener(task -> {
+                    JSObject ret = new JSObject();
+                    ret.put("token",
+                        task.isSuccessful() && task.getResult() != null ? task.getResult() : "");
+                    call.resolve(ret);
+                });
+        } catch (Exception e) {
+            JSObject ret = new JSObject();
+            ret.put("token", "");
+            call.resolve(ret);
+        }
+    }
+
     /** Guard liveness: settings toggle + real bind/event/ping timestamps, so the UI
      *  can tell "enabled and running" apart from "toggle on but service dead"
      *  (a known HyperOS/MIUI failure mode). */

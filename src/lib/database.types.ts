@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -101,6 +103,114 @@ export type Database = {
         }
         Relationships: []
       }
+      app_admins: {
+        Row: {
+          user_id: string
+        }
+        Insert: {
+          user_id: string
+        }
+        Update: {
+          user_id?: string
+        }
+        Relationships: []
+      }
+      behavior_pings: {
+        Row: {
+          at: string
+          id: number
+          kind: string
+          user_id: string
+        }
+        Insert: {
+          at?: string
+          id?: never
+          kind?: string
+          user_id: string
+        }
+        Update: {
+          at?: string
+          id?: never
+          kind?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      checkin_tasks: {
+        Row: {
+          created_at: string
+          created_by: string
+          cycle_state: string
+          due_time_utc: string | null
+          grace_minutes: number
+          id: string
+          interval_hours: number | null
+          kind: string
+          label: string
+          next_due_at: string | null
+          status: string
+          updated_at: string
+          ward_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          cycle_state?: string
+          due_time_utc?: string | null
+          grace_minutes?: number
+          id?: string
+          interval_hours?: number | null
+          kind: string
+          label?: string
+          next_due_at?: string | null
+          status?: string
+          updated_at?: string
+          ward_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          cycle_state?: string
+          due_time_utc?: string | null
+          grace_minutes?: number
+          id?: string
+          interval_hours?: number | null
+          kind?: string
+          label?: string
+          next_due_at?: string | null
+          status?: string
+          updated_at?: string
+          ward_id?: string
+        }
+        Relationships: []
+      }
+      clients: {
+        Row: {
+          app_version: string | null
+          client_id: string
+          first_seen_at: string
+          last_seen_at: string
+          platform: string | null
+          user_id: string
+        }
+        Insert: {
+          app_version?: string | null
+          client_id: string
+          first_seen_at?: string
+          last_seen_at?: string
+          platform?: string | null
+          user_id: string
+        }
+        Update: {
+          app_version?: string | null
+          client_id?: string
+          first_seen_at?: string
+          last_seen_at?: string
+          platform?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       communities: {
         Row: {
           created_at: string
@@ -157,6 +267,30 @@ export type Database = {
           },
         ]
       }
+      daily_activity_aggregates: {
+        Row: {
+          created_at: string
+          date: string
+          hourly_density: number[]
+          id: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          hourly_density: number[]
+          id?: never
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          hourly_density?: number[]
+          id?: never
+          user_id?: string
+        }
+        Relationships: []
+      }
       device_state: {
         Row: {
           last_heartbeat_at: string
@@ -183,37 +317,37 @@ export type Database = {
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           home_address: string | null
+          latitude: number | null
+          location_accuracy: number | null
+          location_updated_at: string | null
+          longitude: number | null
           medical_notes: string | null
           updated_at: string
           user_id: string
-          latitude: number | null
-          longitude: number | null
-          location_accuracy: number | null
-          location_updated_at: string | null
         }
         Insert: {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           home_address?: string | null
+          latitude?: number | null
+          location_accuracy?: number | null
+          location_updated_at?: string | null
+          longitude?: number | null
           medical_notes?: string | null
           updated_at?: string
           user_id: string
-          latitude?: number | null
-          longitude?: number | null
-          location_accuracy?: number | null
-          location_updated_at?: string | null
         }
         Update: {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           home_address?: string | null
+          latitude?: number | null
+          location_accuracy?: number | null
+          location_updated_at?: string | null
+          longitude?: number | null
           medical_notes?: string | null
           updated_at?: string
           user_id?: string
-          latitude?: number | null
-          longitude?: number | null
-          location_accuracy?: number | null
-          location_updated_at?: string | null
         }
         Relationships: []
       }
@@ -317,6 +451,24 @@ export type Database = {
         }
         Relationships: []
       }
+      heartbeat_tokens: {
+        Row: {
+          created_at: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          token?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           alert_id: string | null
@@ -361,93 +513,30 @@ export type Database = {
           },
         ]
       }
-      behavior_pings: {
-        Row: { id: number; user_id: string; kind: string; at: string }
-        Insert: { id?: number; user_id: string; kind?: string; at?: string }
-        Update: { id?: number; user_id?: string; kind?: string; at?: string }
-        Relationships: []
-      }
-      heartbeat_tokens: {
-        Row: { user_id: string; token: string; created_at: string }
-        Insert: { user_id: string; token?: string; created_at?: string }
-        Update: { user_id?: string; token?: string; created_at?: string }
-        Relationships: []
-      }
-      checkin_tasks: {
+      profiles: {
         Row: {
+          consent_data_sharing: boolean
           created_at: string
-          created_by: string
-          cycle_state: string
-          due_time_utc: string | null
-          grace_minutes: number
+          display_name: string | null
+          guardian_code: string
           id: string
-          interval_hours: number | null
-          kind: string
-          label: string
-          next_due_at: string | null
-          status: string
-          updated_at: string
-          ward_id: string
+          routine_pattern: string
         }
         Insert: {
+          consent_data_sharing?: boolean
           created_at?: string
-          created_by: string
-          cycle_state?: string
-          due_time_utc?: string | null
-          grace_minutes?: number
-          id?: string
-          interval_hours?: number | null
-          kind: string
-          label?: string
-          next_due_at?: string | null
-          status?: string
-          updated_at?: string
-          ward_id: string
+          display_name?: string | null
+          guardian_code?: string
+          id: string
+          routine_pattern?: string
         }
         Update: {
+          consent_data_sharing?: boolean
           created_at?: string
-          created_by?: string
-          cycle_state?: string
-          due_time_utc?: string | null
-          grace_minutes?: number
+          display_name?: string | null
+          guardian_code?: string
           id?: string
-          interval_hours?: number | null
-          kind?: string
-          label?: string
-          next_due_at?: string | null
-          status?: string
-          updated_at?: string
-          ward_id?: string
-        }
-        Relationships: []
-      }
-      user_settings: {
-        Row: {
-          user_id: string
-          sensitivity: string
-          share_activity: boolean
-          sleep_start_utc: string | null
-          sleep_end_utc: string | null
-          pattern_hash: string | null
-          updated_at: string
-        }
-        Insert: {
-          user_id: string
-          sensitivity?: string
-          share_activity?: boolean
-          sleep_start_utc?: string | null
-          sleep_end_utc?: string | null
-          pattern_hash?: string | null
-          updated_at?: string
-        }
-        Update: {
-          user_id?: string
-          sensitivity?: string
-          share_activity?: boolean
-          sleep_start_utc?: string | null
-          sleep_end_utc?: string | null
-          pattern_hash?: string | null
-          updated_at?: string
+          routine_pattern?: string
         }
         Relationships: []
       }
@@ -478,24 +567,93 @@ export type Database = {
         }
         Relationships: []
       }
-      profiles: {
+      push_tokens: {
         Row: {
-          created_at: string
-          display_name: string | null
-          guardian_code: string
-          id: string
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
         }
         Insert: {
-          created_at?: string
-          display_name?: string | null
-          guardian_code?: string
-          id: string
+          platform?: string
+          token: string
+          updated_at?: string
+          user_id: string
         }
         Update: {
-          created_at?: string
-          display_name?: string | null
-          guardian_code?: string
-          id?: string
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_activity_profiles: {
+        Row: {
+          gap_stats: Json | null
+          hourly_confidence: number[] | null
+          hourly_thresholds: number[]
+          model_confidence: number | null
+          model_explanation: string | null
+          model_version: string
+          updated_at: string
+          user_id: string
+          weekend_multiplier: number
+        }
+        Insert: {
+          gap_stats?: Json | null
+          hourly_confidence?: number[] | null
+          hourly_thresholds: number[]
+          model_confidence?: number | null
+          model_explanation?: string | null
+          model_version?: string
+          updated_at?: string
+          user_id: string
+          weekend_multiplier?: number
+        }
+        Update: {
+          gap_stats?: Json | null
+          hourly_confidence?: number[] | null
+          hourly_thresholds?: number[]
+          model_confidence?: number | null
+          model_explanation?: string | null
+          model_version?: string
+          updated_at?: string
+          user_id?: string
+          weekend_multiplier?: number
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          pattern_hash: string | null
+          sensitivity: string
+          share_activity: boolean
+          sleep_end_utc: string | null
+          sleep_start_utc: string | null
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          pattern_hash?: string | null
+          sensitivity?: string
+          share_activity?: boolean
+          sleep_end_utc?: string | null
+          sleep_start_utc?: string | null
+          timezone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          pattern_hash?: string | null
+          sensitivity?: string
+          share_activity?: boolean
+          sleep_end_utc?: string | null
+          sleep_start_utc?: string | null
+          timezone?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -508,92 +666,103 @@ export type Database = {
         Args: { _alert_id: string; _minutes?: number }
         Returns: undefined
       }
+      am_i_gm: { Args: never; Returns: boolean }
       become_guardian_by_code: { Args: { _code: string }; Returns: string }
+      create_checkin_task: {
+        Args: {
+          _due_time_utc?: string
+          _first_due?: string
+          _grace?: number
+          _interval_hours?: number
+          _kind: string
+          _label?: string
+          _ward: string
+        }
+        Returns: string
+      }
+      get_app_config: { Args: never; Returns: Json }
       get_group_activity: { Args: { _group: string }; Returns: Json }
       get_group_activity_view: {
         Args: { _group: string; _view: string }
         Returns: Json
       }
-      set_group_visibility: {
-        Args: { _group: string; _visibility: string }
+      gm_delete_user: { Args: { _target: string }; Returns: undefined }
+      gm_list_clients: { Args: never; Returns: Json }
+      gm_nudge_update: { Args: { _target: string }; Returns: undefined }
+      gm_send_concern: { Args: { _target: string }; Returns: undefined }
+      initialize_user_routine_data: {
+        Args: { _user_id: string }
         Returns: undefined
       }
-      set_group_community: {
-        Args: { _group: string; _community: string | null }
-        Returns: undefined
-      }
-      set_monitoring_direction: {
-        Args: {
-          _group: string
-          _monitored?: boolean | null
-          _watching?: boolean | null
-        }
-        Returns: undefined
-      }
-      set_share_activity: { Args: { _share: boolean }; Returns: undefined }
-      set_sleep_window: {
-        Args: { _start: string | null; _end: string | null }
-        Returns: undefined
-      }
-      send_test_notification: { Args: Record<string, never>; Returns: undefined }
-      raise_test_alert: { Args: Record<string, never>; Returns: undefined }
-      set_display_name: { Args: { _name: string }; Returns: undefined }
-      send_concern: { Args: { _target: string }; Returns: undefined }
-      create_checkin_task: {
-        Args: {
-          _ward: string
-          _kind: string
-          _due_time_utc?: string | null
-          _interval_hours?: number | null
-          _first_due?: string | null
-          _grace?: number
-          _label?: string
-        }
-        Returns: string
-      }
-      respond_checkin_task: {
-        Args: { _task: string; _accept: boolean; _first_due?: string | null }
-        Returns: undefined
-      }
-      revoke_checkin_task: { Args: { _task: string }; Returns: undefined }
-      update_checkin_task: {
-        Args: {
-          _task: string
-          _kind: string
-          _due_time_utc?: string | null
-          _interval_hours?: number | null
-          _first_due?: string | null
-          _grace?: number
-          _label?: string
-        }
-        Returns: undefined
-      }
-      set_sensitivity: { Args: { _s: string }; Returns: undefined }
       join_community_by_code: { Args: { _code: string }; Returns: string }
       join_group_by_code: { Args: { _code: string }; Returns: string }
+      my_routine_status: { Args: never; Returns: Json }
+      process_checkin_tasks: { Args: never; Returns: undefined }
       process_escalations: { Args: never; Returns: undefined }
-      raise_sos: {
-        Args: { _lat?: number | null; _lng?: number | null }
-        Returns: string
+      prune_stale_clients: { Args: never; Returns: undefined }
+      raise_sos:
+        | { Args: never; Returns: string }
+        | { Args: { _lat?: number; _lng?: number }; Returns: string }
+      raise_test_alert: { Args: never; Returns: undefined }
+      register_fcm_token: {
+        Args: { _platform?: string; _token: string }
+        Returns: undefined
       }
-      rename_group: { Args: { _group: string; _name: string }; Returns: undefined }
       rename_community: {
         Args: { _community: string; _name: string }
         Returns: undefined
       }
-      am_i_gm: { Args: never; Returns: boolean }
-      gm_list_clients: { Args: never; Returns: Json }
-      my_routine_status: { Args: never; Returns: Json }
-      gm_nudge_update: { Args: { _target: string }; Returns: undefined }
-      gm_send_concern: { Args: { _target: string }; Returns: undefined }
-      gm_delete_user: { Args: { _target: string }; Returns: undefined }
+      rename_group: {
+        Args: { _group: string; _name: string }
+        Returns: undefined
+      }
       report_client: {
         Args: { _client_id: string; _platform: string; _version: string }
         Returns: undefined
       }
       resolve_alert: { Args: { _alert_id: string }; Returns: undefined }
       resolve_my_alert: { Args: never; Returns: undefined }
+      respond_checkin_task: {
+        Args: { _accept: boolean; _first_due?: string; _task: string }
+        Returns: undefined
+      }
+      revoke_checkin_task: { Args: { _task: string }; Returns: undefined }
+      run_daily_aggregations: { Args: never; Returns: undefined }
+      send_concern: { Args: { _target: string }; Returns: undefined }
       send_heartbeat: { Args: { _status: string }; Returns: undefined }
+      send_test_notification: { Args: never; Returns: undefined }
+      set_display_name: { Args: { _name: string }; Returns: undefined }
+      set_group_community: {
+        Args: { _community?: string; _group: string }
+        Returns: undefined
+      }
+      set_group_visibility: {
+        Args: { _group: string; _visibility: string }
+        Returns: undefined
+      }
+      set_monitoring_direction: {
+        Args: { _group: string; _monitored?: boolean; _watching?: boolean }
+        Returns: undefined
+      }
+      set_sensitivity: { Args: { _s: string }; Returns: undefined }
+      set_share_activity: { Args: { _share: boolean }; Returns: undefined }
+      set_sleep_window: {
+        Args: { _end?: string; _start?: string }
+        Returns: undefined
+      }
+      trigger_weekly_routine_updates: { Args: never; Returns: undefined }
+      update_checkin_task: {
+        Args: {
+          _due_time_utc?: string
+          _first_due?: string
+          _grace?: number
+          _interval_hours?: number
+          _kind: string
+          _label?: string
+          _task: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

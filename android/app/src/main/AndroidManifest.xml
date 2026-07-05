@@ -56,6 +56,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- FCM fast path: receives data-only wake tickles and triggers an immediate
+             notify-feed poll (content never transits Google; see ADR-0004). -->
+        <service
+            android:name=".KcFcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Reliable background liveness: an AccessibilityService keeps running after
              the app process is killed and restarts on boot. It only reads the
              foreground package name on window-state changes and fires a content-free

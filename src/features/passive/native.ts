@@ -14,6 +14,7 @@ interface PassivePingPlugin {
   openAccessibilitySettings(): Promise<void>
   openAutostartSettings(): Promise<void>
   requestNotificationPermission(): Promise<void>
+  getFcmToken(): Promise<{ token: string }>
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>
   getGuardStatus(): Promise<{
     enabled: boolean
@@ -95,6 +96,19 @@ export async function requestNativeNotificationPermission(): Promise<void> {
     await PassivePing.requestNotificationPermission()
   } catch {
     /* ignore */
+  }
+}
+
+/** The device's FCM registration token, or null when unavailable (non-Android,
+ *  GMS-less ROMs, Firebase unconfigured). Used for the ADR-0004 wake-tickle
+ *  fast path — the token is an opaque routing handle, never content. */
+export async function getNativeFcmToken(): Promise<string | null> {
+  if (Capacitor.getPlatform() !== 'android') return null
+  try {
+    const res = await PassivePing.getFcmToken()
+    return res?.token && res.token.length > 10 ? res.token : null
+  } catch {
+    return null
   }
 }
 

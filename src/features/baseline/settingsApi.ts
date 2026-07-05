@@ -79,12 +79,9 @@ export async function setSleepWindow(
   if (error) throw error
 }
 
-/** 关闭睡眠窗 */
+/** 关闭睡眠窗(省略参数 = SQL 端默认 null,与旧传 null 语义一致) */
 export async function clearSleepWindow(): Promise<void> {
-  const { error } = await supabase.rpc('set_sleep_window', {
-    _start: null,
-    _end: null,
-  })
+  const { error } = await supabase.rpc('set_sleep_window', {})
   if (error) throw error
 }
 

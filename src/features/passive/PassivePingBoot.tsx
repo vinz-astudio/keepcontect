@@ -3,8 +3,10 @@ import { useCallback, useEffect, useRef } from 'react'
 import { getHeartbeatToken } from '@/features/passive/api'
 import {
   configureNativePassivePing,
+  getNativeFcmToken,
   requestNativeNotificationPermission,
 } from '@/features/passive/native'
+import { supabase } from '@/lib/supabase'
 import { sendPassiveWebPing } from '@/features/passive/webPing'
 import { resilientFetch } from '@/lib/resilientFetch'
 
@@ -60,7 +62,17 @@ export function PassivePingBoot() {
         await configureNativePassivePing(token)
         // Android 13+:原生轮询通知需要 POST_NOTIFICATIONS,登录配置后请求一次
         //(系统自会记住授权/拒绝,重复调用无副作用)。
-        if (token) await requestNativeNotificationPermission()
+        if (token) {
+          await requestNativeNotificationPermission()
+          // FCM 快路径:注册本机 token(幂等 upsert;无 GMS 的机型拿不到,
+          // 自动回退 15min 轮询)。token 只是路由句柄,通知内容不经 Google。
+          const fcm = await getNativeFcmToken()
+          if (fcm) {
+            void supabase
+              .rpc('register_fcm_token', { _token: fcm })
+              .then(() => {})
+          }
+        }
         await pingWeb()
       })
       .catch(() => {})

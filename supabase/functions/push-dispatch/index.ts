@@ -1,6 +1,9 @@
 // push-dispatch：扫描未推送的站内通知，向收件人的所有 Web Push 订阅发送，标记 pushed_at。
+// 另有 FCM 快路径(ADR-0004 Phase 2)：对注册了 FCM token 的原生 Android 设备发
+// data-only 空唤醒(不带任何内容)，设备被唤醒后自行从 notify-feed 拉取通知——
+// 通知内容永不经过 Google。凭据缺失时该分支静默跳过，Web Push 不受影响。
 // 触发：pg_cron 每分钟 + 客户端在 SOS 后即时 invoke。
-// VAPID 密钥：优先环境变量（Edge Function Secrets），回退 private.app_config（经 service-role RPC）。
+// VAPID/FCM 凭据：优先环境变量（Edge Function Secrets），回退 private.app_config。
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
@@ -32,6 +35,134 @@ async function getVapid(): Promise<{
     }
   }
   return null
+}
+
+// ---- FCM (data-only wake tickle) ----
+
+interface ServiceAccount {
+  project_id: string
+  client_email: string
+  private_key: string
+  token_uri: string
+}
+
+async function getFcmServiceAccount(): Promise<ServiceAccount | null> {
+  const raw =
+    Deno.env.get('FCM_SERVICE_ACCOUNT') ??
+    ((await supabase.rpc('get_app_config')).data as Record<string, string> | null)
+      ?.fcm_service_account
+  if (!raw) return null
+  try {
+    const sa = JSON.parse(raw)
+    if (sa.project_id && sa.client_email && sa.private_key) {
+      sa.token_uri = sa.token_uri || 'https://oauth2.googleapis.com/token'
+      return sa as ServiceAccount
+    }
+  } catch {
+    /* malformed secret */
+  }
+  return null
+}
+
+function b64url(bytes: Uint8Array): string {
+  let bin = ''
+  for (const b of bytes) bin += String.fromCharCode(b)
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function pemToDer(pem: string): Uint8Array {
+  const body = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s+/g, '')
+  const bin = atob(body)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return bytes
+}
+
+// Access-token cache: edge isolates are reused between invocations, so this
+// avoids one OAuth round-trip per cron tick most of the time.
+let cachedFcmToken: { token: string; expiresAt: number } | null = null
+
+async function fcmAccessToken(sa: ServiceAccount): Promise<string | null> {
+  if (cachedFcmToken && Date.now() < cachedFcmToken.expiresAt - 60_000) {
+    return cachedFcmToken.token
+  }
+  try {
+    const enc = new TextEncoder()
+    const now = Math.floor(Date.now() / 1000)
+    const header = b64url(enc.encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })))
+    const claims = b64url(enc.encode(JSON.stringify({
+      iss: sa.client_email,
+      scope: 'https://www.googleapis.com/auth/firebase.messaging',
+      aud: sa.token_uri,
+      iat: now,
+      exp: now + 3600,
+    })))
+    const input = `${header}.${claims}`
+    const key = await crypto.subtle.importKey(
+      'pkcs8',
+      pemToDer(sa.private_key),
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    )
+    const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, enc.encode(input))
+    const jwt = `${input}.${b64url(new Uint8Array(sig))}`
+    const res = await fetch(sa.token_uri, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=${encodeURIComponent('urn:ietf:params:oauth:grant-type:jwt-bearer')}&assertion=${jwt}`,
+    })
+    if (!res.ok) return null
+    const j = await res.json()
+    if (!j.access_token) return null
+    cachedFcmToken = {
+      token: j.access_token,
+      expiresAt: Date.now() + (Number(j.expires_in) || 3600) * 1000,
+    }
+    return cachedFcmToken.token
+  } catch (e) {
+    console.error('FCM token exchange failed:', e)
+    return null
+  }
+}
+
+/** Send one data-only high-priority tickle. Returns 'sent' | 'dead' | 'failed'. */
+async function sendTickle(
+  sa: ServiceAccount,
+  accessToken: string,
+  deviceToken: string,
+): Promise<'sent' | 'dead' | 'failed'> {
+  try {
+    const res = await fetch(
+      `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: {
+            token: deviceToken,
+            data: { kind: 'tickle' },
+            android: { priority: 'HIGH' },
+          },
+        }),
+      },
+    )
+    if (res.ok) return 'sent'
+    const body = await res.text().catch(() => '')
+    if (res.status === 404 || body.includes('UNREGISTERED') || body.includes('INVALID_ARGUMENT')) {
+      return 'dead'
+    }
+    console.warn(`FCM send failed ${res.status}: ${body.slice(0, 200)}`)
+    return 'failed'
+  } catch {
+    return 'failed'
+  }
 }
 
 Deno.serve(async () => {
@@ -115,6 +246,25 @@ Deno.serve(async () => {
     }
   }
 
+  // FCM 快路径：每个收件人的每台原生设备发一次空唤醒（与通知条数无关）。
+  let fcmSent = 0
+  const deadFcmTokens: string[] = []
+  const sa = await getFcmServiceAccount()
+  if (sa) {
+    const accessToken = await fcmAccessToken(sa)
+    if (accessToken) {
+      const { data: fcmRows } = await supabase
+        .from('push_tokens')
+        .select('token, user_id')
+        .in('user_id', recipientIds)
+      for (const row of fcmRows ?? []) {
+        const result = await sendTickle(sa, accessToken, row.token)
+        if (result === 'sent') fcmSent++
+        else if (result === 'dead') deadFcmTokens.push(row.token)
+      }
+    }
+  }
+
   // 标记已推送（无订阅的也标记，避免反复扫）
   await supabase
     .from('notifications')
@@ -124,9 +274,20 @@ Deno.serve(async () => {
   if (deadSubIds.length > 0) {
     await supabase.from('push_subscriptions').delete().in('id', deadSubIds)
   }
+  if (deadFcmTokens.length > 0) {
+    await supabase.from('push_tokens').delete().in('token', deadFcmTokens)
+  }
 
   return new Response(
-    JSON.stringify({ ok: true, sent, pendingCount: pending.length, prunedSubs: deadSubIds.length }),
+    JSON.stringify({
+      ok: true,
+      sent,
+      fcmSent,
+      fcmConfigured: !!sa,
+      pendingCount: pending.length,
+      prunedSubs: deadSubIds.length,
+      prunedFcmTokens: deadFcmTokens.length,
+    }),
     { headers: { 'Content-Type': 'application/json' } },
   )
 })
