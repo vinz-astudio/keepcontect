@@ -265,7 +265,7 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     serverAlert,
     mode,
     alertHint,
-    startPractice: () => setMode('practice'),
+    startPractice: () => setMode(hasPattern() ? 'practice' : 'setup'),
     startSetup: () => setMode('setup'),
     closeOverlay: () => setMode('none'),
     confirmSafe: async () => {

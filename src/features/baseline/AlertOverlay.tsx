@@ -18,10 +18,12 @@ import { getPlatform } from '@/lib/platform'
 import {
   getPatternSavedMessage,
   getPatternSetupActiveIndex,
+  getPatternSetupIntro,
   getPatternSetupNotice,
   getPatternSetupSteps,
   getPatternSetupText,
   patternsMatch,
+  shouldShowSosAction,
   type PatternSetupStep,
 } from '@/features/baseline/patternSetupFlow'
 import './AlertOverlay.css'
@@ -84,7 +86,8 @@ export function AlertOverlay() {
   // 告警路径:还没设过手势的用户在告警时现场设置(危机场景不加验证摩擦)
   const needSetup = !forceSetup && !hasPattern()
   // 告警不能"跳过"；演练/设置可以退出
-  const exitable = !showAsAlert && mode !== 'none'
+  const exitable = !showAsAlert && mode !== 'none' && !(forceSetup && !hadOld)
+  const showSosAction = shouldShowSosAction({ isPatternSetup: forceSetup })
 
   const title = showAsAlert
     ? serverAlert?.cause === 'concern'
@@ -107,7 +110,7 @@ export function AlertOverlay() {
         ? t('overlay.sub.setup')
         : t('overlay.sub.verify')
     : mode === 'setup'
-      ? setupText.body
+      ? getPatternSetupIntro(hadOld, lang)
       : needSetup
         ? t('overlay.practice.setup')
         : t('overlay.practice.verify')
@@ -181,7 +184,7 @@ export function AlertOverlay() {
 
   return (
     <div className="overlay" role="dialog" aria-modal="true">
-      <div className="overlay__card">
+      <div className={`overlay__card${forceSetup ? ' is-setup' : ''}`}>
         <h2 className="overlay__title">{title}</h2>
         <p className="overlay__sub">{sub}</p>
         
@@ -248,7 +251,7 @@ export function AlertOverlay() {
           onComplete={onComplete}
           hint={
             forceSetup
-              ? t(setupText.hintKey)
+              ? setupText.body
               : needSetup
                 ? t('overlay.hint.setup')
                 : t('overlay.hint.verify')
@@ -257,18 +260,19 @@ export function AlertOverlay() {
         {error && <p className="overlay__error">{error}</p>}
         {busy && <p className="overlay__busy">{t('overlay.busy')}</p>}
 
-        {/* 求助：解不开/真有事时一键 SOS 通知 Group */}
-        {sosSent ? (
-          <p className="overlay__sosnote">{t('sos.sent')}</p>
-        ) : (
-          <button
-            className="overlay__sos"
-            aria-label={t('sos.aria')}
-            disabled={busy}
-            onClick={() => void onSos()}
-          >
-            {t('sos')}
-          </button>
+        {showSosAction && (
+          sosSent ? (
+            <p className="overlay__sosnote">{t('sos.sent')}</p>
+          ) : (
+            <button
+              className="overlay__sos"
+              aria-label={t('sos.aria')}
+              disabled={busy}
+              onClick={() => void onSos()}
+            >
+              {t('sos')}
+            </button>
+          )
         )}
 
         {exitable ? (
@@ -277,9 +281,9 @@ export function AlertOverlay() {
               ? t('overlay.setup.exit')
               : t('overlay.practice.exit')}
           </button>
-        ) : (
+        ) : showAsAlert ? (
           <p className="overlay__foot">{t('overlay.foot')}</p>
-        )}
+        ) : null}
       </div>
     </div>
   )

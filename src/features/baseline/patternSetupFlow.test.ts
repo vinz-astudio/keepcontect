@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   getPatternSetupActiveIndex,
+  getPatternSetupIntro,
   getPatternSetupSteps,
   getPatternSetupText,
   patternsMatch,
+  shouldShowSosAction,
 } from './patternSetupFlow'
 
 describe('pattern setup flow', () => {
   it('shows verify, new pattern, and confirm steps when an old pattern exists', () => {
     expect(getPatternSetupSteps(true, 'en')).toEqual([
-      { key: 'verify', label: 'Verify current' },
-      { key: 'draw', label: 'New pattern' },
+      { key: 'verify', label: 'Verify' },
+      { key: 'draw', label: 'Create' },
       { key: 'confirm', label: 'Confirm' },
     ])
     expect(getPatternSetupActiveIndex(true, 'draw')).toBe(1)
@@ -18,7 +20,7 @@ describe('pattern setup flow', () => {
 
   it('starts directly at new pattern and confirm when no old pattern exists', () => {
     expect(getPatternSetupSteps(false, 'en')).toEqual([
-      { key: 'draw', label: 'New pattern' },
+      { key: 'draw', label: 'Create' },
       { key: 'confirm', label: 'Confirm' },
     ])
     expect(getPatternSetupActiveIndex(false, 'draw')).toBe(0)
@@ -26,14 +28,28 @@ describe('pattern setup flow', () => {
 
   it('gives explicit step text so users know what to draw now', () => {
     expect(getPatternSetupText('verify', 'en').body).toBe(
-      'First draw your current pattern. This only verifies it is you; it will not change the saved pattern.',
+      'Draw your current pattern to continue.',
     )
     expect(getPatternSetupText('draw', 'en').body).toBe(
-      'Now draw the new pattern you want to use.',
+      'Connect at least 4 dots.',
     )
     expect(getPatternSetupText('confirm', 'en').body).toBe(
-      'Draw the same new pattern once more to save it.',
+      'Draw it again to confirm.',
     )
+  })
+
+  it('uses a short general safety explanation for first-time setup', () => {
+    expect(getPatternSetupIntro(false, 'en')).toBe(
+      'Create an unlock pattern used to confirm you are safe.',
+    )
+    expect(getPatternSetupIntro(true, 'en')).toBe(
+      'Change the unlock pattern used to confirm you are safe.',
+    )
+  })
+
+  it('hides SOS actions on pattern setup screens', () => {
+    expect(shouldShowSosAction({ isPatternSetup: true })).toBe(false)
+    expect(shouldShowSosAction({ isPatternSetup: false })).toBe(true)
   })
 
   it('compares confirmation patterns by exact sequence', () => {
