@@ -153,7 +153,8 @@ final class PassivePing {
         });
     }
 
-    private static String calculateHMAC(String data, String key) {
+    // Package-visible: NotifyWorker signs its feed requests with the same scheme.
+    static String calculateHMAC(String data, String key) {
         try {
             javax.crypto.spec.SecretKeySpec signingKey = new javax.crypto.spec.SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
             javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");

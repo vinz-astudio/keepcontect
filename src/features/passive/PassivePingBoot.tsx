@@ -1,7 +1,10 @@
 import { Capacitor } from '@capacitor/core'
 import { useCallback, useEffect, useRef } from 'react'
 import { getHeartbeatToken } from '@/features/passive/api'
-import { configureNativePassivePing } from '@/features/passive/native'
+import {
+  configureNativePassivePing,
+  requestNativeNotificationPermission,
+} from '@/features/passive/native'
 import { sendPassiveWebPing } from '@/features/passive/webPing'
 import { resilientFetch } from '@/lib/resilientFetch'
 
@@ -55,6 +58,9 @@ export function PassivePingBoot() {
         if (cancelled) return
         tokenRef.current = token
         await configureNativePassivePing(token)
+        // Android 13+:原生轮询通知需要 POST_NOTIFICATIONS,登录配置后请求一次
+        //(系统自会记住授权/拒绝,重复调用无副作用)。
+        if (token) await requestNativeNotificationPermission()
         await pingWeb()
       })
       .catch(() => {})

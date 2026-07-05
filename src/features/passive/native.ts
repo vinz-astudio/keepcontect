@@ -13,6 +13,7 @@ interface PassivePingPlugin {
   pingApp(): Promise<void>
   openAccessibilitySettings(): Promise<void>
   openAutostartSettings(): Promise<void>
+  requestNotificationPermission(): Promise<void>
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>
   getGuardStatus(): Promise<{
     enabled: boolean
@@ -83,6 +84,18 @@ async function readAccessibilityEnabled(): Promise<boolean> {
 
 export async function isAccessibilityEnabled(): Promise<boolean> {
   return readAccessibilityEnabled()
+}
+
+/** Android 13+ runtime POST_NOTIFICATIONS request. The WebView has no
+ *  Notification.requestPermission, so the native poller's notifications need
+ *  this explicit ask. Safe to call repeatedly — no-op once granted/denied. */
+export async function requestNativeNotificationPermission(): Promise<void> {
+  if (Capacitor.getPlatform() !== 'android') return
+  try {
+    await PassivePing.requestNotificationPermission()
+  } catch {
+    /* ignore */
+  }
 }
 
 export interface GuardStatus {

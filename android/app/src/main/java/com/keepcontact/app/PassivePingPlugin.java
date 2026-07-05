@@ -32,13 +32,33 @@ public class PassivePingPlugin extends Plugin {
         }
         PassivePing.configure(getContext(), supabaseUrl, token, allowCharging, allowAppActivity);
         refreshEventReceiver();
+        // Logged in + configured -> keep the background notification poll alive.
+        NotifyWorker.schedule(getContext());
         call.resolve(new JSObject());
     }
 
     @PluginMethod
     public void clear(PluginCall call) {
         unregisterEventReceiver();
+        NotifyWorker.cancel(getContext());
         PassivePing.clear(getContext());
+        call.resolve(new JSObject());
+    }
+
+    /** Android 13+ runtime request for POST_NOTIFICATIONS. The WebView's
+     *  Notification.requestPermission does not exist, so the web layer calls this. */
+    @PluginMethod
+    public void requestNotificationPermission(PluginCall call) {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            android.app.Activity activity = getActivity();
+            if (activity != null &&
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    getContext(), "android.permission.POST_NOTIFICATIONS")
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    activity, new String[] { "android.permission.POST_NOTIFICATIONS" }, 9010);
+            }
+        }
         call.resolve(new JSObject());
     }
 
