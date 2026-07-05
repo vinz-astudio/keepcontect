@@ -38,6 +38,43 @@
   margin: 0;
 }
 
+/* 修改手势的步骤指示条 */
+.overlay__steps {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.overlay__step {
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+}
+
+.overlay__step.is-active {
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.overlay__step.is-done {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+/* 每步成功的绿色反馈 */
+.overlay__notice {
+  color: var(--ok);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0;
+  animation: kc-rise 0.25s ease both;
+}
+
 .overlay__busy {
   color: var(--fg-muted);
   margin: 0;

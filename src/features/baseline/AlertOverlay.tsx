@@ -12,8 +12,18 @@ import { triggerPushDispatch } from '@/features/push/pushApi'
 import { getCurrentCoords } from '@/lib/geo'
 import { useI18n } from '@/lib/i18n'
 import { setServerPatternHash } from '@/features/baseline/settingsApi'
+import { toast } from '@/lib/toast'
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
 import { getPlatform } from '@/lib/platform'
+import {
+  getPatternSavedMessage,
+  getPatternSetupActiveIndex,
+  getPatternSetupNotice,
+  getPatternSetupSteps,
+  getPatternSetupText,
+  patternsMatch,
+  type PatternSetupStep,
+} from '@/features/baseline/patternSetupFlow'
 import './AlertOverlay.css'
 
 export function AlertOverlay() {
@@ -42,13 +52,21 @@ export function AlertOverlay() {
   // setup 模式（非告警时）：修改手势。已有手势必须先画当前手势验证身份,
   // 再画新手势并重复一次确认(防误触/防他人趁解锁状态偷改)。
   const forceSetup = mode === 'setup' && !showAsAlert
-  const [setupStep, setSetupStep] = useState<'verify' | 'draw' | 'confirm'>('draw')
+  const [setupStep, setSetupStep] = useState<PatternSetupStep>('draw')
   const [firstSeq, setFirstSeq] = useState<number[] | null>(null)
+  // 修改手势有旧手势时是 3 步,否则 2 步;每步推进给一条绿色成功反馈
+  const [hadOld, setHadOld] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [lockVersion, setLockVersion] = useState(0)
   useEffect(() => {
     if (forceSetup) {
-      setSetupStep(hasPattern() ? 'verify' : 'draw')
+      const has = hasPattern()
+      setHadOld(has)
+      setSetupStep(has ? 'verify' : 'draw')
       setFirstSeq(null)
+      setNotice(null)
       setError(null)
+      setLockVersion((version) => version + 1)
     }
   }, [forceSetup])
 
@@ -78,16 +96,7 @@ export function AlertOverlay() {
       ? t('overlay.setup.title')
       : t('overlay.practice.title')
 
-  const setupSub =
-    setupStep === 'verify'
-      ? lang === 'zh'
-        ? '为确认是你本人，请先画出当前手势。'
-        : 'First draw your current pattern to verify it is you.'
-      : setupStep === 'confirm'
-        ? lang === 'zh'
-          ? '请再画一次新手势以确认。'
-          : 'Draw the new pattern once more to confirm.'
-        : t('overlay.setup.sub')
+  const setupText = getPatternSetupText(setupStep, lang)
 
   const sub = showAsAlert
     ? serverAlert?.cause === 'concern'
@@ -98,7 +107,7 @@ export function AlertOverlay() {
         ? t('overlay.sub.setup')
         : t('overlay.sub.verify')
     : mode === 'setup'
-      ? setupSub
+      ? setupText.body
       : needSetup
         ? t('overlay.practice.setup')
         : t('overlay.practice.verify')
@@ -108,33 +117,29 @@ export function AlertOverlay() {
     setError(null)
     try {
       if (forceSetup) {
-        // 修改手势三段式:验旧 → 画新 → 重画确认
+        setNotice(null)
+        // 修改手势三段式:验旧 → 画新 → 重画确认;每步清空格子+绿色反馈
         if (setupStep === 'verify') {
           if (await verifyPattern(seq)) {
+            setNotice(getPatternSetupNotice('verified', lang))
             setSetupStep('draw')
           } else {
             setError(t('overlay.error'))
           }
         } else if (setupStep === 'draw') {
           setFirstSeq(seq)
+          setNotice(getPatternSetupNotice('captured', lang))
           setSetupStep('confirm')
-        } else if (
-          firstSeq &&
-          seq.length === firstSeq.length &&
-          seq.every((v, i) => v === firstSeq[i])
-        ) {
+        } else if (patternsMatch(firstSeq, seq)) {
           await setPattern(seq)
           const localHash = localStorage.getItem('kc.patternHash')
           if (localHash) {
             await setServerPatternHash(localHash)
           }
+          toast(`${getPatternSavedMessage(lang)} ✓`, 'ok')
           closeOverlay()
         } else {
-          setError(
-            lang === 'zh'
-              ? '两次手势不一致，请重新绘制新手势。'
-              : 'Patterns did not match — draw the new pattern again.',
-          )
+          setError(getPatternSetupNotice('mismatch', lang))
           setFirstSeq(null)
           setSetupStep('draw')
         }
@@ -153,6 +158,7 @@ export function AlertOverlay() {
         setError(t('overlay.error'))
       }
     } finally {
+      setLockVersion((version) => version + 1)
       setBusy(false)
     }
   }
@@ -220,13 +226,29 @@ export function AlertOverlay() {
           </div>
         )}
 
+        {forceSetup && (
+          <div className="overlay__steps" aria-label={lang === 'zh' ? '修改手势步骤' : 'Pattern change steps'}>
+            {getPatternSetupSteps(hadOld, lang).map(({ key, label }, i) => {
+              const activeIdx = getPatternSetupActiveIndex(hadOld, setupStep)
+              return (
+                <span
+                  key={key}
+                  className={`overlay__step${i === activeIdx ? ' is-active' : ''}${i < activeIdx ? ' is-done' : ''}`}
+                >
+                  {i < activeIdx ? '✓' : i + 1}. {label}
+                </span>
+              )
+            })}
+          </div>
+        )}
+        {notice && forceSetup && <p className="overlay__notice">{notice}</p>}
+
         <PatternLock
+          key={forceSetup ? `setup-${setupStep}-${lockVersion}` : `main-${lockVersion}`}
           onComplete={onComplete}
           hint={
             forceSetup
-              ? setupStep === 'verify'
-                ? t('overlay.hint.verify')
-                : t('overlay.hint.setup')
+              ? t(setupText.hintKey)
               : needSetup
                 ? t('overlay.hint.setup')
                 : t('overlay.hint.verify')

@@ -82,7 +82,11 @@ export function PatternLock({ minLength = 4, onComplete, hint }: Props) {
     setTooShort(false)
     seqRef.current = []
     setSeq([])
-    gridRef.current?.setPointerCapture(e.pointerId)
+    try {
+      gridRef.current?.setPointerCapture(e.pointerId)
+    } catch {
+      /* 某些环境(合成事件/旧 WebView)对非活跃指针会抛错;不捕获也能画 */
+    }
     locate(e)
   }
 
