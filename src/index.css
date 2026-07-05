@@ -71,6 +71,13 @@ body,
   overscroll-behavior: none;
 }
 
+/* iOS PWA 从通知拉起等场景会让视觉视口短暂大于布局视口,底部露出"画布"
+   (html 的背景)。把画布染成与底部导航栏同色,残影就与导航栏融为一体,
+   不再是一条突兀的空带。正常状态下 body 全覆盖,此色不可见。 */
+html {
+  background: var(--bg-soft);
+}
+
 body {
   background: var(--bg);
   color: var(--fg);

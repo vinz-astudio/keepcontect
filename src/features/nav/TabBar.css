@@ -20,9 +20,13 @@
   overscroll-behavior: none;
 }
 
-/* Keep bottom padding compact in every display mode. iOS standalone reports
-   env(safe-area-inset-bottom), but reserving it inside this flex child creates
-   a visible empty band under the nav items. */
+/* 各平台底部适配策略(勿再往这里塞 env() 预留):
+   - iOS PWA:不预留 env(safe-area-inset-bottom)(预留会常驻一条空带);偶发的
+     视口错位残影由 index.css 的 html 画布同色化解决。
+   - Android APK:WebView 的 env() 恒为 0,底部让位由 capacitor.config 的
+     adjustMarginsForEdgeToEdge 原生处理(Android 15 强制 edge-to-edge 时自动
+     按系统手势条实际高度加边距)。
+   - Android Chrome PWA / 桌面:浏览器自行处理,无需预留。 */
 
 .tabbar__btn {
   flex: 1;
