@@ -24,6 +24,10 @@ if (!arg) {
 }
 const tag = arg.startsWith('v') ? arg : `v${arg}`
 const versionName = tag.replace(/^v/, '')
+let releaseApkUrl = ''
+let releaseExeUrl = ''
+let copiedReleaseApk = false
+let copiedReleaseExe = false
 
 console.log(`Starting Keep Contact Release Process for version: ${versionName}\n`)
 
@@ -45,6 +49,8 @@ const verJsonPath = join(root, 'public/version.json')
 if (existsSync(verJsonPath)) {
   const verJson = JSON.parse(readFileSync(verJsonPath, 'utf8'))
   verJson.version = versionName
+  releaseApkUrl = verJson.apkUrl ?? ''
+  releaseExeUrl = verJson.exeUrl ?? ''
   writeFileSync(verJsonPath, JSON.stringify(verJson, null, 2) + '\n')
   console.log(`   - Updated version = '${versionName}'`)
 } else {
@@ -114,6 +120,7 @@ if (existsSync(gradlewPath)) {
     const destApk = join(root, 'public/keep-contact.apk')
     if (existsSync(builtApk)) {
       copyFileSync(builtApk, destApk)
+      copiedReleaseApk = true
       console.log(`   - Successfully copied APK to: ${destApk}`)
     } else {
       console.warn('   - Warn: Built APK not found at target path!')
@@ -154,6 +161,7 @@ if (hasCargo) {
     
     if (existsSync(builtExe)) {
       copyFileSync(builtExe, destExe)
+      copiedReleaseExe = true
       console.log(`   - Successfully copied EXE to: ${destExe}`)
     } else {
       console.warn(`   - Warn: Built EXE not found at: ${builtExe}`)
@@ -171,6 +179,15 @@ if (hasCargo) {
 } else {
   console.log('   - ⚠️ Cargo/Rust not found in PATH. Skipping Tauri desktop build.')
   console.log('     Please run the build on a machine with Rust installed, or compile manually.')
+}
+
+console.log('\n9. Syncing released rollout record...')
+if ((releaseApkUrl || releaseExeUrl) && (copiedReleaseApk || copiedReleaseExe)) {
+  run(`node scripts/sync-app-version.mjs released ${versionName} ${releaseApkUrl} ${releaseExeUrl}`)
+} else if (!copiedReleaseApk && !copiedReleaseExe) {
+  console.warn('   ! No release artifacts were built in this run. Skipping app_versions sync.')
+} else {
+  console.warn('   ! No release artifact URLs found in public/version.json. Skipping app_versions sync.')
 }
 
 console.log('\n✓ Release process completed!')

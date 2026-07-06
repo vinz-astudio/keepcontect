@@ -117,7 +117,7 @@ export function evaluateReleaseGate(root = repoRoot) {
     }
   }
 
-  for (const rel of ['scripts/release.mjs', 'scripts/release-iteration.mjs']) {
+  for (const rel of ['scripts/release.mjs', 'scripts/release-canary.mjs']) {
     const text = readText(root, rel, failures);
     if (text !== null && hasTauriSigningFallback(text)) {
       failures.push({
@@ -136,7 +136,6 @@ export function evaluateReleaseGate(root = repoRoot) {
 
   const artifacts = [
     artifactFact(root, 'public/keep-contact.apk'),
-    artifactFact(root, 'public/keep-contact-iteration.apk'),
     artifactFact(root, 'public/desktop/KeepContact-Setup.exe'),
     artifactFact(root, 'public/desktop/KeepContact.msi'),
   ].filter(Boolean);

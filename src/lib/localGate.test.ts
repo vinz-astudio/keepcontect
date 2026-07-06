@@ -31,7 +31,7 @@ function makeFixture(overrides: Partial<{
   cargoVersion: string;
   allowBackup: string;
   releaseScript: string;
-  iterationScript: string;
+  canaryScript: string;
 }> = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'kc-local-gate-'));
   tempRoots.push(root);
@@ -44,7 +44,7 @@ function makeFixture(overrides: Partial<{
   write(root, 'src-tauri/Cargo.toml', `[package]\nname = "app"\nversion = "${overrides.cargoVersion ?? version}"\n`);
   write(root, 'android/app/src/main/AndroidManifest.xml', `<manifest><application android:allowBackup="${overrides.allowBackup ?? 'false'}"></application></manifest>`);
   write(root, 'scripts/release.mjs', overrides.releaseScript ?? 'process.env.TAURI_SIGNING_PRIVATE_KEY\n');
-  write(root, 'scripts/release-iteration.mjs', overrides.iterationScript ?? 'process.env.TAURI_SIGNING_PRIVATE_KEY\n');
+  write(root, 'scripts/release-canary.mjs', overrides.canaryScript ?? 'process.env.TAURI_SIGNING_PRIVATE_KEY\n');
   return root;
 }
 

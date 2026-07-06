@@ -17,6 +17,8 @@ if (!arg) {
 }
 const tag = arg.startsWith('v') ? arg : `v${arg}`
 const versionName = tag.replace(/^v/, '')
+let releaseApkUrl = ''
+let releaseExeUrl = ''
 
 // 1) 升 versionCode(+1)并写入 versionName,保证侧载可覆盖升级
 const gradlePath = join(root, 'android/app/build.gradle')
@@ -38,6 +40,8 @@ writeFileSync(verTsPath, verTs)
 const verJsonPath = join(root, 'public/version.json')
 const verJson = JSON.parse(readFileSync(verJsonPath, 'utf8'))
 verJson.version = versionName
+releaseApkUrl = verJson.apkUrl ?? ''
+releaseExeUrl = verJson.exeUrl ?? ''
 writeFileSync(verJsonPath, JSON.stringify(verJson, null, 2) + '\n')
 console.log(`→ APP_VERSION & version.json = ${versionName}`)
 
@@ -62,6 +66,13 @@ const publicAsset = join(root, 'public/keep-contact.apk')
 copyFileSync(built, asset)
 copyFileSync(built, publicAsset)
 console.log(`✓ 已成功复制 APK 至: ${publicAsset}`)
+
+console.log('正在同步 released 版本记录...')
+if (releaseApkUrl || releaseExeUrl) {
+  run(`node scripts/sync-app-version.mjs released ${versionName} ${releaseApkUrl} ${releaseExeUrl}`)
+} else {
+  console.warn('未在 public/version.json 中找到发布 URL，跳过 app_versions 同步。')
+}
 
 // 5) 创建 GitHub Release 并标记 latest(用对该仓库有写权限的账号 token,不打印)
 try {

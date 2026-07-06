@@ -4,7 +4,7 @@ import {
   gmNudgeUpdate,
   gmSendConcern,
   gmDeleteAccount,
-  gmGetLatestVersion,
+  gmListVersions,
   gmReleaseVersion,
   type GmClient,
   type DbVersionInfo,
@@ -14,7 +14,11 @@ import { subscribeGmStatusSignals } from '@/features/alerts/realtime'
 import { translate, useI18n } from '@/lib/i18n'
 import { toast } from '@/lib/toast'
 import { Icon } from '@/features/common/Icon'
-import { isNewer } from '@/features/update/versionCheck'
+import {
+  isClientBehindTarget,
+  selectLatestVersion,
+  type VersionChannel,
+} from '@/features/update/versionSelection'
 import { APP_VERSION } from '@/lib/version'
 import { formatBehaviorTime } from '@/features/gm/behaviorTime'
 import './GMScreen.css'
@@ -168,7 +172,8 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
   const [sortBy, setSortBy] = useState<'name' | 'seen' | 'version'>('name')
   const [bulkNudgeBusy, setBulkNudgeBusy] = useState(false)
   
-  const [dbVersion, setDbVersion] = useState<DbVersionInfo | null>(null)
+  const [dbVersions, setDbVersions] = useState<DbVersionInfo[]>([])
+  const [versionChannel, setVersionChannel] = useState<VersionChannel>('canary')
   const [releaseBusy, setReleaseBusy] = useState(false)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
 
@@ -177,8 +182,8 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     try {
       // Query latest version rollout info
       try {
-        const ver = await gmGetLatestVersion()
-        setDbVersion(ver)
+        const versions = await gmListVersions()
+        setDbVersions(versions)
       } catch (e) {
         console.warn('Failed to load version info from database:', e)
       }
@@ -267,6 +272,15 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     }
   }
 
+  const selectedVersion = selectLatestVersion(dbVersions, versionChannel)
+  const targetVersion = selectedVersion?.version ?? APP_VERSION
+
+  function isRowOutdated(row: UserRow): boolean {
+    return row.clients.length === 0 || row.clients.some((client) =>
+      isClientBehindTarget(client.app_version, targetVersion),
+    )
+  }
+
   async function handleDeleteAccount(userId: string, name: string) {
     const confirmMsg = lang === 'zh'
       ? `【警告】确认要物理删除/封禁用户「${name}」的账号吗？此操作将级联删除该用户的所有数据（设备、警报、群组等）且不可逆！`
@@ -286,9 +300,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
   }
 
   async function bulkNudge() {
-    const outdatedUsers = sorted.filter((r) =>
-      r.clients.some((c) => c.app_version ? isNewer(APP_VERSION, c.app_version) : true)
-    )
+    const outdatedUsers = sorted.filter(isRowOutdated)
 
     if (!outdatedUsers.length) {
       toast(lang === 'zh' ? '当前列表下没有未升级的用户' : 'No outdated users found in this list', 'info')
@@ -296,8 +308,8 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     }
 
     const confirmMsg = lang === 'zh'
-      ? `确认要一键发送升级通知给这 ${outdatedUsers.length} 位用户吗？`
-      : `Send update nudges to all ${outdatedUsers.length} outdated users?`
+      ? `确认要一键发送升级通知给这 ${outdatedUsers.length} 位用户吗？目标版本：v${targetVersion}`
+      : `Send update nudges to all ${outdatedUsers.length} outdated users for v${targetVersion}?`
     if (!window.confirm(confirmMsg)) return
 
     setBulkNudgeBusy(true)
@@ -317,16 +329,16 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
   }
 
   const handleReleaseVersion = async () => {
-    if (!dbVersion) return
+    if (!selectedVersion) return
     const ok = window.confirm(
       lang === 'zh'
-        ? `确认要发布版本 ${dbVersion.version} 给所有用户吗？这会启动所有被守护者端的更新通知。`
-        : `Are you sure you want to release version ${dbVersion.version} to all users? This will trigger update notifications on recipients' devices.`
+        ? `确认要发布版本 ${selectedVersion.version} 给所有用户吗？这会启动所有被守护者端的更新通知。`
+        : `Are you sure you want to release version ${selectedVersion.version} to all users? This will trigger update notifications on recipients' devices.`
     )
     if (!ok) return
     setReleaseBusy(true)
     try {
-      await gmReleaseVersion(dbVersion.version)
+      await gmReleaseVersion(selectedVersion.version)
       toast(lang === 'zh' ? '新版本发布成功！' : 'New version released successfully!', 'ok')
       await load()
     } catch (err) {
@@ -345,9 +357,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     
     if (!matchSearch) return false
 
-    const hasOutdatedClient = r.clients.length === 0 || r.clients.some((c) => {
-      return c.app_version ? isNewer(APP_VERSION, c.app_version) : true
-    })
+    const hasOutdatedClient = isRowOutdated(r)
 
     if (onlyOutdated && !hasOutdatedClient) return false
 
@@ -368,8 +378,8 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
       return at(b) - at(a)
     }
     if (sortBy === 'version') {
-      const aOutdated = a.clients.length === 0 || a.clients.some((c) => c.app_version ? isNewer(APP_VERSION, c.app_version) : true)
-      const bOutdated = b.clients.length === 0 || b.clients.some((c) => c.app_version ? isNewer(APP_VERSION, c.app_version) : true)
+      const aOutdated = isRowOutdated(a)
+      const bOutdated = isRowOutdated(b)
       return (bOutdated ? 1 : 0) - (aOutdated ? 1 : 0)
     }
     return 0
@@ -417,20 +427,49 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
             ? '新版本发布后，状态默认为「内测 (Canary)」，此时仅守护者能检测并升级体验。确认稳定后，可在此一键发布给所有普通用户。'
             : 'New updates start as "Canary" and are only visible to GMs. Once verified stable, release it here to notify all general recipients.'}
         </p>
-        {dbVersion ? (
+        <div
+          role="group"
+          aria-label={lang === 'zh' ? '版本通道' : 'Version channel'}
+          style={{ display: 'inline-flex', alignSelf: 'flex-start', gap: '6px', padding: '4px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}
+        >
+          {(['canary', 'released'] as const).map((channel) => {
+            const selected = versionChannel === channel
+            return (
+              <button
+                key={channel}
+                type="button"
+                onClick={() => setVersionChannel(channel)}
+                aria-pressed={selected}
+                style={{
+                  border: '1px solid transparent',
+                  borderRadius: 'var(--r-sm)',
+                  padding: '6px 10px',
+                  minWidth: '88px',
+                  background: selected ? 'var(--accent)' : 'transparent',
+                  color: selected ? 'white' : 'var(--fg)',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {channel === 'canary' ? 'Canary' : 'Released'}
+              </button>
+            )
+          })}
+        </div>
+        {selectedVersion ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: 'rgba(0,0,0,0.15)', padding: '10px 14px', borderRadius: 'var(--r-sm)', fontSize: '0.85rem' }}>
             <div>
-              <span style={{ fontWeight: 'bold', marginRight: '8px' }}>{lang === 'zh' ? '最新版本:' : 'Latest Version:'}</span>
-              <strong style={{ color: 'var(--accent)' }}>v{dbVersion.version}</strong>
+              <span style={{ fontWeight: 'bold', marginRight: '8px' }}>{lang === 'zh' ? '目标版本:' : 'Target Version:'}</span>
+              <strong style={{ color: 'var(--accent)' }}>v{selectedVersion.version}</strong>
               <span style={{ margin: '0 12px', color: 'var(--line-strong)' }}>|</span>
               <span style={{ fontWeight: 'bold', marginRight: '8px' }}>{lang === 'zh' ? '当前状态:' : 'Rollout Status:'}</span>
-              <strong style={{ color: dbVersion.status === 'canary' ? 'var(--warn)' : 'var(--ok)' }}>
-                {dbVersion.status === 'canary'
-                  ? (lang === 'zh' ? 'Canary 内测中 (仅守护者可见)' : 'Canary (GMs only)')
-                  : (lang === 'zh' ? '已全量发布给所有用户' : 'Released to Public')}
+              <strong style={{ color: selectedVersion.status === 'canary' ? 'var(--warn)' : 'var(--ok)' }}>
+                {selectedVersion.status === 'canary'
+                  ? (lang === 'zh' ? 'Canary 内测中 (仅 GM 可见)' : 'Canary (GMs only)')
+                  : (lang === 'zh' ? 'Released 已全量发布' : 'Released to Public')}
               </strong>
             </div>
-            {dbVersion.status === 'canary' && (
+            {selectedVersion.status === 'canary' && (
               <button
                 className="share"
                 disabled={releaseBusy}
@@ -445,7 +484,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
                   cursor: 'pointer'
                 }}
               >
-                {releaseBusy ? '...' : (lang === 'zh' ? '📥 全量发布此版本' : '📥 Release to Public')}
+                {releaseBusy ? '...' : (lang === 'zh' ? '发布给所有用户' : 'Release to Public')}
               </button>
             )}
           </div>
@@ -581,7 +620,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
             ) : (
               sorted.map((r) => {
                 const status = r.status
-                const isOutdated = r.clients.length === 0 || r.clients.some((c) => c.app_version ? isNewer(APP_VERSION, c.app_version) : true)
+                const isOutdated = isRowOutdated(r)
                 const behaviorTime = formatBehaviorTime(r.last_behavior_at, Date.now(), lang)
                 return (
                   <tr key={r.user_id} className={isOutdated ? 'is-outdated-row' : ''}>

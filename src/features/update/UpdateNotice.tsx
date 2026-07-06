@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useUpdateStatus } from '@/features/update/versionCheck'
+import { amIGm } from '@/features/gm/gmApi'
 import { useI18n } from '@/lib/i18n'
 import { isTauri } from '@/lib/platform'
 import { launchUpdate } from '@/features/update/launchUpdate'
@@ -22,11 +23,16 @@ function readSnooze(): number {
  */
 export function UpdateNotice() {
   const { t, lang } = useI18n()
-  const { latest, outdated } = useUpdateStatus()
+  const [isGm, setIsGm] = useState(false)
+  const { latest, outdated } = useUpdateStatus({ channel: isGm ? 'canary' : 'released' })
   const [snoozedUntil, setSnoozedUntil] = useState<number>(readSnooze)
   const [dismissed, setDismissed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
+
+  useEffect(() => {
+    void amIGm().then(setIsGm).catch(() => setIsGm(false))
+  }, [])
 
   useEffect(() => {
     let unlisten: (() => void) | null = null

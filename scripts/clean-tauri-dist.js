@@ -13,11 +13,8 @@ const roots = [
 // into web assets, Android APKs, or Tauri installers.
 const relativeTargets = [
   'keep-contact.apk',
-  'keep-contact-iteration.apk',
   'desktop/KeepContact-Setup.exe',
-  'desktop/KeepContact-Iteration-Setup.exe',
   'desktop/KeepContact.msi',
-  'desktop/KeepContact-Iteration.msi',
 ];
 
 for (const root of roots) {

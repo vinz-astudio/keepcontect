@@ -2,72 +2,83 @@ import { useCallback, useEffect, useState } from 'react'
 import { APP_VERSION, LATEST_URL } from '@/lib/version'
 import { translate } from '@/lib/i18n'
 import { supabase } from '@/lib/supabase'
+import {
+  isNewer,
+  selectLatestVersion,
+  type VersionChannel,
+  type VersionRecord,
+} from '@/features/update/versionSelection'
+
+export { isNewer }
 
 export interface LatestInfo {
   version: string
   apkUrl?: string
   exeUrl?: string
+  status?: VersionChannel
+}
+
+export interface FetchLatestOptions {
+  channel?: VersionChannel
+}
+
+interface DbVersionRow extends VersionRecord {
+  apk_url?: string | null
+  exe_url?: string | null
 }
 
 const NOTIFIED_DAY_KEY = 'kc.update.notifiedDay'
+const DB_VERSION_LIMIT = 50
 
-function parse(v: string): number[] {
-  return v
-    .replace(/^v/i, '')
-    .split('.')
-    .map((n) => parseInt(n, 10) || 0)
-}
-
-/** latest 是否比 current 新(语义化:逐段比较 major.minor.patch) */
-export function isNewer(latest: string, current: string): boolean {
-  const a = parse(latest)
-  const b = parse(current)
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    const d = (a[i] ?? 0) - (b[i] ?? 0)
-    if (d !== 0) return d > 0
+function toLatestInfo(row: DbVersionRow): LatestInfo {
+  return {
+    version: row.version,
+    apkUrl: row.apk_url || undefined,
+    exeUrl: row.exe_url || undefined,
+    status: row.status ?? 'released',
   }
-  return false
 }
 
-export async function fetchLatest(): Promise<LatestInfo | null> {
-  // 1. Try querying Supabase app_versions if user is authenticated
+export async function fetchLatest(options: FetchLatestOptions = {}): Promise<LatestInfo | null> {
+  const channel = options.channel ?? 'released'
+
   try {
     const { data: u } = await supabase.auth.getUser()
     if (u?.user) {
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from('app_versions')
-        .select('version, apk_url, exe_url')
+        .select('version, apk_url, exe_url, status, created_at')
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      
-      if (!error && data) {
-        return {
-          version: (data as any).version,
-          apkUrl: (data as any).apk_url || undefined,
-          exeUrl: (data as any).exe_url || undefined,
-        }
+        .limit(DB_VERSION_LIMIT)
+
+      query =
+        channel === 'canary'
+          ? query.in('status', ['canary', 'released'])
+          : query.eq('status', 'released')
+
+      const { data, error } = await query
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const latest = selectLatestVersion(data as DbVersionRow[], channel)
+        if (latest) return toLatestInfo(latest)
       }
     }
   } catch (err) {
     console.warn('Failed to fetch latest version from Supabase:', err)
   }
 
-  // 2. Fallback to static Vercel JSON
   try {
     const r = await fetch(LATEST_URL, { cache: 'no-store' })
     if (!r.ok) return null
     const j = (await r.json()) as Partial<LatestInfo>
     if (typeof j.version === 'string') {
-      return { version: j.version, apkUrl: j.apkUrl, exeUrl: j.exeUrl }
+      return { version: j.version, apkUrl: j.apkUrl, exeUrl: j.exeUrl, status: 'released' }
     }
   } catch {
-    /* 离线/跨域/预览环境等:静默忽略,不打扰 */
+    // Offline, CORS, preview, and shell cases should not interrupt app use.
   }
   return null
 }
 
-/** 外部(系统)通知,最多一天一次。仅在已授权通知时触发。 */
 async function maybeNotifyOnce(body: string): Promise<void> {
   try {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
@@ -87,18 +98,20 @@ async function maybeNotifyOnce(body: string): Promise<void> {
       new Notification('Keep Contact', { body, tag: 'kc-update' })
     }
   } catch {
-    /* ignore */
+    // Notification failures are non-critical.
   }
 }
 
-/** 周期性 + 可见时检测版本;返回最新信息与是否过期。 */
-export function useUpdateStatus(): { latest: LatestInfo | null; outdated: boolean } {
+export function useUpdateStatus(
+  options: FetchLatestOptions = {},
+): { latest: LatestInfo | null; outdated: boolean } {
   const [latest, setLatest] = useState<LatestInfo | null>(null)
+  const channel = options.channel ?? 'released'
 
   const check = useCallback(async () => {
-    const l = await fetchLatest()
+    const l = await fetchLatest({ channel })
     if (l) setLatest(l)
-  }, [])
+  }, [channel])
 
   useEffect(() => {
     void check()
