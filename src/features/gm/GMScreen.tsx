@@ -6,6 +6,7 @@ import {
   gmDeleteAccount,
   gmListVersions,
   gmReleaseVersion,
+  gmSetCanaryPublic,
   type GmClient,
   type DbVersionInfo,
 } from '@/features/gm/gmApi'
@@ -16,8 +17,8 @@ import { toast } from '@/lib/toast'
 import { Icon } from '@/features/common/Icon'
 import {
   isClientBehindTarget,
+  selectLatestCanary,
   selectLatestVersion,
-  type VersionChannel,
 } from '@/features/update/versionSelection'
 import { APP_VERSION } from '@/lib/version'
 import { formatBehaviorTime } from '@/features/gm/behaviorTime'
@@ -173,7 +174,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
   const [bulkNudgeBusy, setBulkNudgeBusy] = useState(false)
   
   const [dbVersions, setDbVersions] = useState<DbVersionInfo[]>([])
-  const [versionChannel, setVersionChannel] = useState<VersionChannel>('canary')
+  const [publicBusy, setPublicBusy] = useState(false)
   const [releaseBusy, setReleaseBusy] = useState(false)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
 
@@ -272,13 +273,19 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     }
   }
 
-  const selectedVersion = selectLatestVersion(dbVersions, versionChannel)
-  const targetVersion = selectedVersion?.version ?? APP_VERSION
+  const releasedVersion = selectLatestVersion(dbVersions, 'released')
+  const canaryVersion = selectLatestCanary(dbVersions)
+  const targetVersion = releasedVersion?.version ?? APP_VERSION
+  const canaryPublic = canaryVersion?.public_rollout === true
+
+  function isRowOutdatedFor(row: UserRow, version: string): boolean {
+    return row.clients.length === 0 || row.clients.some((client) =>
+      isClientBehindTarget(client.app_version, version),
+    )
+  }
 
   function isRowOutdated(row: UserRow): boolean {
-    return row.clients.length === 0 || row.clients.some((client) =>
-      isClientBehindTarget(client.app_version, targetVersion),
-    )
+    return isRowOutdatedFor(row, targetVersion)
   }
 
   async function handleDeleteAccount(userId: string, name: string) {
@@ -328,18 +335,66 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     }
   }
 
+  const handleTogglePublic = async () => {
+    if (!canaryVersion) return
+    const next = !canaryPublic
+    const confirmMsg = next
+      ? lang === 'zh'
+        ? `确认要临时开放 v${canaryVersion.version} 给普通用户手动检查更新吗？不会主动通知用户。`
+        : `Allow ordinary users to find v${canaryVersion.version} only when they manually check for updates? This will not notify them.`
+      : lang === 'zh'
+        ? `确认要关闭 v${canaryVersion.version} 的 Public 手动更新入口吗？`
+        : `Turn off the Public manual update path for v${canaryVersion.version}?`
+    const ok = window.confirm(
+      confirmMsg
+    )
+    if (!ok) return
+    setPublicBusy(true)
+    try {
+      await gmSetCanaryPublic(canaryVersion.version, next)
+      const okMsg = next
+        ? lang === 'zh'
+          ? 'Public 已开启：普通用户可手动查到 canary。'
+          : 'Public is on. Ordinary users can manually find this canary.'
+        : lang === 'zh'
+          ? 'Public 已关闭。'
+          : 'Public is off.'
+      toast(
+        okMsg,
+        'ok',
+      )
+      await load()
+    } catch (err) {
+      console.error('Failed to update public canary switch:', err)
+      toast(lang === 'zh' ? 'Public 开关失败' : 'Failed to update Public switch', 'danger')
+    } finally {
+      setPublicBusy(false)
+    }
+  }
+
   const handleReleaseVersion = async () => {
-    if (!selectedVersion) return
+    if (!canaryVersion) return
+    const notifyTargets = rows.filter((row) => isRowOutdatedFor(row, canaryVersion.version))
     const ok = window.confirm(
       lang === 'zh'
-        ? `确认要发布版本 ${selectedVersion.version} 给所有用户吗？这会启动所有被守护者端的更新通知。`
-        : `Are you sure you want to release version ${selectedVersion.version} to all users? This will trigger update notifications on recipients' devices.`
+        ? `确认要将 v${canaryVersion.version} 正式发布为 Released 吗？会通知 ${notifyTargets.length} 位未升级用户。`
+        : `Promote v${canaryVersion.version} to Released? This will notify ${notifyTargets.length} outdated users.`
     )
     if (!ok) return
     setReleaseBusy(true)
     try {
-      await gmReleaseVersion(selectedVersion.version)
-      toast(lang === 'zh' ? '新版本发布成功！' : 'New version released successfully!', 'ok')
+      await gmReleaseVersion(canaryVersion.version)
+      let notified = 0
+      for (const target of notifyTargets) {
+        await gmNudgeUpdate(target.user_id)
+        notified += 1
+      }
+      toast(
+        lang === 'zh'
+          ? `Released 已上线，已通知 ${notified} 位用户。`
+          : `Released is live. Notified ${notified} users.`,
+        'ok',
+      )
       await load()
     } catch (err) {
       console.error('Failed to release version:', err)
@@ -417,80 +472,61 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
       </h2>
       <p className="muted">{t('gm.desc')}</p>
 
-      {/* 1. Canary Version Release Control Panel */}
-      <div style={{ background: 'var(--bg-soft)', border: '1px solid var(--line-strong)', borderRadius: 'var(--r-md)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          📦 {lang === 'zh' ? '客户端版本管理 (灰度发布控制)' : 'App Version Management (Canary Control)'}
-        </h3>
-        <p className="muted" style={{ fontSize: '0.82rem', margin: 0, lineHeight: '1.4' }}>
-          {lang === 'zh'
-            ? '新版本发布后，状态默认为「内测 (Canary)」，此时仅守护者能检测并升级体验。确认稳定后，可在此一键发布给所有普通用户。'
-            : 'New updates start as "Canary" and are only visible to GMs. Once verified stable, release it here to notify all general recipients.'}
-        </p>
-        <div
-          role="group"
-          aria-label={lang === 'zh' ? '版本通道' : 'Version channel'}
-          style={{ display: 'inline-flex', alignSelf: 'flex-start', gap: '6px', padding: '4px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}
-        >
-          {(['canary', 'released'] as const).map((channel) => {
-            const selected = versionChannel === channel
-            return (
-              <button
-                key={channel}
-                type="button"
-                onClick={() => setVersionChannel(channel)}
-                aria-pressed={selected}
-                style={{
-                  border: '1px solid transparent',
-                  borderRadius: 'var(--r-sm)',
-                  padding: '6px 10px',
-                  minWidth: '88px',
-                  background: selected ? 'var(--accent)' : 'transparent',
-                  color: selected ? 'white' : 'var(--fg)',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                {channel === 'canary' ? 'Canary' : 'Released'}
-              </button>
-            )
-          })}
+      {/* 1. Canary release controls */}
+      <div className="gm__release-panel">
+        <div className="gm__release-head">
+          <div>
+            <h3 className="gm__release-title">
+              {lang === 'zh' ? 'Canary 发布控制' : 'Canary release'}
+            </h3>
+            <p className="gm__release-copy">
+              {lang === 'zh'
+                ? 'Public 只开放手动检查；Released 才正式上线并通知。'
+                : 'Public enables manual checks only. Released promotes and notifies.'}
+            </p>
+          </div>
+          <span className="gm__release-target">
+            {canaryVersion ? `v${canaryVersion.version}` : (lang === 'zh' ? '无 canary' : 'No canary')}
+          </span>
         </div>
-        {selectedVersion ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: 'rgba(0,0,0,0.15)', padding: '10px 14px', borderRadius: 'var(--r-sm)', fontSize: '0.85rem' }}>
-            <div>
-              <span style={{ fontWeight: 'bold', marginRight: '8px' }}>{lang === 'zh' ? '目标版本:' : 'Target Version:'}</span>
-              <strong style={{ color: 'var(--accent)' }}>v{selectedVersion.version}</strong>
-              <span style={{ margin: '0 12px', color: 'var(--line-strong)' }}>|</span>
-              <span style={{ fontWeight: 'bold', marginRight: '8px' }}>{lang === 'zh' ? '当前状态:' : 'Rollout Status:'}</span>
-              <strong style={{ color: selectedVersion.status === 'canary' ? 'var(--warn)' : 'var(--ok)' }}>
-                {selectedVersion.status === 'canary'
-                  ? (lang === 'zh' ? 'Canary 内测中 (仅 GM 可见)' : 'Canary (GMs only)')
-                  : (lang === 'zh' ? 'Released 已全量发布' : 'Released to Public')}
-              </strong>
+
+        {canaryVersion ? (
+          <div className="gm__release-actions">
+            <div className="gm__release-state">
+              <span className={`gm__release-pill ${canaryPublic ? 'is-public' : 'is-private'}`}>
+                {canaryPublic ? 'Public On' : 'Private Canary'}
+              </span>
+              <span className="muted">
+                {lang === 'zh'
+                  ? canaryPublic ? '普通用户手动检查可发现。' : '仅 GM 可发现。'
+                  : canaryPublic ? 'Ordinary users can find it manually.' : 'Only GMs can find it.'}
+              </span>
             </div>
-            {selectedVersion.status === 'canary' && (
+            <div className="gm__release-buttons">
               <button
-                className="share"
-                disabled={releaseBusy}
-                onClick={() => void handleReleaseVersion()}
-                style={{ 
-                  background: 'var(--accent)', 
-                  color: 'white', 
-                  border: 'none', 
-                  padding: '6px 12px', 
-                  fontWeight: 'bold', 
-                  borderRadius: 'var(--r-sm)',
-                  cursor: 'pointer'
-                }}
+                type="button"
+                className={`gm__release-btn ${canaryPublic ? 'is-on' : ''}`}
+                aria-pressed={canaryPublic}
+                disabled={publicBusy || releaseBusy}
+                onClick={() => void handleTogglePublic()}
               >
-                {releaseBusy ? '...' : (lang === 'zh' ? '发布给所有用户' : 'Release to Public')}
+                {publicBusy ? '...' : 'Public'}
               </button>
-            )}
+              <button
+                type="button"
+                className="gm__release-btn is-release"
+                disabled={releaseBusy || publicBusy}
+                onClick={() => void handleReleaseVersion()}
+              >
+                {releaseBusy ? '...' : 'Released'}
+              </button>
+            </div>
           </div>
         ) : (
-          <p className="muted" style={{ fontSize: '0.82rem', fontStyle: 'italic' }}>
-            {lang === 'zh' ? '暂无数据库版本记录。将在检测到首个新版本时自动创建。' : 'No version records found in the database.'}
+          <p className="muted" style={{ margin: 0, fontSize: '0.82rem' }}>
+            {lang === 'zh'
+              ? '暂无 canary 版本。先运行 release:canary 后，这里会出现 Public / Released 控制。'
+              : 'No canary build yet. Run release:canary first, then Public / Released controls appear here.'}
           </p>
         )}
       </div>
@@ -535,7 +571,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
                   window.location.reload()
                 }}
                 style={{
-                  background: 'var(--warn-soft)',
+                  background: 'var(--danger-soft)',
                   color: 'var(--warn)',
                   border: '1px solid var(--warn)',
                   padding: '6px 12px',

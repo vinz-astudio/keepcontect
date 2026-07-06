@@ -494,7 +494,7 @@ export function NotificationsCard({
                         }
                         setUpdBusy(n.id)
                         try {
-                          const latest = await fetchLatest({ channel: 'canary' })
+                          const latest = await fetchLatest({ channel: 'released' })
                           await launchUpdate(latest ?? PRODUCTION_UPDATE_URLS)
                         } finally {
                           setUpdBusy(null)

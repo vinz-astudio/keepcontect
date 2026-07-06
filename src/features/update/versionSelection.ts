@@ -1,8 +1,10 @@
-export type VersionChannel = 'canary' | 'released'
+export type VersionStatus = 'canary' | 'released'
+export type VersionChannel = VersionStatus | 'public'
 
 export interface VersionRecord {
   version: string
-  status?: VersionChannel | null
+  status?: VersionStatus | null
+  public_rollout?: boolean | null
   created_at?: string | null
 }
 
@@ -41,14 +43,23 @@ function isReleased(record: VersionRecord): boolean {
   return record.status == null || record.status === 'released'
 }
 
+function isPublicVisible(record: VersionRecord): boolean {
+  return isReleased(record) || (record.status === 'canary' && record.public_rollout === true)
+}
+
+export function selectLatestCanary<T extends VersionRecord>(records: T[]): T | null {
+  return [...records.filter((record) => record.status === 'canary')].sort(newestFirst)[0] ?? null
+}
+
 export function selectLatestVersion<T extends VersionRecord>(
   records: T[],
   channel: VersionChannel,
 ): T | null {
-  const primary =
-    channel === 'canary'
-      ? records.filter((record) => record.status === 'canary')
-      : records.filter(isReleased)
+  const primary = (() => {
+    if (channel === 'canary') return records.filter((record) => record.status === 'canary')
+    if (channel === 'public') return records.filter(isPublicVisible)
+    return records.filter(isReleased)
+  })()
 
   const candidates =
     channel === 'canary' && primary.length === 0

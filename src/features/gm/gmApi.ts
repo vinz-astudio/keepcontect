@@ -1,5 +1,9 @@
 import { supabase } from '@/lib/supabase'
-import { selectLatestVersion, type VersionChannel } from '@/features/update/versionSelection'
+import {
+  selectLatestVersion,
+  type VersionChannel,
+  type VersionStatus,
+} from '@/features/update/versionSelection'
 
 export interface GmClient {
   user_id: string
@@ -46,14 +50,15 @@ export interface DbVersionInfo {
   version: string
   apk_url: string | null
   exe_url: string | null
-  status: VersionChannel
+  status: VersionStatus
+  public_rollout: boolean | null
   created_at: string
 }
 
 export async function gmListVersions(): Promise<DbVersionInfo[]> {
   const { data, error } = await (supabase as any)
     .from('app_versions')
-    .select('version, apk_url, exe_url, status, created_at')
+    .select('version, apk_url, exe_url, status, public_rollout, created_at')
     .order('created_at', { ascending: false })
     .limit(50)
   if (error) throw error
@@ -70,7 +75,16 @@ export async function gmGetLatestVersion(
 export async function gmReleaseVersion(version: string): Promise<void> {
   const { error } = await (supabase as any)
     .from('app_versions')
-    .update({ status: 'released' })
+    .update({ status: 'released', public_rollout: false })
     .eq('version', version)
+  if (error) throw error
+}
+
+export async function gmSetCanaryPublic(version: string, enabled: boolean): Promise<void> {
+  const { error } = await (supabase as any)
+    .from('app_versions')
+    .update({ public_rollout: enabled })
+    .eq('version', version)
+    .eq('status', 'canary')
   if (error) throw error
 }

@@ -15,6 +15,7 @@ describe('version channel selection', () => {
     {
       version: '0.5.17',
       status: 'canary',
+      public_rollout: false,
       created_at: '2026-07-06T22:00:00.000Z',
     },
   ]
@@ -25,6 +26,21 @@ describe('version channel selection', () => {
 
   it('keeps released users on the latest released version', () => {
     expect(selectLatestVersion(rolloutRows, 'released')?.version).toBe('0.5.16')
+  })
+
+  it('keeps public/manual checks on released while canary is private', () => {
+    expect(selectLatestVersion(rolloutRows, 'public')?.version).toBe('0.5.16')
+  })
+
+  it('allows public/manual checks to see canary while Public is enabled', () => {
+    expect(
+      selectLatestVersion(
+        rolloutRows.map((record) =>
+          record.status === 'canary' ? { ...record, public_rollout: true } : record,
+        ),
+        'public',
+      )?.version,
+    ).toBe('0.5.17')
   })
 
   it('falls canary back to released when no canary build exists', () => {

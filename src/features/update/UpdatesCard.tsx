@@ -6,6 +6,9 @@ import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import { launchUpdate } from '@/features/update/launchUpdate'
 import { fetchLatest, isNewer } from '@/features/update/versionCheck'
+import { useGmVersionChannel } from '@/features/update/versionChannelPreference'
+import { toast } from '@/lib/toast'
+import type { VersionStatus } from '@/features/update/versionSelection'
 
 interface UpdatesCardProps {
   isGm?: boolean
@@ -14,6 +17,7 @@ interface UpdatesCardProps {
 
 export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
   const { lang } = useI18n()
+  const [gmVersionChannel, setGmVersionChannel] = useGmVersionChannel(isGm)
   const [updBusy, setUpdBusy] = useState(false)
   const [updStatus, setUpdStatus] = useState<'idle' | 'checking' | 'checked'>('idle')
   const [hasNewUpdate, setHasNewUpdate] = useState(false)
@@ -60,7 +64,7 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
     setUpdStatus('checking')
     await new Promise((resolve) => setTimeout(resolve, 800))
     try {
-      const latest = await fetchLatest({ channel: isGm ? 'canary' : 'released' })
+      const latest = await fetchLatest({ channel: isGm ? gmVersionChannel : 'public' })
       if (latest) {
         const outdated = isNewer(latest.version, APP_VERSION)
         setHasNewUpdate(outdated)
@@ -93,6 +97,19 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
   }
 
   const title = lang === 'zh' ? `版本 · ${APP_VERSION}` : `Version · ${APP_VERSION}`
+  const changeGmChannel = (channel: VersionStatus) => {
+    setGmVersionChannel(channel)
+    setUpdStatus('idle')
+    setHasNewUpdate(false)
+    setNewVersion('')
+    setUpdateUrls({})
+    toast(
+      lang === 'zh'
+        ? `GM 更新通道已切换为 ${channel === 'canary' ? 'Canary' : 'Released'}`
+        : `GM update channel set to ${channel === 'canary' ? 'Canary' : 'Released'}`,
+      'info',
+    )
+  }
 
   return (
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -177,7 +194,7 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
           ) : updStatus === 'checked' && hasNewUpdate ? (
             <button
               className="share"
-              style={{ padding: '5px 14px', fontSize: '0.8rem', background: 'var(--accent)', color: 'var(--bg)', fontWeight: 700, border: 'none' }}
+              style={{ padding: '5px 14px', fontSize: '0.8rem', background: 'var(--accent)', color: '#15130e', fontWeight: 700, border: 'none' }}
               disabled={updBusy}
               onClick={() => void handleTriggerUpdate()}
             >
@@ -204,37 +221,54 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
           style={{
             marginTop: '6px',
             padding: '12px',
-            border: '1px dashed var(--accent-line)',
+            border: '1px solid var(--accent-line)',
             borderRadius: 'var(--r-md)',
             background: 'var(--accent-soft)',
             display: 'flex',
-            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
             gap: '8px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--accent)' }}>
-              {lang === 'zh' ? 'Canary 内测通道' : 'Canary channel'}
-            </span>
-            <span
-              style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                background: 'var(--accent)',
-                color: 'var(--bg)',
-                padding: '2px 6px',
-                borderRadius: '10px',
-                border: '1px solid var(--line)',
-              }}
-            >
-              GM
-            </span>
+          <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--accent)' }}>
+            {lang === 'zh' ? 'GM 更新通道' : 'GM update channel'}
+          </span>
+          <div
+            role="group"
+            aria-label={lang === 'zh' ? 'GM 更新通道' : 'GM update channel'}
+            style={{ display: 'inline-flex', gap: '4px', padding: '3px', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}
+          >
+            {(['canary', 'released'] as const).map((channel) => {
+              const selected = gmVersionChannel === channel
+              return (
+                <button
+                  key={channel}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => changeGmChannel(channel)}
+                  style={{
+                    minWidth: '82px',
+                    padding: '6px 10px',
+                    border: '1px solid transparent',
+                    borderRadius: 'var(--r-sm)',
+                    background: selected ? 'var(--accent)' : 'transparent',
+                    color: selected ? '#15130e' : 'var(--fg)',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {channel === 'canary' ? 'Canary' : 'Released'}
+                </button>
+              )
+            })}
           </div>
-          <p style={{ margin: 0, fontSize: '0.75rem', lineHeight: 1.3, color: 'var(--fg)' }}>
+          <span style={{ flexBasis: '100%', fontSize: '0.75rem', lineHeight: 1.3, color: 'var(--fg)' }}>
             {lang === 'zh'
-              ? 'GM 检查更新时读取 Supabase canary；普通用户只读取 released。'
-              : 'GM update checks read Supabase canary. Ordinary users only read released.'}
-          </p>
+              ? '只影响这个 GM 设备的检查与提示。'
+              : 'Only affects update checks and banners on this GM device.'}
+            </span>
         </div>
       )}
     </section>

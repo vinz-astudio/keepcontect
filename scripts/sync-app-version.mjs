@@ -43,12 +43,13 @@ function loadLocalEnv() {
 function sqlFor(row) {
   const esc = (value) => String(value ?? '').replaceAll("'", "''")
   return [
-    'insert into public.app_versions (version, status, apk_url, exe_url)',
-    `values ('${esc(row.version)}', '${esc(row.status)}', '${esc(row.apk_url)}', '${esc(row.exe_url)}')`,
+    'insert into public.app_versions (version, status, apk_url, exe_url, public_rollout)',
+    `values ('${esc(row.version)}', '${esc(row.status)}', '${esc(row.apk_url)}', '${esc(row.exe_url)}', false)`,
     'on conflict (version) do update set',
     '  status = excluded.status,',
     '  apk_url = excluded.apk_url,',
-    '  exe_url = excluded.exe_url;',
+    '  exe_url = excluded.exe_url,',
+    '  public_rollout = false;',
   ].join('\n')
 }
 
@@ -108,6 +109,7 @@ const row = {
   status: channel,
   apk_url: apkUrl,
   exe_url: exeUrl,
+  public_rollout: false,
 }
 
 const env = loadLocalEnv()

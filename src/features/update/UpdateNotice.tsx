@@ -4,6 +4,7 @@ import { amIGm } from '@/features/gm/gmApi'
 import { useI18n } from '@/lib/i18n'
 import { isTauri } from '@/lib/platform'
 import { launchUpdate } from '@/features/update/launchUpdate'
+import { useGmVersionChannel } from '@/features/update/versionChannelPreference'
 import './UpdateNotice.css'
 
 const SNOOZE_KEY = 'kc.update.snoozeUntil'
@@ -24,7 +25,8 @@ function readSnooze(): number {
 export function UpdateNotice() {
   const { t, lang } = useI18n()
   const [isGm, setIsGm] = useState(false)
-  const { latest, outdated } = useUpdateStatus({ channel: isGm ? 'canary' : 'released' })
+  const [gmVersionChannel] = useGmVersionChannel(isGm)
+  const { latest, outdated } = useUpdateStatus({ channel: isGm ? gmVersionChannel : 'released' })
   const [snoozedUntil, setSnoozedUntil] = useState<number>(readSnooze)
   const [dismissed, setDismissed] = useState(false)
   const [busy, setBusy] = useState(false)

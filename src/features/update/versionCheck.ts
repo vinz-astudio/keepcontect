@@ -15,7 +15,8 @@ export interface LatestInfo {
   version: string
   apkUrl?: string
   exeUrl?: string
-  status?: VersionChannel
+  status?: Exclude<VersionChannel, 'public'>
+  publicRollout?: boolean
 }
 
 export interface FetchLatestOptions {
@@ -36,6 +37,7 @@ function toLatestInfo(row: DbVersionRow): LatestInfo {
     apkUrl: row.apk_url || undefined,
     exeUrl: row.exe_url || undefined,
     status: row.status ?? 'released',
+    publicRollout: row.public_rollout === true,
   }
 }
 
@@ -47,14 +49,17 @@ export async function fetchLatest(options: FetchLatestOptions = {}): Promise<Lat
     if (u?.user) {
       let query = (supabase as any)
         .from('app_versions')
-        .select('version, apk_url, exe_url, status, created_at')
+        .select('version, apk_url, exe_url, status, public_rollout, created_at')
         .order('created_at', { ascending: false })
         .limit(DB_VERSION_LIMIT)
 
-      query =
-        channel === 'canary'
-          ? query.in('status', ['canary', 'released'])
-          : query.eq('status', 'released')
+      if (channel === 'canary') {
+        query = query.in('status', ['canary', 'released'])
+      } else if (channel === 'public') {
+        query = query.or('status.eq.released,and(status.eq.canary,public_rollout.eq.true)')
+      } else {
+        query = query.eq('status', 'released')
+      }
 
       const { data, error } = await query
       if (!error && Array.isArray(data) && data.length > 0) {
