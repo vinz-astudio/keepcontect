@@ -480,7 +480,35 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
           <span>{showDiagnostics ? '▼' : '▶'}</span>
         </button>
         {showDiagnostics && (
-          <div style={{ marginTop: '14px', borderTop: '1px dashed var(--line)', paddingTop: '12px' }}>
+          <div style={{ marginTop: '14px', borderTop: '1px dashed var(--line)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)', padding: '12px', borderRadius: 'var(--r-sm)' }}>
+              <h4 style={{ margin: '0 0 6px 0', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                {lang === 'zh' ? '🔄 体验与引导调试' : '🔄 Onboarding Debugging'}
+              </h4>
+              <p className="muted" style={{ fontSize: '0.78rem', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+                {lang === 'zh'
+                  ? '点击下方按钮将重置本地浏览器中的「引导完成标记」，这会使 App 重新加载并进入新人打开 App 时的强制设置向导。该操作绝不会删除你的 Supabase 数据库记录或已累积的历史信号数据。'
+                  : 'Clicking below resets the "onboarding completed flag" in local storage. This reloads the page and launches the setup wizard. No database records or local signal history will be deleted.'}
+              </p>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('kc.onboardingCompleted')
+                  window.location.reload()
+                }}
+                style={{
+                  background: 'var(--warn-soft)',
+                  color: 'var(--warn)',
+                  border: '1px solid var(--warn)',
+                  padding: '6px 12px',
+                  borderRadius: 'var(--r-sm)',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                {lang === 'zh' ? '🔄 重新开启新人引导向导' : '🔄 Replay Onboarding Wizard'}
+              </button>
+            </div>
             <ViewportDiagnosticsCard />
           </div>
         )}
