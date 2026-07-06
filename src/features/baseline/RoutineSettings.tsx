@@ -14,6 +14,7 @@ import {
 import { useI18n } from '@/lib/i18n'
 import type { Sensitivity } from '@/features/baseline/types'
 import { getRoutineProfile, updateRoutineProfile } from '@/features/profile/profileApi'
+import { getRoutineModeOptions, getRoutineModeSummary } from '@/features/baseline/routineModeCopy'
 import { toast } from '@/lib/toast'
 import './LivenessCard.css'
 
@@ -33,7 +34,7 @@ export function RoutineSettings() {
   const [consentDataSharing, setConsentDataSharing] = useState(false)
   const [statusKey, setStatusKey] = useState(0)
 
-  const { statusLine, basisInner, scheduleInner } = useRoutineInsights(statusKey)
+  const { statusLine, basisInner, scheduleInner, serverLastBehaviorAt } = useRoutineInsights(statusKey)
 
   useEffect(() => {
     void getSleepWindow()
@@ -147,12 +148,9 @@ export function RoutineSettings() {
         <div className="liveness__rowlabel routine-mode__label">
           {lang === 'zh' ? '作息模式' : 'Routine Mode'}
         </div>
+        <p className="routine-mode__summary">{getRoutineModeSummary(lang)}</p>
         <div className="routine-mode__list">
-          {[
-            { value: 'regular_9to5', label: lang === 'zh' ? '常规朝九晚五作息' : 'Regular 9-to-5' },
-            { value: 'semester_break', label: lang === 'zh' ? '学期与假期交替作息' : 'Semester & Break' },
-            { value: 'shift_irregular', label: lang === 'zh' ? '弹性/轮班不规律作息' : 'Flexible / Shift' },
-          ].map((item) => {
+          {getRoutineModeOptions(lang).map((item) => {
             const isActive = routinePattern === item.value
             return (
               <button
@@ -168,7 +166,10 @@ export function RoutineSettings() {
                   }
                 }}
               >
-                <span>{item.label}</span>
+                <span className="routine-mode__copy">
+                  <span>{item.label}</span>
+                  <small>{item.description}</small>
+                </span>
                 {isActive && <span className="routine-mode__check">✓</span>}
               </button>
             )
@@ -209,7 +210,11 @@ export function RoutineSettings() {
       {/* 短期组:守护活跃度 + 判断依据 + 灵敏度,合成一个 block */}
       <div className="routine-grid__col1">
         <section className="card psig__short">
-          <ActiveStatusBox statusLine={statusLine} />
+          <ActiveStatusBox
+            statusLine={statusLine}
+            serverLastAt={serverLastBehaviorAt}
+            serverTruthRequired
+          />
           {basisInner}
           {sensitivityRow}
         </section>

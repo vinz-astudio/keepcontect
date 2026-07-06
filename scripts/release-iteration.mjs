@@ -14,8 +14,11 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const run = (cmd, opts = {}) =>
   execSync(cmd, { stdio: 'inherit', cwd: root, ...opts })
 
-// Inject signing private key for Tauri updater
-process.env.TAURI_SIGNING_PRIVATE_KEY = process.env.TAURI_SIGNING_PRIVATE_KEY || 'dW50cnVzdGVkIGNvbW1lbnQ6IHJzaWduIGVuY3J5cHRlZCBzZWNyZXQga2V5ClJXUlRZMEl5TXJ6aGFwQ2FjZzBoK1RGNDcvdGVOSzVselFMMytTSjdUQUkrcnUyKzFFTUFBQkFBQUFBQUFBQUFBQUlBQUFBQUxVRnQwL2tFWFZJV3YwbXlRcWJDaTBjOUxPNmRsV3JOeEIrVkpHV2ZSSjFsQXlwUXRSVFcvMU1tV21lQzBpWnZvRlI0Zi9HTnlZK3R3VXlrdE9LZzl3RnBGdUs5N2YvUUxyN1pBdklWdnFmQW5BbTZueFM3M3RSZmNpdXAwSHdPdklGVkQ4UENkMUk9Cg=='
+function requireTauriSigningKey() {
+  if (!process.env.TAURI_SIGNING_PRIVATE_KEY) {
+    throw new Error('TAURI_SIGNING_PRIVATE_KEY is required for Tauri desktop release. Set it in local env or a secret manager.')
+  }
+}
 
 const arg = process.argv[2]
 if (!arg) {
@@ -131,6 +134,7 @@ try {
 
 if (hasCargo) {
   try {
+    requireTauriSigningKey()
     run('npm run tauri build')
 
     const desktopDir = join(root, 'public/desktop')

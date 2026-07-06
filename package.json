@@ -10,6 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
+    "local:gate": "node scripts/local-gate.mjs",
+    "local:gate:static": "node scripts/local-gate.mjs --static-only",
     "cap:sync": "cap sync",
     "release:android": "node scripts/release-android.mjs",
     "release": "node scripts/release.mjs",

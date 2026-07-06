@@ -14,8 +14,6 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "PassivePing")
 public class PassivePingPlugin extends Plugin {
-    // Charger events use a runtime receiver; unlock detection was removed (it only
-    // worked while the process was alive) and replaced by AppActivityService.
     private BroadcastReceiver chargingReceiver;
 
     @PluginMethod
@@ -23,15 +21,21 @@ public class PassivePingPlugin extends Plugin {
         String supabaseUrl = call.getString("supabaseUrl");
         String token = call.getString("token");
         Boolean allowChargingValue = call.getBoolean("allowCharging");
-        Boolean allowAppActivityValue = call.getBoolean("allowAppActivity");
+        Boolean allowUsageStatsValue = call.getBoolean("allowUsageStats");
+        Boolean allowActivityRecognitionValue = call.getBoolean("allowActivityRecognition");
+
         boolean allowCharging = allowChargingValue != null && allowChargingValue;
-        boolean allowAppActivity = allowAppActivityValue != null && allowAppActivityValue;
+        boolean allowUsageStats = allowUsageStatsValue != null && allowUsageStatsValue;
+        boolean allowActivityRecognition = allowActivityRecognitionValue != null && allowActivityRecognitionValue;
+
         if (supabaseUrl == null || token == null || token.length() == 0) {
             call.reject("supabaseUrl and token are required");
             return;
         }
-        PassivePing.configure(getContext(), supabaseUrl, token, allowCharging, allowAppActivity);
+
+        PassivePing.configure(getContext(), supabaseUrl, token, allowCharging, allowUsageStats, allowActivityRecognition);
         refreshEventReceiver();
+
         // Logged in + configured -> keep the background notification poll alive.
         NotifyWorker.schedule(getContext());
         call.resolve(new JSObject());
@@ -45,8 +49,7 @@ public class PassivePingPlugin extends Plugin {
         call.resolve(new JSObject());
     }
 
-    /** Android 13+ runtime request for POST_NOTIFICATIONS. The WebView's
-     *  Notification.requestPermission does not exist, so the web layer calls this. */
+    /** Android 13+ runtime request for POST_NOTIFICATIONS. */
     @PluginMethod
     public void requestNotificationPermission(PluginCall call) {
         if (android.os.Build.VERSION.SDK_INT >= 33) {
@@ -68,18 +71,49 @@ public class PassivePingPlugin extends Plugin {
         call.resolve(new JSObject());
     }
 
-    /** Deep-link the user to the system Accessibility settings to enable AppActivityService. */
+    // —— Usage Stats Permission Bridge ——
+
     @PluginMethod
-    public void openAccessibilitySettings(PluginCall call) {
-        Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+    public void isUsageStatsEnabled(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("enabled", PassivePing.isUsageAccessGranted(getContext()));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void openUsageStatsSettings(PluginCall call) {
+        Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         getContext().startActivity(intent);
         call.resolve(new JSObject());
     }
 
+    // —— Activity Recognition Permission Bridge ——
+
+    @PluginMethod
+    public void isActivityRecognitionEnabled(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("enabled", PassivePing.isActivityRecognitionGranted(getContext()));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestActivityRecognitionPermission(PluginCall call) {
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            android.app.Activity activity = getActivity();
+            if (activity != null &&
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    getContext(), "android.permission.ACTIVITY_RECOGNITION")
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    activity, new String[] { "android.permission.ACTIVITY_RECOGNITION" }, 9020);
+            }
+        }
+        call.resolve(new JSObject());
+    }
+
     /** Best-effort deep link to the OEM autostart whitelist (MIUI/HyperOS), falling back
-     *  to the app-details page. Chinese ROMs kill background services (including
-     *  accessibility) unless the app is whitelisted for autostart. */
+     *  to the app-details page. */
     @PluginMethod
     public void openAutostartSettings(PluginCall call) {
         Context context = getContext();
@@ -99,62 +133,42 @@ public class PassivePingPlugin extends Plugin {
         call.resolve(new JSObject());
     }
 
-    /** Report whether our AppActivityService is currently enabled in system settings. */
-    @PluginMethod
-    public void isAccessibilityEnabled(PluginCall call) {
-        JSObject ret = new JSObject();
-        ret.put("enabled", isAccessibilityServiceEnabled());
-        call.resolve(ret);
-    }
-
-    /** Fetch the device's FCM registration token (empty string when Google
-     *  services are unavailable — e.g. GMS-less Chinese ROMs — or Firebase is
-     *  not configured). The web layer uploads it via the register_fcm_token RPC. */
-    @PluginMethod
-    public void getFcmToken(PluginCall call) {
-        try {
-            com.google.firebase.messaging.FirebaseMessaging.getInstance()
-                .getToken()
-                .addOnCompleteListener(task -> {
-                    JSObject ret = new JSObject();
-                    ret.put("token",
-                        task.isSuccessful() && task.getResult() != null ? task.getResult() : "");
-                    call.resolve(ret);
-                });
-        } catch (Exception e) {
-            JSObject ret = new JSObject();
-            ret.put("token", "");
-            call.resolve(ret);
-        }
-    }
-
-    /** Guard liveness: settings toggle + real bind/event/ping timestamps, so the UI
-     *  can tell "enabled and running" apart from "toggle on but service dead"
-     *  (a known HyperOS/MIUI failure mode). */
+    /** Guard liveness: returns status of permissions and foreground service liveness. */
     @PluginMethod
     public void getGuardStatus(PluginCall call) {
         Context context = getContext();
         JSObject ret = new JSObject();
-        ret.put("enabled", isAccessibilityServiceEnabled());
-        ret.put("connectedAt", PassivePing.guardConnectedAt(context));
-        ret.put("lastEventAt", PassivePing.guardLastEventAt(context));
+        boolean usageGranted = PassivePing.isUsageAccessGranted(context);
+        boolean activityGranted = PassivePing.isActivityRecognitionGranted(context);
+        boolean serviceActive = PassivePing.serviceConnectedAt(context) > 0;
+
+        ret.put("enabled", serviceActive);
+        ret.put("connectedAt", PassivePing.serviceConnectedAt(context));
+        // Use the last queryable active event time from UsageStats as the lastEventAt
+        ret.put("lastEventAt", PassivePing.queryLastActiveTime(context));
         ret.put("lastPingAt", PassivePing.lastPingAt(context));
+        ret.put("usageGranted", usageGranted);
+        ret.put("activityGranted", activityGranted);
         call.resolve(ret);
     }
 
-    private boolean isAccessibilityServiceEnabled() {
-        String enabled = Settings.Secure.getString(
-            getContext().getContentResolver(),
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        if (enabled == null || enabled.isEmpty()) return false;
-        String pkg = getContext().getPackageName();
-        return enabled.contains(pkg + "/" + AppActivityService.class.getName())
-            || enabled.contains(pkg + "/.AppActivityService");
+    // Keep legacy Accessibility methods as no-ops to avoid breaking old code if referenced
+    @PluginMethod
+    public void openAccessibilitySettings(PluginCall call) {
+        call.resolve(new JSObject());
+    }
+
+    @PluginMethod
+    public void isAccessibilityEnabled(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("enabled", false);
+        call.resolve(ret);
     }
 
     @Override
     protected void handleOnResume() {
         refreshEventReceiver();
+        PassivePing.updateBackgroundServices(getContext());
         PassivePing.pingApp(getContext());
     }
 
@@ -198,7 +212,7 @@ public class PassivePingPlugin extends Plugin {
         try {
             getContext().unregisterReceiver(receiver);
         } catch (IllegalArgumentException ignored) {
-            // Receiver was already gone with the Activity context.
+            // Already unregistered
         }
         return null;
     }

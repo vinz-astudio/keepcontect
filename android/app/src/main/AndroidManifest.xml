@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -43,9 +45,7 @@
         </provider>
 
         <!-- Charger connect/disconnect: exempt broadcasts, so a manifest receiver
-             still gets them while the app is backgrounded. (USER_PRESENT was removed:
-             Android 8+ won't deliver it to manifest receivers, and it only worked via
-             a runtime receiver while the process was alive — see AppActivityService.) -->
+             still gets them while the app is backgrounded. -->
         <receiver
             android:name=".PassivePingReceiver"
             android:enabled="true"
@@ -57,7 +57,7 @@
         </receiver>
 
         <!-- FCM fast path: receives data-only wake tickles and triggers an immediate
-             notify-feed poll (content never transits Google; see ADR-0004). -->
+             notify-feed poll. -->
         <service
             android:name=".KcFcmService"
             android:exported="false">
@@ -66,28 +66,36 @@
             </intent-filter>
         </service>
 
-        <!-- Reliable background liveness: an AccessibilityService keeps running after
-             the app process is killed and restarts on boot. It only reads the
-             foreground package name on window-state changes and fires a content-free
-             heartbeat; it never reads window content (see accessibility_service_config). -->
+        <!-- Emergency monitoring Foreground Service (Play Store compliant) -->
         <service
-            android:name=".AppActivityService"
+            android:name=".KcForegroundService"
+            android:enabled="true"
             android:exported="false"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Emergency and personal safety monitoring for lone dwellers" />
         </service>
+
+        <!-- GMS Activity Recognition Broadcast Receiver -->
+        <receiver
+            android:name=".ActivityTransitionReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.keepcontact.app.ACTION_PROCESS_ACTIVITY_TRANSITIONS" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Android 13+: without declaring this, the app's notification toggle in
-         system settings is greyed out and nothing can ever be posted. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Passive sensing and background survival permissions -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 </manifest>

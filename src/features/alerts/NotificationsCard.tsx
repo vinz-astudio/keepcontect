@@ -26,8 +26,12 @@ import {
   sendTestUnlock,
   type PushStatus,
 } from '@/features/push/pushApi'
+import { getPushPromptPlacement } from '@/features/push/pushPrompt'
 import { launchUpdate, PRODUCTION_UPDATE_URLS } from '@/features/update/launchUpdate'
 import { fetchLatest } from '@/features/update/versionCheck'
+import { renderNotificationCopy } from '@/features/alerts/notificationCopy'
+import { buildNotificationFeed } from '@/features/alerts/notificationFeed'
+import { getPlatform, isStandalone } from '@/lib/platform'
 import './NotificationsCard.css'
 
 interface ResponderItem {
@@ -39,34 +43,14 @@ interface ResponderItem {
   clients: ClientDevice[]
 }
 
-const NOTIF_KINDS = new Set([
-  'self',
-  'group',
-  'community',
-  'terminal',
-  'sos',
-  'on_it',
-  'resolved',
-  'task_invite',
-  'task_due',
-  'task_missed',
-  'task_accepted',
-  'task_declined',
-  'test',
-  'concern',
-  'update',
-])
+const PUSH_PROMPT_DISMISSED_KEY = 'kc.pushPrompt.dismissed'
 
-/** 优先按 kind+params 本地化渲染；旧数据/未知 kind 回退 body */
-function renderNotif(n: AppNotification): string {
-  if (!NOTIF_KINDS.has(n.kind)) return n.body
-  const params = (n.params ?? {}) as Record<string, string>
-  const fill = (v: string | undefined) => v || translate('notif.someone')
-  return translate(`notif.${n.kind}` as I18nKey, {
-    name: fill(params.name),
-    actor: fill(params.actor),
-    target: fill(params.target),
-  })
+function readPushPromptDismissed(): boolean {
+  try {
+    return window.localStorage.getItem(PUSH_PROMPT_DISMISSED_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 function ago(iso: string): string {
@@ -93,6 +77,7 @@ export function NotificationsCard({
   const [testMsg, setTestMsg] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [showTools, setShowTools] = useState(false)
+  const [pushPromptDismissed, setPushPromptDismissed] = useState(readPushPromptDismissed)
 
   useEffect(() => {
     void getPushStatus().then(setPushStatus)
@@ -177,20 +162,25 @@ export function NotificationsCard({
   const unread = notifs.filter((n) => !n.read_at).length
 
   // 默认以"成员的情况"通知为主；与自己账户相关的只在展开时显示
-  const SELF_KINDS = new Set([
-    'self',
-    'task_invite',
-    'task_due',
-    'task_updated',
-    'test',
-    'concern',
-  ])
-  const memberNotifs = notifs.filter((n) => !SELF_KINDS.has(n.kind))
   const FEED_CAP = 3
-  const shown = expanded ? notifs : memberNotifs.slice(0, FEED_CAP)
-  const hasMore =
-    !expanded &&
-    (memberNotifs.length > FEED_CAP || notifs.length > memberNotifs.length)
+  const feed = buildNotificationFeed(notifs, { expanded, feedCap: FEED_CAP })
+  const shown = feed.items
+  const hasMore = feed.hasMore
+  const byId = new Map(notifs.map((n) => [n.id, n]))
+  const platform = getPlatform()
+  const standalone = isStandalone()
+  const pushPrompt = getPushPromptPlacement({
+    status: pushStatus,
+    platform,
+    standalone,
+    dismissed: pushPromptDismissed,
+  })
+  const pushDesc =
+    platform === 'ios' && !standalone
+      ? t('push.desc.iosInstall')
+      : platform === 'android'
+        ? t('push.desc.android')
+        : t('push.desc')
 
   return (
     <section className="card">
@@ -213,18 +203,32 @@ export function NotificationsCard({
 
       {error && <p className="home__error">{error}</p>}
 
-      {pushStatus === 'need_permission' && (
+      {pushPrompt.home && (
         <div className="pushbar">
-          <p className="muted">{t('push.desc')}</p>
-          <button
-            className="pushbar__btn"
-            onClick={() => void enablePush().then(setPushStatus)}
-          >
-            {t('push.enable')}
-          </button>
+          <p className="muted">{pushDesc}</p>
+          <div className="pushbar__btns">
+            <button
+              className="pushbar__btn"
+              onClick={() => void enablePush().then(setPushStatus)}
+            >
+              {t('push.enable')}
+            </button>
+            <button
+              className="pushbar__dismiss"
+              onClick={() => {
+                setPushPromptDismissed(true)
+                try {
+                  window.localStorage.setItem(PUSH_PROMPT_DISMISSED_KEY, '1')
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              {t('push.dismiss')}
+            </button>
+          </div>
         </div>
       )}
-      {pushStatus === 'denied' && <p className="muted">{t('push.denied')}</p>}
 
       {pushStatus === 'subscribed' && (
         <>
@@ -451,20 +455,33 @@ export function NotificationsCard({
         <p className="muted">{t('notif.noMember')}</p>
       ) : (
         <ul className="nfeed">
-          {shown.map((n) => (
+          {shown.map((item) => {
+            const n = item.notification
+            const unreadItem = item.ids.some((id) => !byId.get(id)?.read_at)
+            return (
             <li
               key={n.id}
-              className={`nfeed__item${n.read_at ? '' : ' is-unread'}${
+              className={`nfeed__item${unreadItem ? ' is-unread' : ''}${
                 n.kind === 'sos' ? ' nfeed__item--sos' : ''
               }`}
             >
               <div
                 className="nfeed__main"
                 onClick={() => {
-                  if (!n.read_at) void markNotificationRead(n.id).then(refresh)
+                  const unreadIds = item.ids.filter((id) => !byId.get(id)?.read_at)
+                  if (unreadIds.length > 0) {
+                    void Promise.all(unreadIds.map((id) => markNotificationRead(id))).then(refresh)
+                  }
                 }}
               >
-                <span className="nfeed__body">{renderNotif(n)}</span>
+                <span className="nfeed__body">
+                  {renderNotificationCopy(n, {
+                    userId: user?.id,
+                    displayName: user?.user_metadata?.display_name as string | undefined,
+                    email: user?.email,
+                  })}
+                  {item.count > 1 && <span className="nfeed__count">x{item.count}</span>}
+                </span>
                 {n.kind === 'update' && (
                   <div className="nfeed__update-action">
                     <button
@@ -494,12 +511,13 @@ export function NotificationsCard({
                 className="nfeed__del"
                 aria-label={t('notif.delete')}
                 disabled={busy}
-                onClick={() => act(() => deleteNotification(n.id))}
+                onClick={() => act(() => Promise.all(item.ids.map((id) => deleteNotification(id))))}
               >
                 ✕
               </button>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
 

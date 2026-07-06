@@ -80,6 +80,17 @@ public class NotifyWorker extends Worker {
     public Result doWork() {
         Context context = getApplicationContext();
         if (!PassivePing.isConfigured(context)) return Result.success();
+
+        // UsageStats passive ping backfill check
+        if (PassivePing.isUsageStatsAllowed(context) && PassivePing.isUsageAccessGranted(context)) {
+            long lastActive = PassivePing.queryLastActiveTime(context);
+            long lastPing = PassivePing.lastPingAt(context);
+            if (lastActive > lastPing) {
+                android.util.Log.d(TAG, "NotifyWorker observed new user activity via UsageStats: " + lastActive + ". Triggering ping.");
+                PassivePing.ping(context);
+            }
+        }
+
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             return Result.success();
         }
@@ -192,6 +203,12 @@ public class NotifyWorker extends Worker {
                 ? fallback
                 : (isZh() ? "有新的守护提醒，请打开 App 查看。" : "New care alert — open the app.");
         }
+        boolean targetIsRecipient =
+            params != null && "true".equals(String.valueOf(params.opt("target_is_recipient")));
+        if (targetIsRecipient && ("on_it".equals(kind) || "resolved".equals(kind))) {
+            kind = kind + "_you";
+            tpl = dict.get(kind);
+        }
         String someone = isZh() ? "某位成员" : "A member";
         String name = params != null ? params.optString("name", someone) : someone;
         String actor = params != null ? params.optString("actor", someone) : someone;
@@ -208,7 +225,9 @@ public class NotifyWorker extends Worker {
         d.put("community", "社区警示：{name} 长时间失联且其小组无人响应，请协助推动联系。");
         d.put("terminal", "紧急：{name} 持续无响应。已为你解锁其地址与紧急联系人，请上门探视或协助报警。");
         d.put("on_it", "{actor} 正在跟进 {target} 的情况。");
+        d.put("on_it_you", "{actor} 正在跟进你的情况。");
         d.put("resolved", "{target} 已确认安全，告警解除。");
+        d.put("resolved_you", "你已确认安全，告警解除。");
         d.put("task_invite", "{name} 为你设置了报平安任务，请打开 App 确认是否接受。");
         d.put("task_due", "到点报平安啦，点开 App 完成确认。");
         d.put("task_missed", "{name} 未完成定时报平安，请关注。");
@@ -227,7 +246,9 @@ public class NotifyWorker extends Worker {
         d.put("community", "Community alert: {name} is unreachable and their group has not responded.");
         d.put("terminal", "URGENT: {name} is unresponsive. Their address and emergency contact are unlocked for you.");
         d.put("on_it", "{actor} is following up on {target}.");
+        d.put("on_it_you", "{actor} is following up on you.");
         d.put("resolved", "{target} is confirmed safe. Alert resolved.");
+        d.put("resolved_you", "You are confirmed safe. Alert resolved.");
         d.put("task_invite", "{name} set up a check-in task for you. Open the app to accept or decline.");
         d.put("task_due", "Time to check in — open the app to confirm.");
         d.put("task_missed", "{name} missed a scheduled check-in. Please look in on them.");

@@ -85,6 +85,31 @@ function pemToDer(pem: string): Uint8Array {
 // avoids one OAuth round-trip per cron tick most of the time.
 let cachedFcmToken: { token: string; expiresAt: number } | null = null
 
+function normalizeName(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+}
+
+function paramsWithRecipientMark(
+  params: unknown,
+  recipientId: string,
+  recipientName?: string | null,
+): Record<string, unknown> {
+  const p =
+    params && typeof params === 'object' && !Array.isArray(params)
+      ? { ...(params as Record<string, unknown>) }
+      : {}
+  const targetId = String(p.target_id ?? p.targetId ?? p.user_id ?? p.userId ?? '')
+  const targetName = normalizeName(p.target)
+  const nameMatches =
+    targetName.length > 0 && targetName === normalizeName(recipientName)
+  p.target_is_recipient =
+    p.target_is_recipient === true ||
+    p.target_is_recipient === 'true' ||
+    (targetId.length > 0 && targetId === recipientId) ||
+    nameMatches
+  return p
+}
+
 async function fcmAccessToken(sa: ServiceAccount): Promise<string | null> {
   if (cachedFcmToken && Date.now() < cachedFcmToken.expiresAt - 60_000) {
     return cachedFcmToken.token
@@ -197,6 +222,13 @@ Deno.serve(async () => {
 
   // 收件人 → 订阅
   const recipientIds = [...new Set(pending.map((n) => n.recipient_id))]
+  const { data: recipientProfiles } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .in('id', recipientIds)
+  const recipientNameByUser = new Map(
+    (recipientProfiles ?? []).map((p) => [p.id, p.display_name as string | null]),
+  )
   const { data: subs } = await supabase
     .from('push_subscriptions')
     .select('id, user_id, endpoint, p256dh, auth')
@@ -226,7 +258,11 @@ Deno.serve(async () => {
     // payload 给 SW：kind+params 供本地化渲染，body 作兜底，badge 更新角标
     const payload = JSON.stringify({
       kind: n.kind,
-      params: n.params ?? {},
+      params: paramsWithRecipientMark(
+        n.params,
+        n.recipient_id,
+        recipientNameByUser.get(n.recipient_id),
+      ),
       body: n.body,
       alertId: n.alert_id,
       badge: badgeByUser.get(n.recipient_id) ?? 0,

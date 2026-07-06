@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { APP_VERSION, LATEST_URL } from '@/lib/version'
 import { translate } from '@/lib/i18n'
+import { supabase } from '@/lib/supabase'
 
 export interface LatestInfo {
   version: string
@@ -29,6 +30,30 @@ export function isNewer(latest: string, current: string): boolean {
 }
 
 export async function fetchLatest(): Promise<LatestInfo | null> {
+  // 1. Try querying Supabase app_versions if user is authenticated
+  try {
+    const { data: u } = await supabase.auth.getUser()
+    if (u?.user) {
+      const { data, error } = await (supabase as any)
+        .from('app_versions')
+        .select('version, apk_url, exe_url')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (!error && data) {
+        return {
+          version: (data as any).version,
+          apkUrl: (data as any).apk_url || undefined,
+          exeUrl: (data as any).exe_url || undefined,
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch latest version from Supabase:', err)
+  }
+
+  // 2. Fallback to static Vercel JSON
   try {
     const r = await fetch(LATEST_URL, { cache: 'no-store' })
     if (!r.ok) return null

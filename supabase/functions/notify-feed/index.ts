@@ -11,6 +11,31 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 )
 
+function normalizeName(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+}
+
+function paramsWithRecipientMark(
+  params: unknown,
+  recipientId: string,
+  recipientName?: string | null,
+): Record<string, unknown> {
+  const p =
+    params && typeof params === 'object' && !Array.isArray(params)
+      ? { ...(params as Record<string, unknown>) }
+      : {}
+  const targetId = String(p.target_id ?? p.targetId ?? p.user_id ?? p.userId ?? '')
+  const targetName = normalizeName(p.target)
+  const nameMatches =
+    targetName.length > 0 && targetName === normalizeName(recipientName)
+  p.target_is_recipient =
+    p.target_is_recipient === true ||
+    p.target_is_recipient === 'true' ||
+    (targetId.length > 0 && targetId === recipientId) ||
+    nameMatches
+  return p
+}
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -97,5 +122,16 @@ Deno.serve(async (req) => {
     return json({ ok: false, reason: 'query failed' }, 500)
   }
 
-  return json({ ok: true, notifications: notifications ?? [] })
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', uid)
+    .maybeSingle()
+
+  const marked = (notifications ?? []).map((n) => ({
+    ...n,
+    params: paramsWithRecipientMark(n.params, uid, profile?.display_name ?? null),
+  }))
+
+  return json({ ok: true, notifications: marked })
 })

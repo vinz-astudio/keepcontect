@@ -6,6 +6,7 @@ import {
 } from '@/features/passive/api'
 import { getAllSignals } from '@/features/signals/store'
 import { translate, useI18n } from '@/lib/i18n'
+import { chooseLastActivityTruth } from '@/features/passive/activeStatusDisplay'
 import './PassiveSignalCard.css'
 
 function ago(iso: string): string {
@@ -21,7 +22,15 @@ function ago(iso: string): string {
  * 现搬到「作息」页短期组顶部——这是最贴近当下、用户最关心的一块。
  * 数据全在端上由本地 signals 计算，绝不上传，与「判断完全线下」一致。
  */
-export function ActiveStatusBox({ statusLine }: { statusLine?: ReactNode } = {}) {
+export function ActiveStatusBox({
+  statusLine,
+  serverLastAt,
+  serverTruthRequired = false,
+}: {
+  statusLine?: ReactNode
+  serverLastAt?: string | null
+  serverTruthRequired?: boolean
+} = {}) {
   const { t, lang } = useI18n()
   const [todayCount, setTodayCount] = useState(0)
   const [lastAt, setLastAt] = useState<string | null>(null)
@@ -50,6 +59,12 @@ export function ActiveStatusBox({ statusLine }: { statusLine?: ReactNode } = {})
     const timer = setInterval(() => void load(), 30000)
     return () => clearInterval(timer)
   }, [load])
+
+  const lastActivity = chooseLastActivityTruth({
+    serverLastAt,
+    localLastAt: lastAt,
+    serverTruthRequired,
+  })
 
   return (
     <div className="psig__status-box" style={{ margin: 0 }}>
@@ -80,7 +95,7 @@ export function ActiveStatusBox({ statusLine }: { statusLine?: ReactNode } = {})
             {lang === 'zh' ? '最近活跃时间' : 'Last Active'}
           </span>
           <span className="psig__status-value psig__status-value--time">
-            {lastAt ? t('passive.last', { ago: ago(lastAt) }) : t('passive.never')}
+            {lastActivity.iso ? ago(lastActivity.iso) : t('passive.never')}
           </span>
         </div>
       </div>

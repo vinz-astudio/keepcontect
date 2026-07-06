@@ -45,6 +45,17 @@
   cursor: default;
 }
 
+.pushbar__dismiss {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
 .notif-tools-toggle {
   flex: 0 0 auto;
   width: fit-content;
@@ -289,6 +300,19 @@
 .nfeed__body {
   font-size: 0.88rem;
   line-height: 1.4;
+}
+
+.nfeed__count {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.45rem;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
 }
 
 .nfeed__time {

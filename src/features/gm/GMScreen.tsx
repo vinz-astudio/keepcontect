@@ -4,8 +4,12 @@ import {
   gmNudgeUpdate,
   gmSendConcern,
   gmDeleteAccount,
+  gmGetLatestVersion,
+  gmReleaseVersion,
   type GmClient,
+  type DbVersionInfo,
 } from '@/features/gm/gmApi'
+import { ViewportDiagnosticsCard } from '@/features/profile/ViewportDiagnosticsCard'
 import { subscribeGmStatusSignals } from '@/features/alerts/realtime'
 import { translate, useI18n } from '@/lib/i18n'
 import { toast } from '@/lib/toast'
@@ -163,10 +167,22 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
   const [onlyOutdated, setOnlyOutdated] = useState(false)
   const [sortBy, setSortBy] = useState<'name' | 'seen' | 'version'>('name')
   const [bulkNudgeBusy, setBulkNudgeBusy] = useState(false)
+  
+  const [dbVersion, setDbVersion] = useState<DbVersionInfo | null>(null)
+  const [releaseBusy, setReleaseBusy] = useState(false)
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
     try {
+      // Query latest version rollout info
+      try {
+        const ver = await gmGetLatestVersion()
+        setDbVersion(ver)
+      } catch (e) {
+        console.warn('Failed to load version info from database:', e)
+      }
+
       const list = await gmListClients()
       const map = new Map<string, UserRow>()
       for (const c of list) {
@@ -300,6 +316,27 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     }
   }
 
+  const handleReleaseVersion = async () => {
+    if (!dbVersion) return
+    const ok = window.confirm(
+      lang === 'zh'
+        ? `确认要发布版本 ${dbVersion.version} 给所有用户吗？这会启动所有被守护者端的更新通知。`
+        : `Are you sure you want to release version ${dbVersion.version} to all users? This will trigger update notifications on recipients' devices.`
+    )
+    if (!ok) return
+    setReleaseBusy(true)
+    try {
+      await gmReleaseVersion(dbVersion.version)
+      toast(lang === 'zh' ? '新版本发布成功！' : 'New version released successfully!', 'ok')
+      await load()
+    } catch (err) {
+      console.error('Failed to release version:', err)
+      toast(lang === 'zh' ? '发布失败' : 'Failed to release version', 'danger')
+    } finally {
+      setReleaseBusy(false)
+    }
+  }
+
   // 1. Filter
   const filtered = rows.filter((r) => {
     const matchSearch =
@@ -369,7 +406,86 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
         {t('gm.title')}
       </h2>
       <p className="muted">{t('gm.desc')}</p>
-      
+
+      {/* 1. Canary Version Release Control Panel */}
+      <div style={{ background: 'var(--bg-soft)', border: '1px solid var(--line-strong)', borderRadius: 'var(--r-md)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h3 style={{ margin: 0, fontSize: '0.98rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          📦 {lang === 'zh' ? '客户端版本管理 (灰度发布控制)' : 'App Version Management (Canary Control)'}
+        </h3>
+        <p className="muted" style={{ fontSize: '0.82rem', margin: 0, lineHeight: '1.4' }}>
+          {lang === 'zh'
+            ? '新版本发布后，状态默认为「内测 (Canary)」，此时仅守护者能检测并升级体验。确认稳定后，可在此一键发布给所有普通用户。'
+            : 'New updates start as "Canary" and are only visible to GMs. Once verified stable, release it here to notify all general recipients.'}
+        </p>
+        {dbVersion ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: 'rgba(0,0,0,0.15)', padding: '10px 14px', borderRadius: 'var(--r-sm)', fontSize: '0.85rem' }}>
+            <div>
+              <span style={{ fontWeight: 'bold', marginRight: '8px' }}>{lang === 'zh' ? '最新版本:' : 'Latest Version:'}</span>
+              <strong style={{ color: 'var(--accent)' }}>v{dbVersion.version}</strong>
+              <span style={{ margin: '0 12px', color: 'var(--line-strong)' }}>|</span>
+              <span style={{ fontWeight: 'bold', marginRight: '8px' }}>{lang === 'zh' ? '当前状态:' : 'Rollout Status:'}</span>
+              <strong style={{ color: dbVersion.status === 'canary' ? 'var(--warn)' : 'var(--ok)' }}>
+                {dbVersion.status === 'canary'
+                  ? (lang === 'zh' ? 'Canary 内测中 (仅守护者可见)' : 'Canary (GMs only)')
+                  : (lang === 'zh' ? '已全量发布给所有用户' : 'Released to Public')}
+              </strong>
+            </div>
+            {dbVersion.status === 'canary' && (
+              <button
+                className="share"
+                disabled={releaseBusy}
+                onClick={() => void handleReleaseVersion()}
+                style={{ 
+                  background: 'var(--accent)', 
+                  color: 'white', 
+                  border: 'none', 
+                  padding: '6px 12px', 
+                  fontWeight: 'bold', 
+                  borderRadius: 'var(--r-sm)',
+                  cursor: 'pointer'
+                }}
+              >
+                {releaseBusy ? '...' : (lang === 'zh' ? '📥 全量发布此版本' : '📥 Release to Public')}
+              </button>
+            )}
+          </div>
+        ) : (
+          <p className="muted" style={{ fontSize: '0.82rem', fontStyle: 'italic' }}>
+            {lang === 'zh' ? '暂无数据库版本记录。将在检测到首个新版本时自动创建。' : 'No version records found in the database.'}
+          </p>
+        )}
+      </div>
+
+      {/* 2. Collapsible Layout Diagnostics Card */}
+      <div style={{ background: 'var(--bg-soft)', border: '1px solid var(--line-strong)', borderRadius: 'var(--r-md)', padding: '12px 16px' }}>
+        <button
+          onClick={() => setShowDiagnostics(!showDiagnostics)}
+          style={{
+            width: '100%',
+            background: 'none',
+            border: 'none',
+            color: 'var(--fg)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            padding: 0,
+            fontSize: '0.94rem',
+            fontWeight: '600'
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            🛠️ {lang === 'zh' ? '系统布局与诊断调试' : 'System Layout & Diagnostics'}
+          </span>
+          <span>{showDiagnostics ? '▼' : '▶'}</span>
+        </button>
+        {showDiagnostics && (
+          <div style={{ marginTop: '14px', borderTop: '1px dashed var(--line)', paddingTop: '12px' }}>
+            <ViewportDiagnosticsCard />
+          </div>
+        )}
+      </div>
+
       {/* Top action and filter bar */}
       <div className="gm__controls">
         <div className="gm__search-row">

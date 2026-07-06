@@ -147,6 +147,28 @@
   font-size: 1.05rem;
 }
 
+.profile__notice {
+  margin-top: 0.85rem;
+  padding: 0.7rem 0.8rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+
+.profile__notice strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.88rem;
+}
+
+.profile__notice p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+
 .home__header {
   display: flex;
   align-items: center;
@@ -165,10 +187,12 @@
   font-weight: 600;
   font-size: 1.15rem;
   letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .home__headerbtns {
   display: flex;
+  flex-shrink: 0;
   gap: 0.5rem;
 }
 
@@ -178,6 +202,19 @@
   color: var(--fg-muted);
   border-radius: 0.6rem;
   padding: 0.35rem 0.75rem;
+  cursor: pointer;
+}
+
+.profile__danger-action {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--danger);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
   cursor: pointer;
 }
 

@@ -8,7 +8,9 @@ const DICT = {
     community: '社区警示：{name} 长时间失联且其小组无人响应，请协助推动联系。',
     terminal: '紧急：{name} 持续无响应。已为你解锁其地址与紧急联系人，请上门探视或协助报警。',
     on_it: '{actor} 正在跟进 {target} 的情况。',
+    on_it_you: '{actor} 正在跟进你的情况。',
     resolved: '{target} 已确认安全，告警解除。',
+    resolved_you: '你已确认安全，告警解除。',
     task_invite: '{name} 为你设置了报平安任务，请打开 App 确认是否接受。',
     task_due: '到点报平安啦，点开 App 完成确认。',
     task_missed: '{name} 未完成定时报平安，请关注。',
@@ -26,7 +28,9 @@ const DICT = {
     community: 'Community alert: {name} is unreachable and their group has not responded.',
     terminal: 'URGENT: {name} is unresponsive. Their address and emergency contact are unlocked for you.',
     on_it: '{actor} is following up on {target}.',
+    on_it_you: '{actor} is following up on you.',
     resolved: '{target} is confirmed safe. Alert resolved.',
+    resolved_you: 'You are confirmed safe. Alert resolved.',
     task_invite: '{name} set up a check-in task for you. Open the app to accept or decline.',
     task_due: 'Time to check in — open the app to confirm.',
     task_missed: '{name} missed a scheduled check-in. Please look in on them.',
@@ -45,9 +49,13 @@ function render(data) {
     ? 'zh'
     : 'en'
   const d = DICT[lang]
-  const tpl = d[data.kind]
-  if (!tpl) return data.body || d.title
   const p = data.params || {}
+  const targetIsRecipient = p.target_is_recipient === true || p.target_is_recipient === 'true'
+  const key = targetIsRecipient && (data.kind === 'on_it' || data.kind === 'resolved')
+    ? data.kind + '_you'
+    : data.kind
+  const tpl = d[key]
+  if (!tpl) return data.body || d.title
   return tpl
     .replaceAll('{name}', p.name || d.someone)
     .replaceAll('{actor}', p.actor || d.someone)

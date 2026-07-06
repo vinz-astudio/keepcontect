@@ -3,6 +3,7 @@ import { toast } from '@/lib/toast'
 import { useI18n, LangToggle } from '@/lib/i18n'
 import { ThemeToggle } from '@/lib/theme'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { shouldShowSosHoldHint } from '@/features/nav/sosHold'
 import './TabBar.css'
 
 export type Tab = 'home' | 'routine' | 'circles' | 'profile' | 'gm'
@@ -108,7 +109,7 @@ export function TabBar({
   }
 
   function endHold() {
-    if (startedRef.current && !firedRef.current) {
+    if (shouldShowSosHoldHint({ started: startedRef.current, fired: firedRef.current })) {
       toast(t('sos.hold'), 'info') // 只是点了一下 → 提示需长按，防误触
     }
     startedRef.current = false

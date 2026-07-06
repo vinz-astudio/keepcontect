@@ -50,3 +50,32 @@ export async function gmDeleteAccount(target: string): Promise<void> {
   const { error } = await supabase.rpc('gm_delete_user', { _target: target })
   if (error) throw error
 }
+
+export interface DbVersionInfo {
+  version: string
+  apk_url: string | null
+  exe_url: string | null
+  status: 'canary' | 'released'
+  created_at: string
+}
+
+/** 获取最新的版本信息(GM-only, 能够看到所有包括 canary 的版本) */
+export async function gmGetLatestVersion(): Promise<DbVersionInfo | null> {
+  const { data, error } = await (supabase as any)
+    .from('app_versions')
+    .select('version, apk_url, exe_url, status, created_at')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data as DbVersionInfo | null
+}
+
+/** 全量发布某个内测版本给所有用户 */
+export async function gmReleaseVersion(version: string): Promise<void> {
+  const { error } = await (supabase as any)
+    .from('app_versions')
+    .update({ status: 'released' })
+    .eq('version', version)
+  if (error) throw error
+}

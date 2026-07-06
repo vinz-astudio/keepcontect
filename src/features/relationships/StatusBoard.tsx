@@ -10,6 +10,10 @@ import {
   type GroupActivity,
 } from '@/features/relationships/groupActivity'
 import { GroupBoard } from '@/features/relationships/GroupBoard'
+import {
+  getDefaultOpenStatusKeys,
+  statusGroupHasAlert,
+} from '@/features/relationships/statusBoardDisplay'
 import { onAlertChange } from '@/features/alerts/alertBus'
 import { subscribeGroupStatusSignals } from '@/features/alerts/realtime'
 import { translate, useI18n } from '@/lib/i18n'
@@ -68,11 +72,7 @@ export function StatusBoard() {
       setGroups(built)
       if (!defaultOpenApplied.current && built.length > 0) {
         defaultOpenApplied.current = true
-        const keys = new Set(built.map((g) => 'g:' + g.id))
-        for (const c of comms) {
-          if (built.some((g) => g.communityId === c.id)) keys.add('c:' + c.id)
-        }
-        setOpen(keys)
+        setOpen(getDefaultOpenStatusKeys(built, comms))
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : translate('err.load'))
@@ -134,8 +134,7 @@ export function StatusBoard() {
     }
   }
 
-  const groupAlerted = (g: GData) =>
-    g.act?.members.some((m) => m.alerted) ?? false
+  const groupAlerted = (g: GData) => statusGroupHasAlert(g)
 
   const attention: { uid: string; name: string; groupName: string }[] = []
   const seen = new Set<string>()

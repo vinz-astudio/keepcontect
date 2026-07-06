@@ -59,6 +59,8 @@ export interface RoutineInsightNodes {
   basisInner: ReactNode
   /** 长期:每周活跃节律(热力图 + 学习进度),不含卡片外壳 */
   scheduleInner: ReactNode
+  /** 跨设备活跃真相,用于 ActiveStatusBox 避免本地/服务器时间同屏打架 */
+  serverLastBehaviorAt: string | null
 }
 
 /**
@@ -378,5 +380,10 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
     </div>
   )
 
-  return { statusLine, basisInner, scheduleInner }
+  return {
+    statusLine,
+    basisInner,
+    scheduleInner,
+    serverLastBehaviorAt: serverStatus?.last_behavior_at ?? null,
+  }
 }

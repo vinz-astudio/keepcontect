@@ -418,6 +418,13 @@
   margin-bottom: 8px;
 }
 
+.routine-mode__summary {
+  margin: -2px 0 8px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+
 .routine-mode__list {
   display: flex;
   flex-direction: column;
@@ -449,6 +456,20 @@
   background: var(--bg);
   border-color: var(--accent-line);
   font-weight: 650;
+}
+
+.routine-mode__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.routine-mode__copy small {
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--fg-muted);
 }
 
 .routine-mode__check {

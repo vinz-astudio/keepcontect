@@ -10,7 +10,15 @@ import { Icon } from '@/features/common/Icon'
 import { APK_URL } from '@/features/install/apk'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
-import { getGuardStatus, isAccessibilityEnabled, openAccessibilitySettings, openAutostartSettings, type GuardStatus } from '@/features/passive/native'
+import {
+  getGuardStatus,
+  isUsageStatsEnabled,
+  openUsageStatsSettings,
+  isActivityRecognitionEnabled,
+  requestActivityRecognitionPermission,
+  openAutostartSettings,
+  type GuardStatus,
+} from '@/features/passive/native'
 
 import './PassiveSignalCard.css'
 
@@ -24,15 +32,16 @@ export function PassiveSignalCard() {
   const platform = getPlatform()
   const android = androidRuntime()
   const desktopOS = platform === 'desktop' ? getDesktopOS() : null
-  
+
   const [token, setToken] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [autostart, setAutostart] = useState(false)
   const [hasAutostartSupport, setHasAutostartSupport] = useState(false)
   const [_, setSensorRefresh] = useState(0)
   // Android:无障碍后台守护实况(设置开关 + 真实绑定/事件时间戳;轮询自动刷新)
   const [guard, setGuard] = useState<GuardStatus | null>(null)
+  const [usageStatsEnabled, setUsageStatsEnabled] = useState(false)
+  const [activityRecognitionEnabled, setActivityRecognitionEnabled] = useState(false)
 
 
   // Tauri autostart check
@@ -81,7 +90,10 @@ export function PassiveSignalCard() {
       setError(err instanceof Error ? err.message : String(err))
     }
     if (Capacitor.getPlatform() === 'android') {
-      setGuard(await getGuardStatus())
+      const g = await getGuardStatus()
+      setGuard(g)
+      setUsageStatsEnabled(await isUsageStatsEnabled())
+      setActivityRecognitionEnabled(await isActivityRecognitionEnabled())
     }
   }, [])
 
@@ -90,14 +102,6 @@ export function PassiveSignalCard() {
     const timer = setInterval(() => void loadData(), 30000)
     return () => clearInterval(timer)
   }, [loadData])
-
-  const copy = async () => {
-    if (!token) return
-    const url = pingUrl(token)
-    await navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
 
 
   // Accordion Sections definitions (Without duplicate update check buttons)
@@ -119,67 +123,78 @@ export function PassiveSignalCard() {
             </div>
           )}
           {android === 'native' && (
-            <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {(() => {
-                // 三态:未开启 / 已开启·运行中 / 已开启但服务没在运行(HyperOS 常见)。
-                // 打开本 App 本身就会产生一次窗口事件,所以「最近事件」足以判活。
-                const alive =
-                  guard != null &&
-                  guard.lastEventAt > 0 &&
-                  Date.now() - guard.lastEventAt < 10 * 60 * 1000
-                const state: 'loading' | 'off' | 'running' | 'dead' =
-                  guard == null ? 'loading' : !guard.enabled ? 'off' : alive ? 'running' : 'dead'
-                const label =
-                  state === 'loading'
-                    ? '…'
-                    : state === 'off'
-                      ? lang === 'zh' ? '未开启' : 'Off'
-                      : state === 'running'
-                        ? lang === 'zh' ? '运行中' : 'Running'
-                        : lang === 'zh' ? '已开启但未运行' : 'Enabled but not running'
-                return (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '8px 10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
-                      <span style={{ fontSize: '0.85rem' }}>
-                        {lang === 'zh' ? '后台守护(无障碍)' : 'Background guard (Accessibility)'}
-                        {' · '}
-                        <strong style={{ color: state === 'running' ? 'var(--ok)' : 'var(--danger)' }}>
-                          {label}
-                        </strong>
-                      </span>
-                      {(state === 'off' || state === 'dead') && (
-                        <button className="share" onClick={() => void openAccessibilitySettings()}>
-                          {state === 'off'
-                            ? lang === 'zh' ? '去开启' : 'Enable'
-                            : lang === 'zh' ? '去修复' : 'Fix'}
-                        </button>
-                      )}
-                    </div>
-                    {state === 'dead' && (
-                      <p className="muted" style={{ margin: 0, fontSize: '0.78rem', color: 'var(--danger)' }}>
-                        {lang === 'zh'
-                          ? '系统显示无障碍已开启,但守护服务实际没在运行(小米/HyperOS 常见)。请到无障碍设置把 Keep Contact 的开关关掉再打开;仍不行就重启手机后再开一次。'
-                          : 'The system shows Accessibility as enabled, but the guard service is not actually running (common on Xiaomi/HyperOS). Toggle Keep Contact off and on again in Accessibility settings; if that fails, reboot and re-enable.'}
-                      </p>
+            <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+              {/* 1. Usage Stats Permission Panel */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    {lang === 'zh' ? '手机使用情况监测' : 'Usage Stats Monitor'}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <strong style={{ color: usageStatsEnabled ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
+                      {usageStatsEnabled ? (lang === 'zh' ? '已授权' : 'Granted') : (lang === 'zh' ? '未授权' : 'Not Granted')}
+                    </strong>
+                    {!usageStatsEnabled && (
+                      <button className="share" style={{ padding: '2px 8px', fontSize: '0.78rem' }} onClick={() => void openUsageStatsSettings()}>
+                        {lang === 'zh' ? '去开启' : 'Enable'}
+                      </button>
                     )}
-                  </>
-                )
-              })()}
+                  </div>
+                </div>
+                <p className="muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: '1.3' }}>
+                  {lang === 'zh'
+                    ? '应用在后台被动检测手机解锁、使用微信等活跃信号（绝不收集个人隐私或应用内容），离线时自动回溯。'
+                    : 'Passively detects phone unlocks and active app signals in the background (no private content read) to check in.'}
+                </p>
+              </div>
+
+              {/* 2. Activity Recognition Permission Panel */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    {lang === 'zh' ? '运动状态活跃监测' : 'Motion Monitoring'}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <strong style={{ color: activityRecognitionEnabled ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
+                      {activityRecognitionEnabled ? (lang === 'zh' ? '已授权' : 'Granted') : (lang === 'zh' ? '未授权' : 'Not Granted')}
+                    </strong>
+                    {!activityRecognitionEnabled && (
+                      <button className="share" style={{ padding: '2px 8px', fontSize: '0.78rem' }} onClick={() => void requestActivityRecognitionPermission()}>
+                        {lang === 'zh' ? '去开启' : 'Enable'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: '1.3' }}>
+                  {lang === 'zh'
+                    ? '在您携手机行走或运动时，通过系统级低能耗加速度与计步状态判定活跃，无需点亮屏幕。'
+                    : 'Detects active status using system-level low-power motion sensors when walking or moving around.'}
+                </p>
+              </div>
+
+              {/* 3. Foreground Service Status */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', fontSize: '0.82rem' }}>
+                <span>
+                  {lang === 'zh' ? '后台守护服务状态' : 'Background Guard Service'}
+                </span>
+                <strong style={{ color: guard?.enabled ? 'var(--ok)' : 'var(--danger)' }}>
+                  {guard?.enabled
+                    ? (lang === 'zh' ? '运行中 (前台通知常驻)' : 'Running (Foreground active)')
+                    : (lang === 'zh' ? '未启动 (需授权上方权限)' : 'Not started (Grant permissions)')}
+                </strong>
+              </div>
+
               <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
                 {lang === 'zh'
-                  ? '小米/HyperOS 等国产系统还需：开启「自启动」、把省电策略设为「无限制」、不要在最近任务里清理本 App，否则守护会被系统杀掉。首次从应用商店外安装还需在「应用详情 → 右上角 ⋮ → 允许受限设置」解锁后才能打开无障碍。'
-                  : 'On Xiaomi/HyperOS and similar ROMs, also enable Autostart, set battery saver to "No restrictions", and don\'t swipe this app away in recents — otherwise the system kills the guard. Sideloaded installs must first unlock "Allow restricted settings" (App info → ⋮) before Accessibility can be enabled.'}
+                  ? '小米/HyperOS、华为等国产系统需开启「自启动」并将省电策略设为「无限制」，否则后台仍会被强杀。'
+                  : 'On Xiaomi/HyperOS, Huawei, and others, you must enable "Autostart" and set battery to "No restrictions" to avoid background killing.'}
               </p>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button className="share" onClick={() => void openAutostartSettings()}>
-                  {lang === 'zh' ? '打开自启动/应用设置' : 'Open Autostart / App settings'}
+                  {lang === 'zh' ? '打开自启动/省电设置' : 'Open Autostart / Battery settings'}
                 </button>
               </div>
-              <p className="muted" style={{ margin: 0, fontSize: '0.78rem' }}>
-                {lang === 'zh'
-                  ? '守护上报最快每 5 分钟一次——测试时请与上次打开本 App 间隔 5 分钟以上再看效果。'
-                  : 'The guard reports at most once every 5 minutes — when testing, wait 5+ minutes after last opening this app.'}
-              </p>
             </div>
           )}
           {android !== 'native' && (
@@ -196,54 +211,77 @@ export function PassiveSignalCard() {
       id: 'ios_shortcuts',
       title: lang === 'zh' ? 'iOS 苹果快捷指令自动化 (推荐)' : 'iOS Apple Shortcuts Automation (Recommended)',
       isCurrent: platform === 'ios',
-      render: () => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-            {lang === 'zh'
-              ? '由于 iOS 系统的后台限制，网页/PWA 关闭后无法自己捕获充电、闹钟或打开 App 等事件。你可以用 Apple 快捷指令自动化来触发报活：'
-              : 'Due to iOS background restrictions, web/PWA mode cannot observe charging, alarms, or app-open events after it is closed. Use Apple Shortcuts automations to trigger check-ins:'}
-          </p>
-          
-          <div style={{ background: 'var(--accent-soft)', borderLeft: '3px solid var(--accent)', padding: '10px', borderRadius: 'var(--r-sm)', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <strong style={{ color: 'var(--accent)' }}>
-              {lang === 'zh' ? '配置说明：' : 'Step-by-step Guide:'}
-            </strong>
-            <ol style={{ margin: 0, paddingLeft: '16px', lineHeight: '1.4', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <li>
-                {lang === 'zh' 
-                  ? '先复制下方的个人报活链接。'
-                  : 'Copy your personal heartbeat URL below.'}
-              </li>
-              <li>
-                {lang === 'zh'
-                  ? '打开苹果自带的【快捷指令】App，手动创建一个名为 Keep Contact Ping 的快捷指令。'
-                  : 'Open Apple\'s built-in "Shortcuts" app and manually create a Shortcut named Keep Contact Ping.'}
-              </li>
-              <li>
-                {lang === 'zh'
-                  ? '在快捷指令里添加【获取 URL 内容】动作，把刚才复制的链接填进去，并使用 HTTP GET。'
-                  : 'Add a "Get Contents of URL" action, paste the copied URL, and leave it as HTTP GET.'}
-              </li>
-              <li>
-                {lang === 'zh'
-                  ? '切到【自动化】标签页，新建你需要的触发器，例如关闹钟、连接/断开充电器或每天会打开的 App。'
-                  : 'Switch to the "Automation" tab and add triggers such as alarm dismissed, charger connected/disconnected, or an app you open daily.'}
-              </li>
-              <li>
-                {lang === 'zh'
-                  ? '把自动化设为【立即运行】，关闭【运行前询问】，并让它运行你刚手动创建的 Keep Contact Ping 快捷指令。'
-                  : 'Set each automation to "Run Immediately", turn off "Ask Before Running", and run your manually created Keep Contact Ping Shortcut.'}
-              </li>
-            </ol>
-          </div>
+      render: () => {
+        const importShortcut = async () => {
+          if (!token) return
+          const url = pingUrl(token)
+          try {
+            await navigator.clipboard.writeText(url)
+            alert(
+              lang === 'zh'
+                ? '✅ 报活链接已复制到剪贴板！\n\n即将打开快捷指令导入页面。请在弹出的“报活链接”输入框中【长按粘贴】刚才复制的链接，然后点击“添加快捷指令”即可。'
+                : '✅ Ping URL copied to clipboard!\n\nOpening Shortcuts. Please long-press and [Paste] the copied URL into the "Ping URL" input field, then tap "Add Shortcut".'
+            )
+            window.open('https://www.icloud.com/shortcuts/8f0e9eef33174e9d9d4351f2ae43a11a', '_blank')
+          } catch (err) {
+            console.error('Failed to copy and redirect:', err)
+          }
+        }
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '4px', flexWrap: 'wrap' }}>
-            <button className="share" disabled={!token} onClick={() => void copy()}>
-              {copied ? t('passive.copied') : (lang === 'zh' ? '复制个人报活链接' : 'Copy Heartbeat URL')}
-            </button>
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+              {lang === 'zh'
+                ? '由于 iOS 系统的后台限制，网页/PWA 关闭后无法在后台运行。你可以导入我们预设的 Apple 快捷指令，利用系统事件（如充电、亮屏）触发静默报活，无需保持 App 开启：'
+                : 'Due to iOS background restrictions, web/PWA mode cannot run in the background. Import our pre-configured Apple Shortcut to trigger silent check-ins via system events (e.g. charging, screen unlock) without keeping the app open:'}
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '4px 0' }}>
+              <button 
+                className="share" 
+                style={{ alignSelf: 'flex-start', background: 'var(--accent)', color: 'white', border: 'none', padding: '10px 16px', fontWeight: 'bold' }} 
+                disabled={!token} 
+                onClick={() => void importShortcut()}
+              >
+                {lang === 'zh' ? '📥 一键复制并导入快捷指令' : '📥 Copy URL & Import Shortcut'}
+              </button>
+            </div>
+
+            <div style={{ background: 'var(--accent-soft)', borderLeft: '3px solid var(--accent)', padding: '10px', borderRadius: 'var(--r-sm)', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <strong style={{ color: 'var(--accent)' }}>
+                {lang === 'zh' ? '导入后的自动化配置步骤：' : 'Next Steps to Enable Automation:'}
+              </strong>
+              <ol style={{ margin: 0, paddingLeft: '16px', lineHeight: '1.4', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <li>
+                  {lang === 'zh'
+                    ? '点击上方按钮导入快捷指令，并将你的个人链接粘贴到设置问题中。'
+                    : 'Tap the button above to import the Shortcut, pasting your link during setup.'}
+                </li>
+                <li>
+                  {lang === 'zh'
+                    ? '在快捷指令 App 中，切换到底部的【自动化】标签页，点击右上角【+】新建自动化。'
+                    : 'In the Shortcuts app, switch to the "Automation" tab and tap the "+" icon.'}
+                </li>
+                <li>
+                  {lang === 'zh'
+                    ? '新建一个你需要的系统触发源（推荐：当“充电器连接时”、或当“屏幕解锁时”）。'
+                    : 'Select a trigger event (Recommended: "When Charger is Connected" or "When Lock Screen is Unlocked").'}
+                </li>
+                <li>
+                  {lang === 'zh'
+                    ? '将自动化运行选项设为【立即运行】，并关闭【运行前询问】。'
+                    : 'Set the execution option to "Run Immediately" and turn off "Ask Before Running".'}
+                </li>
+                <li>
+                  {lang === 'zh'
+                    ? '在执行动作中选择运行刚导入的【Keep Contact Ping】快捷指令即可。'
+                    : 'Set the action to run the imported "Keep Contact Ping" Shortcut.'}
+                </li>
+              </ol>
+            </div>
           </div>
-        </div>
-      )
+        )
+      }
     },
     {
       id: 'windows_web',
@@ -312,17 +350,18 @@ export function PassiveSignalCard() {
 
   const syncAppActivityPermission = useCallback(async () => {
     if (Capacitor.getPlatform() !== 'android') return
-    const enabled = await isAccessibilityEnabled()
+    const usageOk = await isUsageStatsEnabled()
+    const motionOk = await isActivityRecognitionEnabled()
     const current = isSensorEnabled('app_activity')
-    const pending = localStorage.getItem('kc.sensor.app_activity.pendingAccessibility') === 'true'
-    if (enabled && pending) {
-      localStorage.removeItem('kc.sensor.app_activity.pendingAccessibility')
+    const pending = localStorage.getItem('kc.sensor.app_activity.pendingPermissions') === 'true'
+
+    if ((usageOk || motionOk) && pending) {
+      localStorage.removeItem('kc.sensor.app_activity.pendingPermissions')
       await setSensorEnabled('app_activity', true)
       setSensorRefresh(v => v + 1)
       return
     }
-    if (!enabled && current) {
-      localStorage.removeItem('kc.sensor.app_activity.pendingAccessibility')
+    if (!usageOk && !motionOk && current) {
       await setSensorEnabled('app_activity', false)
       setSensorRefresh(v => v + 1)
     }
@@ -364,7 +403,7 @@ export function PassiveSignalCard() {
           {lang === 'zh' ? '本设备自动感知触发源' : 'Active Sensors on this Device'}
         </h3>
         <p className="muted" style={{ fontSize: '0.8rem', margin: '0 0 6px 0' }}>
-          {lang === 'zh' 
+          {lang === 'zh'
             ? '勾选你希望自动收集的迹象。关闭的选项将不再自动上报报活。'
             : 'Toggle behaviors you want to monitor. Disabled options will not trigger auto check-in.'}
         </p>
@@ -372,13 +411,13 @@ export function PassiveSignalCard() {
           {availableSensors.filter(s => s.supported).map((sensor) => {
             const isEnabled = isSensorEnabled(sensor.key)
             return (
-              <label 
-                key={sensor.key} 
-                className="psig__hookconsent" 
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'flex-start', 
-                  gap: '8px', 
+              <label
+                key={sensor.key}
+                className="psig__hookconsent"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
                   cursor: 'pointer',
                   padding: '8px',
                   borderRadius: 'var(--r-sm)',
@@ -393,17 +432,19 @@ export function PassiveSignalCard() {
                   onChange={async (e) => {
                     const checked = e.target.checked
                     if (sensor.key === 'app_activity' && checked) {
-                      const alreadyGranted = await isAccessibilityEnabled()
-                      if (!alreadyGranted) {
+                      const usageOk = await isUsageStatsEnabled()
+                      const motionOk = await isActivityRecognitionEnabled()
+                      if (!usageOk && !motionOk) {
                         const ok = window.confirm(
                           lang === 'zh'
-                            ? 'App 使用活跃需要先开启系统「无障碍」权限。确认后会打开 Android 设置；开启 Keep Contact 后返回 App，开关会自动变为启用。'
-                            : 'App activity tracking needs Android Accessibility access. Continue to settings, enable Keep Contact, then return to the app and this switch will turn on automatically.',
+                            ? '启用日常活跃监测需要授权系统使用情况或运动感知权限。确认后将引导您开启权限；授权后返回 App，开关会自动变为启用。'
+                            : 'Enabling activity tracking requires Usage Stats or Motion sensors permission. Continue to settings, authorize them, then return to the app and this switch will turn on automatically.',
                         )
                         await setSensorEnabled(sensor.key, false)
                         if (ok) {
-                          localStorage.setItem('kc.sensor.app_activity.pendingAccessibility', 'true')
-                          void openAccessibilitySettings()
+                          localStorage.setItem('kc.sensor.app_activity.pendingPermissions', 'true')
+                          await requestActivityRecognitionPermission()
+                          await openUsageStatsSettings()
                         }
                         setSensorRefresh(v => v + 1)
                         return
@@ -411,7 +452,7 @@ export function PassiveSignalCard() {
                     }
                     await setSensorEnabled(sensor.key, checked)
                     if (sensor.key === 'app_activity' && !checked) {
-                      localStorage.removeItem('kc.sensor.app_activity.pendingAccessibility')
+                      localStorage.removeItem('kc.sensor.app_activity.pendingPermissions')
                     }
                     setSensorRefresh(v => v + 1)
                   }}
@@ -436,8 +477,8 @@ export function PassiveSignalCard() {
           const isOpen = expanded === s.id
           return (
             <div key={s.id} className={`psig__panel${s.isCurrent ? ' is-current' : ''}${isOpen ? ' is-open' : ''}`}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="psig__panel-header"
                 onClick={() => setExpanded(isOpen ? null : s.id)}
               >

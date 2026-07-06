@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { EmergencyInfoCard } from '@/features/profile/EmergencyInfoCard'
-import { ViewportDiagnosticsCard } from '@/features/profile/ViewportDiagnosticsCard'
 import { GuardiansCard } from '@/features/guardians/GuardiansCard'
 import { SafeAwayBar } from '@/features/baseline/SafeAwayBar'
 import { RoutineSettings } from '@/features/baseline/RoutineSettings'
 import { CheckinTasksCard } from '@/features/tasks/CheckinTasksCard'
 import { PassiveSignalCard } from '@/features/passive/PassiveSignalCard'
 import { PassivePingBoot } from '@/features/passive/PassivePingBoot'
+import { OnboardingWizard } from '@/features/passive/OnboardingWizard'
 import { LivenessProvider, useLivenessContext } from '@/features/baseline/LivenessProvider'
 import '@/features/baseline/LivenessCard.css'
 import { AlertOverlay } from '@/features/baseline/AlertOverlay'
@@ -62,8 +62,11 @@ import { LangToggle, translate, useI18n } from '@/lib/i18n'
 import { ThemeToggle } from '@/lib/theme'
 import {
   ensurePushSubscription,
+  getPushStatus,
   triggerPushDispatch,
+  type PushStatus,
 } from '@/features/push/pushApi'
+import { getPushPromptPlacement } from '@/features/push/pushPrompt'
 import './HomeScreen.css'
 
 async function joinByInvite(inv: Invite): Promise<string> {
@@ -81,12 +84,24 @@ async function joinByInvite(inv: Invite): Promise<string> {
 
 interface ProfileSectionProps {
   setIsScanning: (val: boolean) => void
+  signOut: () => Promise<void>
 }
 
-function ProfileSection({ setIsScanning }: ProfileSectionProps) {
+function ProfileSection({ setIsScanning, signOut }: ProfileSectionProps) {
   const { user } = useAuth()
   const { t, lang } = useI18n()
   const { startSetup, startPractice } = useLivenessContext()
+  const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported')
+  const showPushSettings = getPushPromptPlacement({
+    status: pushStatus,
+    platform: getPlatform(),
+    standalone: false,
+    dismissed: false,
+  }).profile
+
+  useEffect(() => {
+    void getPushStatus().then(setPushStatus)
+  }, [])
 
   return (
     <section className="card">
@@ -109,6 +124,13 @@ function ProfileSection({ setIsScanning }: ProfileSectionProps) {
         />
       </p>
       <p className="muted">{t('profile.desc')}</p>
+
+      {showPushSettings && (
+        <div className="profile__notice">
+          <strong>{t('push.enable')}</strong>
+          <p>{t('push.denied.profile')}</p>
+        </div>
+      )}
 
       {/* Scan to Sync (Only on mobile devices) */}
       {(getPlatform() === 'android' || getPlatform() === 'ios') && (
@@ -155,6 +177,12 @@ function ProfileSection({ setIsScanning }: ProfileSectionProps) {
             <button onClick={startPractice}>{t('live.practice')}</button>
           </div>
         </div>
+      </div>
+
+      <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem' }}>
+        <button className="profile__danger-action" onClick={() => void signOut()}>
+          {t('header.signout')}
+        </button>
       </div>
     </section>
   )
@@ -234,6 +262,9 @@ export function HomeScreen() {
   const [sosBusy, setSosBusy] = useState(false)
   const [qrTarget, setQrTarget] = useState<{ url: string; name: string } | null>(null)
   const [scanningJoin, setScanningJoin] = useState(false)
+  const [onboardingCompleted, setOnboardingCompleted] = useState(() => {
+    return localStorage.getItem('kc.onboardingCompleted') === 'true'
+  })
 
   // 未读数提到顶层：任何 tab 都更新 App 图标角标 + 底部"通知"页红点
   const refreshUnread = useCallback(async () => {
@@ -433,9 +464,6 @@ export function HomeScreen() {
           <div className="home__headerbtns">
             <ThemeToggle className="home__signout" />
             <LangToggle className="home__signout" />
-            <button className="home__signout" onClick={() => void signOut()}>
-              {t('header.signout')}
-            </button>
           </div>
         </header>
 
@@ -478,12 +506,11 @@ export function HomeScreen() {
 
           <div className={`profile-grid ${tab !== 'profile' ? 'home__tab-content--hidden' : ''}`}>
             <div className="profile-grid__col1">
-              <ProfileSection setIsScanning={setIsScanning} />
+              <ProfileSection setIsScanning={setIsScanning} signOut={signOut} />
               <EmergencyInfoCard />
             </div>
             <div className="profile-grid__col2">
               <UpdatesCard isGm={isGm} />
-              <ViewportDiagnosticsCard />
               <PassiveSignalCard />
             </div>
           </div>
@@ -864,6 +891,15 @@ export function HomeScreen() {
           url={qrTarget.url}
           title={qrTarget.name}
           onClose={() => setQrTarget(null)}
+        />
+      )}
+      {!onboardingCompleted && (
+        <OnboardingWizard
+          isGm={isGm}
+          onComplete={() => {
+            localStorage.setItem('kc.onboardingCompleted', 'true')
+            setOnboardingCompleted(true)
+          }}
         />
       )}
     </div>

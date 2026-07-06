@@ -9,9 +9,10 @@ import { fetchLatest, isNewer } from '@/features/update/versionCheck'
 
 interface UpdatesCardProps {
   isGm?: boolean
+  onVersionTap?: () => void
 }
 
-export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
+export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
   const { lang } = useI18n()
   const [updBusy, setUpdBusy] = useState(false)
   const [updStatus, setUpdStatus] = useState<'idle' | 'checking' | 'checked'>('idle')
@@ -103,8 +104,28 @@ export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
       {/* Title: "Version · x.x.x" */}
       <h2 className="card__title" style={{ margin: 0 }}>
-        <Icon name="signal" />
-        {lang === 'zh' ? `版本 · ${displayVersion}` : `Version · ${displayVersion}`}
+        {onVersionTap ? (
+          <button
+            type="button"
+            aria-label={lang === 'zh' ? '版本信息' : 'Version information'}
+            onClick={onVersionTap}
+            style={{
+              all: 'unset',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="signal" />
+            {lang === 'zh' ? `版本 · ${displayVersion}` : `Version · ${displayVersion}`}
+          </button>
+        ) : (
+          <>
+            <Icon name="signal" />
+            {lang === 'zh' ? `版本 · ${displayVersion}` : `Version · ${displayVersion}`}
+          </>
+        )}
       </h2>
 
       {/* Single content row */}
@@ -287,4 +308,3 @@ export function UpdatesCard({ isGm = false }: UpdatesCardProps) {
     </section>
   )
 }
-
