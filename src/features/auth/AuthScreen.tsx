@@ -116,25 +116,27 @@ export function AuthScreen() {
     })
     
     channel.on('broadcast', { event: 'sync' }, async (payload: any) => {
-      const { email, otp, access_token, refresh_token } = payload.payload
-      setNotice(t('auth.scan2sync.success'))
-      
-      let result
-      if (email && otp) {
-        result = await supabase.auth.verifyOtp({
-          email,
-          token: otp,
-          type: 'magiclink'
-        })
-      } else {
-        result = await supabase.auth.setSession({ access_token, refresh_token })
-      }
+      const { email, otp } = payload.payload ?? {}
+      // KCA-15 containment (ADR-0015): accept ONLY the OTP pairing path. Raw
+      // access/refresh token payloads are ignored — honoring them let anyone
+      // who learned the channel token session-swap this device into an account
+      // they control. The legitimate sender only ever broadcasts {email, otp};
+      // the OTP is server-issued, so a bare channel token is not enough to log
+      // this device in. Full signed server-side pairing is a separate redesign ADR.
+      if (!email || !otp) return
+
+      const result = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'magiclink',
+      })
 
       if (result.error) {
         setError(result.error.message)
         setNotice(null)
       } else {
-        setNotice(null)
+        // Only announce success after the session actually changes.
+        setNotice(t('auth.scan2sync.success'))
       }
     })
     
