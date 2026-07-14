@@ -288,7 +288,24 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     return isRowOutdatedFor(row, targetVersion)
   }
 
+  // KCA-17 containment (ADR-0015): the live gm_delete_user references the wrong
+  // schema (guardians vs guardianships, notifications.actor_id, checkin_tasks.user_id)
+  // and never deletes auth.users — so it throws or partial-deletes, and a
+  // "deleted" account can still log in. Block the destructive path until a
+  // redesigned, migration-backed deletion/ban lands under its own ADR.
+  const GM_DESTRUCTIVE_DELETE_DISABLED = true
+
   async function handleDeleteAccount(userId: string, name: string) {
+    if (GM_DESTRUCTIVE_DELETE_DISABLED) {
+      toast(
+        lang === 'zh'
+          ? '账号删除/封禁正在重建中，暂不可用（避免残缺删除）。'
+          : 'Account delete/ban is being rebuilt and is temporarily unavailable.',
+        'info',
+      )
+      return
+    }
+
     const confirmMsg = lang === 'zh'
       ? `【警告】确认要物理删除/封禁用户「${name}」的账号吗？此操作将级联删除该用户的所有数据（设备、警报、群组等）且不可逆！`
       : `[WARNING] Are you sure you want to permanently delete/ban account "${name}"? This will cascade delete all associated user data and is IRREVERSIBLE!`
@@ -732,9 +749,17 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
                         </button>
                         <button
                           className="gm__row-btn ban"
-                          disabled={busy != null}
+                          disabled={busy != null || GM_DESTRUCTIVE_DELETE_DISABLED}
                           onClick={() => void handleDeleteAccount(r.user_id, r.name)}
-                          title={lang === 'zh' ? '物理删除/封禁' : 'Delete/Ban Account'}
+                          title={
+                            GM_DESTRUCTIVE_DELETE_DISABLED
+                              ? lang === 'zh'
+                                ? '删除/封禁重建中，暂不可用'
+                                : 'Delete/ban rebuilding — temporarily unavailable'
+                              : lang === 'zh'
+                                ? '物理删除/封禁'
+                                : 'Delete/Ban Account'
+                          }
                         >
                           Ban
                         </button>
