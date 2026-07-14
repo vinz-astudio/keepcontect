@@ -100,7 +100,8 @@ export function xhrFetch(
       xhr.onload = () => {
         try {
           const headers = new Headers()
-          for (const line of xhr.getAllResponseHeaders().trim().split(/[\r\n]+/)) {
+          // getAllResponseHeaders() can be null in some environments (audit note)
+          for (const line of (xhr.getAllResponseHeaders() || '').trim().split(/[\r\n]+/)) {
             const separator = line.indexOf(': ')
             if (separator > 0) {
               try {
