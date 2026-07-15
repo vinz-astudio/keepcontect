@@ -18,6 +18,7 @@ describe('sendPassiveWebPing', () => {
 
     const result = await sendPassiveWebPing({
       token: 'token123',
+      source: 'installed_pwa',
       nowMs,
       lastPingAtMs: nowMs - 60_000,
       fetcher,
@@ -36,6 +37,7 @@ describe('sendPassiveWebPing', () => {
 
     const result = await sendPassiveWebPing({
       token: 'token123',
+      source: 'installed_pwa',
       nowMs,
       lastPingAtMs: nowMs - PASSIVE_WEB_PING_THROTTLE_MS,
       fetcher,
@@ -44,7 +46,7 @@ describe('sendPassiveWebPing', () => {
 
     expect(result).toBe('sent')
     expect(fetcher).toHaveBeenCalledWith(
-      'https://byekgmqyqlftgoveqnku.supabase.co/functions/v1/ping?token=token123&t=1781870400&sig=mocked-signature',
+      'https://byekgmqyqlftgoveqnku.supabase.co/functions/v1/ping?token=token123&source=installed_pwa&t=1781870400&sig=mocked-signature',
       { method: 'GET', cache: 'no-store', keepalive: true },
     )
     expect(storeLastPingAt).toHaveBeenCalledWith(nowMs)
@@ -56,6 +58,7 @@ describe('sendPassiveWebPing', () => {
 
     const result = await sendPassiveWebPing({
       token: 'token123',
+      source: 'installed_pwa',
       nowMs: 1000,
       lastPingAtMs: null,
       fetcher,

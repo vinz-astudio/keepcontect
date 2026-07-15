@@ -2,6 +2,7 @@
 
 import type { SignalEvent, SignalKind } from '@/features/baseline/types'
 import { supabase } from '@/lib/supabase'
+import { getAutomaticPingSource, PING_SOURCES } from '@/features/passive/api'
 
 const DB_NAME = 'keepcontact'
 const STORE = 'signals'
@@ -29,11 +30,19 @@ export async function recordSignal(
   kind: SignalKind,
   t: number = Date.now(),
 ): Promise<void> {
+  // Determine source at record time
+  let recordSource: string | null = null
+  if (kind === 'manual_checkin') {
+    recordSource = PING_SOURCES.MANUAL
+  } else {
+    recordSource = getAutomaticPingSource()
+  }
+
   const db = await openDb()
   let addedId: number | undefined
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite')
-    const req = tx.objectStore(STORE).add({ t, kind, uploaded: false })
+    const req = tx.objectStore(STORE).add({ t, kind, uploaded: false, source: recordSource })
     req.onsuccess = () => {
       addedId = req.result as number
       resolve()
@@ -50,32 +59,36 @@ export async function recordSignal(
     const DEBOUNCE_MS = 10 * 60 * 1000 // 10 minutes
 
     if (kind === 'manual_checkin' || t - lastUpload >= DEBOUNCE_MS) {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user?.id) {
-        const { error } = await supabase.from('behavior_pings').insert({
-          user_id: session.user.id,
-          kind,
-          at: new Date(t).toISOString(),
-        })
-        if (!error) {
-          localStorage.setItem('kc.lastUploadT', String(t))
-          
-          if (addedId !== undefined) {
-            const dbMark = await openDb()
-            const txMark = dbMark.transaction(STORE, 'readwrite')
-            const osMark = txMark.objectStore(STORE)
-            const getReq = osMark.get(addedId)
-            getReq.onsuccess = () => {
-              const data = getReq.result
-              if (data) {
-                data.uploaded = true
-                osMark.put(data)
+      // If automatic ping but on plain browser, do not insert
+      if (recordSource) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user?.id) {
+          const { error } = await supabase.from('behavior_pings').insert({
+            user_id: session.user.id,
+            kind,
+            at: new Date(t).toISOString(),
+            source: recordSource,
+          })
+          if (!error) {
+            localStorage.setItem('kc.lastUploadT', String(t))
+            
+            if (addedId !== undefined) {
+              const dbMark = await openDb()
+              const txMark = dbMark.transaction(STORE, 'readwrite')
+              const osMark = txMark.objectStore(STORE)
+              const getReq = osMark.get(addedId)
+              getReq.onsuccess = () => {
+                const data = getReq.result
+                if (data) {
+                  data.uploaded = true
+                  osMark.put(data)
+                }
               }
+              await new Promise<void>((res) => {
+                txMark.oncomplete = () => res()
+              })
+              dbMark.close()
             }
-            await new Promise<void>((res) => {
-              txMark.oncomplete = () => res()
-            })
-            dbMark.close()
           }
         }
       }
@@ -117,11 +130,11 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
     
     // 2. Fetch local signals that need uploading (where uploaded !== true)
     const db = await openDb()
-    const allPending = await new Promise<Array<{ id: number; t: number; kind: SignalKind }>>((resolve, reject) => {
+    const allPending = await new Promise<Array<{ id: number; t: number; kind: SignalKind; source?: string | null }>>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly')
       const req = tx.objectStore(STORE).getAll()
       req.onsuccess = () => {
-        const all = req.result as Array<{ id: number; t: number; kind: SignalKind; uploaded?: boolean }>
+        const all = req.result as Array<{ id: number; t: number; kind: SignalKind; uploaded?: boolean; source?: string | null }>
         const pending = all.filter(e => e.uploaded !== true && e.t >= cutoff)
         resolve(pending)
       }
@@ -131,22 +144,38 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
 
     // Dedupe: skip anything the server already has, then cap to avoid flood
     const dedupedPending = allPending.filter(e => !serverTimestamps.has(e.t))
+    // Filter out rows whose record-time surface was plain-browser (explicitly source === null).
+    // Note: undefined is accepted as legacy and mapped to 'app' or surfaceSource.
+    const uploadablePending = dedupedPending.filter(e => e.source !== null)
     // Take the most recent SYNC_CAP items (sort descending by t, then slice)
-    dedupedPending.sort((a, b) => b.t - a.t)
-    const localEventsToUpload = dedupedPending.slice(0, SYNC_CAP)
+    uploadablePending.sort((a, b) => b.t - a.t)
+    const localEventsToUpload = uploadablePending.slice(0, SYNC_CAP)
 
     // 3. Upload local signals that are missing on the server
     if (localEventsToUpload.length > 0) {
-      const inserts = localEventsToUpload.map(e => ({
-        user_id: uid,
-        kind: e.kind,
-        at: new Date(e.t).toISOString()
-      }))
-      const { error: uploadError } = await supabase
-        .from('behavior_pings')
-        .insert(inserts)
-        
-      if (uploadError) throw uploadError
+      const surfaceSource = getAutomaticPingSource()
+      const inserts = localEventsToUpload
+        .map(e => {
+          // If e.source is defined, we use it directly. If undefined (legacy), we fall back.
+          let sourceVal = e.source
+          if (sourceVal === undefined) {
+            sourceVal = e.kind === 'manual_checkin' ? PING_SOURCES.MANUAL : (surfaceSource || 'app')
+          }
+          return {
+            user_id: uid,
+            kind: e.kind,
+            at: new Date(e.t).toISOString(),
+            source: sourceVal,
+          }
+        })
+
+      if (inserts.length > 0) {
+        const { error: uploadError } = await supabase
+          .from('behavior_pings')
+          .insert(inserts)
+          
+        if (uploadError) throw uploadError
+      }
 
       // Mark these local events as uploaded
       const dbMark = await openDb()

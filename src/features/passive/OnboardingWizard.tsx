@@ -9,7 +9,7 @@ import {
   requestActivityRecognitionPermission,
   openAutostartSettings,
 } from '@/features/passive/native'
-import { getHeartbeatToken, pingUrl } from '@/features/passive/api'
+import { getHeartbeatToken, pingUrl, PING_SOURCES } from '@/features/passive/api'
 import './OnboardingWizard.css'
 
 interface OnboardingWizardProps {
@@ -94,7 +94,7 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
   // iOS One-Click import action
   const importIosShortcut = async () => {
     if (!token) return
-    const url = pingUrl(token)
+    const url = pingUrl(token, PING_SOURCES.SHORTCUT)
     try {
       await navigator.clipboard.writeText(url)
       alert(

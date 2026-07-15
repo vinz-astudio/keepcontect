@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { useCallback, useEffect, useRef } from 'react'
-import { getHeartbeatToken } from '@/features/passive/api'
+import { getHeartbeatToken, getAutomaticPingSource } from '@/features/passive/api'
 import {
   configureNativePassivePing,
   getNativeFcmToken,
@@ -37,12 +37,16 @@ export function PassivePingBoot() {
 
   const pingWeb = useCallback(async () => {
     const token = tokenRef.current
-    if (!token || pingingRef.current || Capacitor.getPlatform() !== 'web') return
+    if (!token || pingingRef.current) return
+
+    const source = getAutomaticPingSource()
+    if (!source) return // Plain browser: do NOT send automatic passive pings
 
     pingingRef.current = true
     try {
       await sendPassiveWebPing({
         token,
+        source,
         lastPingAtMs: readLastWebPingAt(),
         fetcher: resilientFetch,
         storeLastPingAt: storeLastWebPingAt,
@@ -104,6 +108,9 @@ export function PassivePingBoot() {
   }, [])
 
   useEffect(() => {
+    const source = getAutomaticPingSource()
+    if (!source) return // Plain browser: do NOT schedule automatic passive pings
+
     const ping = () => void pingWeb()
     const onVisibility = () => {
       if (document.visibilityState === 'visible') ping()

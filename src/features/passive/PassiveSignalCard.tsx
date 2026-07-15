@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   getHeartbeatToken,
   pingUrl,
+  PING_SOURCES,
 } from '@/features/passive/api'
 import { getDesktopOS, getPlatform, isTauri } from '@/lib/platform'
 import { useI18n } from '@/lib/i18n'
@@ -214,7 +215,7 @@ export function PassiveSignalCard() {
       render: () => {
         const importShortcut = async () => {
           if (!token) return
-          const url = pingUrl(token)
+          const url = pingUrl(token, PING_SOURCES.SHORTCUT)
           try {
             await navigator.clipboard.writeText(url)
             alert(

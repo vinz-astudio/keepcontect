@@ -56,10 +56,22 @@ Deno.serve(async (req) => {
   const token = url.searchParams.get('token')
   const t = url.searchParams.get('t')
   const sig = url.searchParams.get('sig')
+  const source = url.searchParams.get('source')
   const kind = 'app'
 
   if (!token) {
     return new Response(JSON.stringify({ ok: false, reason: 'missing token' }), {
+      status: 400,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    })
+  }
+
+  // Treat missing source as 'app' (legacy). Accept it.
+  // Reject only if source is present but not in the set {installed_pwa, tauri, capacitor, shortcut, manual, app}
+  const eligibleSources = ['installed_pwa', 'tauri', 'capacitor', 'shortcut', 'manual', 'app']
+  const effectiveSource = source || 'app'
+  if (source && !eligibleSources.includes(source)) {
+    return new Response(JSON.stringify({ ok: false, reason: 'invalid source' }), {
       status: 400,
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
@@ -104,7 +116,7 @@ Deno.serve(async (req) => {
   // device_state refresh, alert auto-resolution, notification cleanup, and push dispatch.
   const { error: pingError } = await supabase
     .from('behavior_pings')
-    .insert({ user_id: uid, kind, at: now })
+    .insert({ user_id: uid, kind, at: now, source: effectiveSource })
 
   if (pingError) {
     console.error('Failed to insert behavior ping:', pingError)

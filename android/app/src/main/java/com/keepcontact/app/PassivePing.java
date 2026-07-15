@@ -277,6 +277,7 @@ final class PassivePing {
                     base +
                     "/functions/v1/ping?token=" +
                     URLEncoder.encode(token, StandardCharsets.UTF_8.name()) +
+                    "&source=capacitor" +
                     "&t=" + t +
                     "&sig=" + URLEncoder.encode(sig, StandardCharsets.UTF_8.name());
                 conn = (HttpURLConnection) new URL(url).openConnection();

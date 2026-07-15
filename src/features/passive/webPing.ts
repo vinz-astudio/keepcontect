@@ -4,6 +4,7 @@ export type PassiveWebPingResult = 'sent' | 'throttled' | 'failed'
 
 interface SendPassiveWebPingOptions {
   token: string
+  source: string
   nowMs?: number
   lastPingAtMs: number | null
   fetcher: typeof fetch
@@ -12,6 +13,7 @@ interface SendPassiveWebPingOptions {
 
 export async function sendPassiveWebPing({
   token,
+  source,
   nowMs = Date.now(),
   lastPingAtMs,
   fetcher,
@@ -22,7 +24,7 @@ export async function sendPassiveWebPing({
   try {
     const t = Math.floor(nowMs / 1000).toString()
     const sig = await calculateWebHmac(token, t)
-    const signedUrl = `${pingUrl(token)}&t=${t}&sig=${sig}`
+    const signedUrl = `${pingUrl(token, source)}&t=${t}&sig=${sig}`
 
     const response = await fetcher(signedUrl, {
       method: 'GET',

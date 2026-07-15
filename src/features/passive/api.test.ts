@@ -5,7 +5,6 @@ import {
   lastPingAt,
   pingUrl,
   shouldSendPassiveWebPing,
-  type BehaviorPing,
   calculateWebHmac,
 } from '@/features/passive/api'
 
@@ -13,6 +12,12 @@ describe('passive ping helpers', () => {
   it('builds one generic ping URL without behavior classification', () => {
     expect(pingUrl('abc123')).toBe(
       'https://byekgmqyqlftgoveqnku.supabase.co/functions/v1/ping?token=abc123',
+    )
+  })
+
+  it('builds one generic ping URL with source parameter', () => {
+    expect(pingUrl('abc123', 'shortcut')).toBe(
+      'https://byekgmqyqlftgoveqnku.supabase.co/functions/v1/ping?token=abc123&source=shortcut',
     )
   })
 
@@ -25,10 +30,10 @@ describe('passive ping helpers', () => {
     later.setHours(13, 0, 0, 0)
 
     const pings = [
-      { kind: 'app', at: now.toISOString() },
-      { kind: 'app', at: yesterday.toISOString() },
-      { kind: 'app', at: later.toISOString() },
-    ] as BehaviorPing[]
+      { at: now.toISOString() },
+      { at: yesterday.toISOString() },
+      { at: later.toISOString() },
+    ]
 
     expect(countTodayPings(pings, now.getTime())).toBe(2)
     expect(lastPingAt(pings)).toBe(later.toISOString())

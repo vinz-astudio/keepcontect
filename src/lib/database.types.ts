@@ -120,18 +120,21 @@ export type Database = {
           at: string
           id: number
           kind: string
+          source: string | null
           user_id: string
         }
         Insert: {
           at?: string
           id?: never
           kind?: string
+          source?: string | null
           user_id: string
         }
         Update: {
           at?: string
           id?: never
           kind?: string
+          source?: string | null
           user_id?: string
         }
         Relationships: []

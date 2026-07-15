@@ -1,11 +1,36 @@
 import { supabase } from '@/lib/supabase'
 import { SUPABASE_URL } from '@/lib/config'
 import type { Tables } from '@/lib/database.types'
+import { isStandalone, isTauri } from '@/lib/platform'
+import { Capacitor } from '@capacitor/core'
 
 export type BehaviorPing = Tables<'behavior_pings'>
 export type PingKind = 'app'
 
 export const PASSIVE_WEB_PING_THROTTLE_MS = 5 * 60 * 1000
+
+export const PING_SOURCES = {
+  INSTALLED_PWA: 'installed_pwa',
+  TAURI: 'tauri',
+  CAPACITOR: 'capacitor',
+  SHORTCUT: 'shortcut',
+  MANUAL: 'manual',
+} as const
+
+export type PingSource = typeof PING_SOURCES[keyof typeof PING_SOURCES]
+
+export function getAutomaticPingSource(): 'installed_pwa' | 'tauri' | 'capacitor' | null {
+  if (isTauri()) {
+    return PING_SOURCES.TAURI
+  }
+  if (isStandalone()) {
+    return PING_SOURCES.INSTALLED_PWA
+  }
+  if (Capacitor.isNativePlatform()) {
+    return PING_SOURCES.CAPACITOR
+  }
+  return null
+}
 
 export function shouldSendPassiveWebPing(
   lastPingAtMs: number | null,
@@ -29,8 +54,11 @@ export async function getHeartbeatToken(): Promise<string | null> {
 }
 
 /** One tokenized URL is shared by every passive activity trigger. */
-export function pingUrl(token: string): string {
+export function pingUrl(token: string, source?: string): string {
   const params = new URLSearchParams({ token })
+  if (source) {
+    params.set('source', source)
+  }
   return `${SUPABASE_URL}/functions/v1/ping?${params.toString()}`
 }
 
@@ -57,7 +85,7 @@ export interface PingKindStats {
 }
 
 export function countTodayPings(
-  pings: BehaviorPing[],
+  pings: { at: string }[],
   now: number = Date.now(),
 ): number {
   const start = new Date(now)
@@ -66,7 +94,7 @@ export function countTodayPings(
   return pings.filter((ping) => new Date(ping.at).getTime() >= startMs).length
 }
 
-export function lastPingAt(pings: BehaviorPing[]): string | null {
+export function lastPingAt(pings: { at: string }[]): string | null {
   let last: string | null = null
   for (const ping of pings) {
     if (!last || new Date(ping.at).getTime() > new Date(last).getTime()) {
