@@ -7,6 +7,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
+import { determineDeliveryOutcome } from './outcome.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -191,37 +192,48 @@ async function sendTickle(
 }
 
 Deno.serve(async () => {
+  // Load VAPID credentials
   const vapid = await getVapid()
-  if (!vapid) {
-    return new Response(JSON.stringify({ ok: false, reason: 'vapid_not_configured' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
+  const webPushEnabled = !!vapid
+  if (webPushEnabled && vapid) {
+    webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey)
+  } else {
+    console.warn('VAPID credentials not configured. Web Push is disabled.')
   }
-  webpush.setVapidDetails(vapid.subject, vapid.publicKey, vapid.privateKey)
 
-  // 取最近 24h 内未推送的通知（限批量，cron 每分钟会续扫）
-  const { data: pending, error } = await supabase
-    .from('notifications')
-    .select('id, recipient_id, kind, body, params, alert_id')
-    .is('pushed_at', null)
-    .gt('created_at', new Date(Date.now() - 86_400_000).toISOString())
-    .order('created_at', { ascending: true })
-    .limit(100)
+  // Load FCM credentials
+  const sa = await getFcmServiceAccount()
+  const fcmEnabled = !!sa
+  let fcmAccessTokenVal: string | null = null
+  if (fcmEnabled && sa) {
+    fcmAccessTokenVal = await fcmAccessToken(sa)
+  } else {
+    console.warn('FCM credentials not configured. FCM is disabled.')
+  }
+
+  // Claim up to 100 notifications with a 2-minute lease using our atomic claim RPC
+  const { data: pending, error } = await supabase.rpc('claim_unpushed_notifications', {
+    p_batch_size: 100,
+    p_lease_duration: '2 minutes',
+  })
+
   if (error) {
     return new Response(JSON.stringify({ ok: false, reason: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
   }
+
   if (!pending || pending.length === 0) {
-    return new Response(JSON.stringify({ ok: true, sent: 0, pendingCount: 0 }), {
+    return new Response(JSON.stringify({ ok: true, sent: 0, fcmSent: 0, pendingCount: 0 }), {
       headers: { 'Content-Type': 'application/json' },
     })
   }
 
-  // 收件人 → 订阅
+  // Recipient IDs of the claimed notifications
   const recipientIds = [...new Set(pending.map((n) => n.recipient_id))]
+
+  // Fetch recipient display names
   const { data: recipientProfiles } = await supabase
     .from('profiles')
     .select('id, display_name')
@@ -229,6 +241,8 @@ Deno.serve(async () => {
   const recipientNameByUser = new Map(
     (recipientProfiles ?? []).map((p) => [p.id, p.display_name as string | null]),
   )
+
+  // Fetch Web Push subscriptions for the recipients
   const { data: subs } = await supabase
     .from('push_subscriptions')
     .select('id, user_id, endpoint, p256dh, auth')
@@ -240,7 +254,19 @@ Deno.serve(async () => {
     subsByUser.set(s.user_id, arr)
   }
 
-  // 每个收件人当前未读通知数 → 主屏图标角标
+  // Fetch FCM tokens for the recipients
+  const { data: fcmRows } = await supabase
+    .from('push_tokens')
+    .select('token, user_id')
+    .in('user_id', recipientIds)
+  const fcmRowsByUser = new Map<string, NonNullable<typeof fcmRows>>()
+  for (const row of fcmRows ?? []) {
+    const arr = fcmRowsByUser.get(row.user_id) ?? []
+    arr.push(row)
+    fcmRowsByUser.set(row.user_id, arr)
+  }
+
+  // Fetch badge counts (unread notifications) per recipient
   const badgeByUser = new Map<string, number>()
   for (const uid of recipientIds) {
     const { count } = await supabase
@@ -252,10 +278,19 @@ Deno.serve(async () => {
   }
 
   let sent = 0
+  let fcmSent = 0
   const deadSubIds: string[] = []
+  const deadFcmTokens: string[] = []
+
+  // Deliver each claimed notification and finalize
   for (const n of pending) {
     const targets = subsByUser.get(n.recipient_id) ?? []
-    // payload 给 SW：kind+params 供本地化渲染，body 作兜底，badge 更新角标
+    const recipientFcmRows = fcmRowsByUser.get(n.recipient_id) ?? []
+
+    let webPushSuccessCount = 0
+    let fcmSuccessCount = 0
+
+    // Prepare Web Push payload
     const payload = JSON.stringify({
       kind: n.kind,
       params: paramsWithRecipientMark(
@@ -267,46 +302,58 @@ Deno.serve(async () => {
       alertId: n.alert_id,
       badge: badgeByUser.get(n.recipient_id) ?? 0,
     })
-    for (const s of targets) {
-      try {
-        await webpush.sendNotification(
-          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-          payload,
-          { TTL: 3600, urgency: 'high' },
-        )
-        sent++
-      } catch (e) {
-        const code = (e as { statusCode?: number }).statusCode
-        if (code === 404 || code === 410) deadSubIds.push(s.id) // 订阅已失效
+
+    // 1. Attempt Web Push
+    if (webPushEnabled) {
+      for (const s of targets) {
+        try {
+          await webpush.sendNotification(
+            { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+            payload,
+            { TTL: 3600, urgency: 'high' },
+          )
+          webPushSuccessCount++
+          sent++
+        } catch (e) {
+          const code = (e as { statusCode?: number }).statusCode
+          if (code === 404 || code === 410) {
+            deadSubIds.push(s.id)
+          }
+        }
       }
     }
-  }
 
-  // FCM 快路径：每个收件人的每台原生设备发一次空唤醒（与通知条数无关）。
-  let fcmSent = 0
-  const deadFcmTokens: string[] = []
-  const sa = await getFcmServiceAccount()
-  if (sa) {
-    const accessToken = await fcmAccessToken(sa)
-    if (accessToken) {
-      const { data: fcmRows } = await supabase
-        .from('push_tokens')
-        .select('token, user_id')
-        .in('user_id', recipientIds)
-      for (const row of fcmRows ?? []) {
-        const result = await sendTickle(sa, accessToken, row.token)
-        if (result === 'sent') fcmSent++
-        else if (result === 'dead') deadFcmTokens.push(row.token)
+    // 2. Attempt FCM tickles
+    if (fcmEnabled && fcmAccessTokenVal && sa) {
+      for (const row of recipientFcmRows) {
+        const result = await sendTickle(sa, fcmAccessTokenVal, row.token)
+        if (result === 'sent') {
+          fcmSuccessCount++
+          fcmSent++
+        } else if (result === 'dead') {
+          deadFcmTokens.push(row.token)
+        }
       }
     }
+
+    // Determine the delivery outcome for this notification
+    const outcome = determineDeliveryOutcome({
+      hasWebPushConfig: webPushEnabled,
+      hasFcmConfig: fcmEnabled,
+      dbSubsCount: targets.length,
+      dbFcmCount: recipientFcmRows.length,
+      webPushSuccessCount,
+      fcmSuccessCount,
+    })
+
+    // Call finalize RPC
+    await supabase.rpc('finalize_notification_delivery', {
+      p_notification_id: n.id,
+      p_outcome: outcome,
+    })
   }
 
-  // 标记已推送（无订阅的也标记，避免反复扫）
-  await supabase
-    .from('notifications')
-    .update({ pushed_at: new Date().toISOString() })
-    .in('id', pending.map((n) => n.id))
-
+  // Prune dead subscriptions and FCM tokens if any
   if (deadSubIds.length > 0) {
     await supabase.from('push_subscriptions').delete().in('id', deadSubIds)
   }
@@ -319,7 +366,8 @@ Deno.serve(async () => {
       ok: true,
       sent,
       fcmSent,
-      fcmConfigured: !!sa,
+      webPushConfigured: webPushEnabled,
+      fcmConfigured: fcmEnabled,
       pendingCount: pending.length,
       prunedSubs: deadSubIds.length,
       prunedFcmTokens: deadFcmTokens.length,
