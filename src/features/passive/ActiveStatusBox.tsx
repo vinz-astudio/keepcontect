@@ -6,7 +6,7 @@ import {
 } from '@/features/passive/api'
 import { getAllSignals } from '@/features/signals/store'
 import { translate, useI18n } from '@/lib/i18n'
-import { chooseLastActivityTruth } from '@/features/passive/activeStatusDisplay'
+import { getActiveStatusDisplayState } from '@/features/passive/activeStatusDisplay'
 import './PassiveSignalCard.css'
 
 function ago(iso: string): string {
@@ -34,6 +34,18 @@ export function ActiveStatusBox({
   const { t, lang } = useI18n()
   const [todayCount, setTodayCount] = useState(0)
   const [lastAt, setLastAt] = useState<string | null>(null)
+  const [online, setOnline] = useState(navigator.onLine)
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true)
+    const handleOffline = () => setOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -60,10 +72,11 @@ export function ActiveStatusBox({
     return () => clearInterval(timer)
   }, [load])
 
-  const lastActivity = chooseLastActivityTruth({
+  const displayState = getActiveStatusDisplayState({
     serverLastAt,
     localLastAt: lastAt,
     serverTruthRequired,
+    online,
   })
 
   return (
@@ -73,11 +86,11 @@ export function ActiveStatusBox({
         <span className="psig__status-badge">
           {todayCount > 0
             ? lang === 'zh'
-              ? '运行中'
-              : 'Running'
+              ? '本机·运行中'
+              : 'Device · Running'
             : lang === 'zh'
-              ? '待活跃'
-              : 'Idle'}
+              ? '本机·待活跃'
+              : 'Device · Idle'}
         </span>
       </div>
 
@@ -86,7 +99,7 @@ export function ActiveStatusBox({
       <div className="psig__status-grid">
         <div className="psig__status-cell">
           <span className="psig__status-label">
-            {lang === 'zh' ? '今日上报次数' : 'Today Pings'}
+            {lang === 'zh' ? '本机今日上报' : 'Today Pings (this device)'}
           </span>
           <span className="psig__status-value">{todayCount}</span>
         </div>
@@ -94,9 +107,19 @@ export function ActiveStatusBox({
           <span className="psig__status-label">
             {lang === 'zh' ? '最近活跃时间' : 'Last Active'}
           </span>
-          <span className="psig__status-value psig__status-value--time">
-            {lastActivity.iso ? ago(lastActivity.iso) : t('passive.never')}
+          <span className="psig__status-value psig__status-value--time" style={displayState.isDegraded ? { color: 'var(--fg-muted)' } : undefined}>
+            {displayState.iso ? ago(displayState.iso) : t('passive.never')}
+            {displayState.showMarker && (
+              <span style={{ fontSize: '0.7rem', color: 'var(--fg-muted)', marginLeft: '0.25rem', fontWeight: 'normal' }}>
+                {lang === 'zh' ? '(本机)' : '(this device)'}
+              </span>
+            )}
           </span>
+          {displayState.degradedHint && (
+            <span style={{ fontSize: '0.65rem', color: 'var(--accent)', marginTop: '0.1rem' }}>
+              {lang === 'zh' ? displayState.degradedHint.zh : displayState.degradedHint.en}
+            </span>
+          )}
         </div>
       </div>
     </div>
