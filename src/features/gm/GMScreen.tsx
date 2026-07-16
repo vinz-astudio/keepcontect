@@ -584,7 +584,10 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
               </p>
               <button
                 onClick={() => {
-                  localStorage.removeItem('kc.onboardingCompleted')
+                  // F3:完成标记已按用户隔离(kc.onboardingCompleted.<uid>),连同旧全局键一并清除
+                  Object.keys(localStorage)
+                    .filter((k) => k.startsWith('kc.onboardingCompleted'))
+                    .forEach((k) => localStorage.removeItem(k))
                   window.location.reload()
                 }}
                 style={{

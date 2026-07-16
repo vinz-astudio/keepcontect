@@ -5,7 +5,7 @@ import {
   pingUrl,
   PING_SOURCES,
 } from '@/features/passive/api'
-import { getDesktopOS, getPlatform, isTauri } from '@/lib/platform'
+import { getPlatform, isTauri } from '@/lib/platform'
 import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import { APK_URL } from '@/features/install/apk'
@@ -32,7 +32,6 @@ export function PassiveSignalCard() {
   const { t, lang } = useI18n()
   const platform = getPlatform()
   const android = androidRuntime()
-  const desktopOS = platform === 'desktop' ? getDesktopOS() : null
 
   const [token, setToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -287,7 +286,7 @@ export function PassiveSignalCard() {
     {
       id: 'windows_web',
       title: lang === 'zh' ? 'Windows 桌面 App' : 'Windows Desktop App',
-      isCurrent: isTauri() || desktopOS === 'windows',
+      isCurrent: isTauri(),
       render: () => (
         <div>
           {isTauri() && (
@@ -331,7 +330,7 @@ export function PassiveSignalCard() {
     {
       id: 'general',
       title: lang === 'zh' ? '常规被动配置说明' : 'Manual Reporting & Others',
-      isCurrent: !isTauri() && android !== 'native' && platform !== 'ios' && desktopOS !== 'windows',
+      isCurrent: !isTauri() && android !== 'native' && platform !== 'ios',
       render: () => (
         <div>
           <p className="muted">

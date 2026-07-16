@@ -9,7 +9,6 @@ import {
 
 const KEY_CONFIG = 'kc.baselineConfig'
 const KEY_INSTALLED = 'kc.installedAt'
-const KEY_ONBOARDED = 'kc.onboarded'
 
 export function getInstalledAt(): number {
   const raw = localStorage.getItem(KEY_INSTALLED)
@@ -54,12 +53,4 @@ export function removeQuietWindow(index: number): BaselineConfig {
   }
   setConfig(next)
   return next
-}
-
-export function isOnboarded(): boolean {
-  return localStorage.getItem(KEY_ONBOARDED) === '1'
-}
-
-export function markOnboarded(): void {
-  localStorage.setItem(KEY_ONBOARDED, '1')
 }

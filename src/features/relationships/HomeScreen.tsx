@@ -8,6 +8,7 @@ import { CheckinTasksCard } from '@/features/tasks/CheckinTasksCard'
 import { PassiveSignalCard } from '@/features/passive/PassiveSignalCard'
 import { PassivePingBoot } from '@/features/passive/PassivePingBoot'
 import { OnboardingWizard } from '@/features/passive/OnboardingWizard'
+import { checkAndMigrateOnboarding, saveOnboardingCompleted } from '@/features/passive/onboardingState'
 import { LivenessProvider, useLivenessContext } from '@/features/baseline/LivenessProvider'
 import '@/features/baseline/LivenessCard.css'
 import { AlertOverlay } from '@/features/baseline/AlertOverlay'
@@ -262,9 +263,15 @@ export function HomeScreen() {
   const [sosBusy, setSosBusy] = useState(false)
   const [qrTarget, setQrTarget] = useState<{ url: string; name: string } | null>(null)
   const [scanningJoin, setScanningJoin] = useState(false)
-  const [onboardingCompleted, setOnboardingCompleted] = useState(() => {
-    return localStorage.getItem('kc.onboardingCompleted') === 'true'
-  })
+  // 引导完成标记按用户+角色隔离(F3):默认不弹,等 uid+角色都判定后再决定(见下方 effect)
+  const [onboardingCompleted, setOnboardingCompleted] = useState(true)
+  const [gmResolved, setGmResolved] = useState(false)
+
+  // uid 或角色任一晚到都能触发(auto-login/会话恢复时 user 在挂载后才就绪,不能闭包捕获)
+  useEffect(() => {
+    if (!gmResolved || !user?.id) return
+    setOnboardingCompleted(checkAndMigrateOnboarding(user.id, isGm))
+  }, [gmResolved, isGm, user?.id])
 
   // 未读数提到顶层：任何 tab 都更新 App 图标角标 + 底部"通知"页红点
   const refreshUnread = useCallback(async () => {
@@ -330,7 +337,10 @@ export function HomeScreen() {
   useEffect(() => {
     void ensurePushSubscription() // 已授权过的设备登录后静默续订推送
     void reportClient() // 上报客户端版本/平台(供运营查看)
-    void amIGm().then(setIsGm) // GM 才显示 GM 页
+    void amIGm().then((gm) => {
+      setIsGm(gm) // GM 才显示 GM 页
+      setGmResolved(true) // 角色已判定 → 触发上方 onboarding 检查 effect
+    })
 
     // Request geolocation permission early to prevent SOS latency/blocks
     try {
@@ -897,7 +907,7 @@ export function HomeScreen() {
         <OnboardingWizard
           isGm={isGm}
           onComplete={() => {
-            localStorage.setItem('kc.onboardingCompleted', 'true')
+            if (user?.id) saveOnboardingCompleted(user.id, isGm)
             setOnboardingCompleted(true)
           }}
         />
