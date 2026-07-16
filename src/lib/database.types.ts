@@ -632,7 +632,9 @@ export type Database = {
           pattern_hash: string | null
           sensitivity: string
           share_activity: boolean
+          sleep_end_local: string | null
           sleep_end_utc: string | null
+          sleep_start_local: string | null
           sleep_start_utc: string | null
           timezone: string
           updated_at: string
@@ -642,7 +644,9 @@ export type Database = {
           pattern_hash?: string | null
           sensitivity?: string
           share_activity?: boolean
+          sleep_end_local?: string | null
           sleep_end_utc?: string | null
+          sleep_start_local?: string | null
           sleep_start_utc?: string | null
           timezone?: string
           updated_at?: string
@@ -652,7 +656,9 @@ export type Database = {
           pattern_hash?: string | null
           sensitivity?: string
           share_activity?: boolean
+          sleep_end_local?: string | null
           sleep_end_utc?: string | null
+          sleep_start_local?: string | null
           sleep_start_utc?: string | null
           timezone?: string
           updated_at?: string
@@ -750,7 +756,7 @@ export type Database = {
       set_sensitivity: { Args: { _s: string }; Returns: undefined }
       set_share_activity: { Args: { _share: boolean }; Returns: undefined }
       set_sleep_window: {
-        Args: { _end?: string; _start?: string }
+        Args: { _end?: string; _start?: string; _tz?: string }
         Returns: undefined
       }
       trigger_weekly_routine_updates: { Args: never; Returns: undefined }

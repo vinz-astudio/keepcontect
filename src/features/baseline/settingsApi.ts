@@ -22,27 +22,7 @@ export async function getServerSensitivity(): Promise<Sensitivity | null> {
   return s === 'high' || s === 'balanced' || s === 'low' ? s : null
 }
 
-// ---- 睡眠窗（本地 HH:MM ↔ 服务器 UTC time）----
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0')
-}
-
-/** 本地 HH:MM → UTC "HH:MM:00"（作息在本地固定，按当下日期换算时区即可） */
-function localToUtcTime(hhmm: string): string {
-  const [h, m] = hhmm.split(':').map(Number)
-  const d = new Date()
-  d.setHours(h, m, 0, 0)
-  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:00`
-}
-
-/** UTC "HH:MM[:SS]" → 本地 HH:MM */
-function utcTimeToLocal(t: string): string {
-  const [h, m] = t.split(':').map(Number)
-  const d = new Date()
-  d.setUTCHours(h, m, 0, 0)
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
+// ---- 睡眠窗（本地 HH:MM）----
 
 export interface SleepWindow {
   start: string // 本地 HH:MM
@@ -56,14 +36,14 @@ export async function getSleepWindow(): Promise<SleepWindow | null> {
   if (!uid) return null
   const { data, error } = await supabase
     .from('user_settings')
-    .select('sleep_start_utc, sleep_end_utc')
+    .select('sleep_start_local, sleep_end_local')
     .eq('user_id', uid)
     .maybeSingle()
   if (error) throw error
-  if (!data?.sleep_start_utc || !data?.sleep_end_utc) return null
+  if (!data?.sleep_start_local || !data?.sleep_end_local) return null
   return {
-    start: utcTimeToLocal(data.sleep_start_utc),
-    end: utcTimeToLocal(data.sleep_end_utc),
+    start: data.sleep_start_local.slice(0, 5),
+    end: data.sleep_end_local.slice(0, 5),
   }
 }
 
@@ -72,9 +52,12 @@ export async function setSleepWindow(
   startLocal: string,
   endLocal: string,
 ): Promise<void> {
+  // 必须始终携带 _tz:缺省会触发服务端的旧客户端垫片(把数字当 UTC 换算)。
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   const { error } = await supabase.rpc('set_sleep_window', {
-    _start: localToUtcTime(startLocal),
-    _end: localToUtcTime(endLocal),
+    _start: `${startLocal}:00`,
+    _end: `${endLocal}:00`,
+    _tz: tz,
   })
   if (error) throw error
 }
