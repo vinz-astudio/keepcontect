@@ -3,7 +3,6 @@ import {
   listMyTasks,
   respondTask,
   revokeTask,
-  utcTimeToLocal,
   type CheckinTask,
 } from '@/features/tasks/api'
 import { getProfileName } from '@/features/alerts/api'
@@ -57,8 +56,8 @@ export function CheckinTasksCard() {
   }
 
   function ruleText(x: CheckinTask): string {
-    return x.kind === 'daily' && x.due_time_utc
-      ? t('tasks.daily', { time: utcTimeToLocal(x.due_time_utc) })
+    return x.kind === 'daily' && x.due_time_local
+      ? t('tasks.daily', { time: x.due_time_local.slice(0, 5) })
       : t('tasks.interval', { h: x.interval_hours ?? 0 })
   }
 

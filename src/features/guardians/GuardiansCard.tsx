@@ -12,7 +12,6 @@ import {
   listTasksISet,
   revokeTask,
   updateTaskForWard,
-  utcTimeToLocal,
   type CheckinTask,
 } from '@/features/tasks/api'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -56,9 +55,9 @@ export function GuardiansCard() {
   function openEdit(x: CheckinTask) {
     setEditingTask(x.id)
     setFormWard(x.ward_id)
-    if (x.kind === 'daily' && x.due_time_utc) {
+    if (x.kind === 'daily' && x.due_time_local) {
       setFormMode('daily')
-      setFormTime(utcTimeToLocal(x.due_time_utc))
+      setFormTime(x.due_time_local.slice(0, 5))
     } else {
       setFormMode('interval')
       setFormHours(x.interval_hours ?? 3)
@@ -245,9 +244,9 @@ export function GuardiansCard() {
                           {wardTasks.map((x) => (
                             <li key={x.id} className="tasklist__item">
                               <span className="muted">
-                                {x.kind === 'daily' && x.due_time_utc
+                                {x.kind === 'daily' && x.due_time_local
                                   ? t('tasks.daily', {
-                                      time: utcTimeToLocal(x.due_time_utc),
+                                      time: x.due_time_local.slice(0, 5),
                                     })
                                   : t('tasks.interval', {
                                       h: x.interval_hours ?? 0,

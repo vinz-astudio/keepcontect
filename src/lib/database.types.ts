@@ -144,6 +144,7 @@ export type Database = {
           created_at: string
           created_by: string
           cycle_state: string
+          due_time_local: string | null
           due_time_utc: string | null
           grace_minutes: number
           id: string
@@ -159,6 +160,7 @@ export type Database = {
           created_at?: string
           created_by: string
           cycle_state?: string
+          due_time_local?: string | null
           due_time_utc?: string | null
           grace_minutes?: number
           id?: string
@@ -174,6 +176,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           cycle_state?: string
+          due_time_local?: string | null
           due_time_utc?: string | null
           grace_minutes?: number
           id?: string
@@ -679,6 +682,7 @@ export type Database = {
       become_guardian_by_code: { Args: { _code: string }; Returns: string }
       create_checkin_task: {
         Args: {
+          _due_time_local?: string
           _due_time_utc?: string
           _first_due?: string
           _grace?: number
@@ -762,6 +766,7 @@ export type Database = {
       trigger_weekly_routine_updates: { Args: never; Returns: undefined }
       update_checkin_task: {
         Args: {
+          _due_time_local?: string
           _due_time_utc?: string
           _first_due?: string
           _grace?: number

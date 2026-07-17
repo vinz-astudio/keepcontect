@@ -65,12 +65,10 @@ export async function createMyDailyTask(
   label: string,
 ): Promise<void> {
   const uid = await requireUid()
-  const { dueTimeUtc, firstDue } = localTimeToUtc(localHHMM)
   const { error } = await supabase.rpc('create_checkin_task', {
     _ward: uid,
     _kind: 'daily',
-    _due_time_utc: dueTimeUtc,
-    _first_due: firstDue,
+    _due_time_local: localHHMM,
     _label: label,
   })
   if (error) throw error
@@ -84,12 +82,10 @@ export async function createTaskForWard(
     | { kind: 'interval'; hours: number; label: string },
 ): Promise<void> {
   if (opts.kind === 'daily') {
-    const { dueTimeUtc, firstDue } = localTimeToUtc(opts.localHHMM)
     const { error } = await supabase.rpc('create_checkin_task', {
       _ward: wardId,
       _kind: 'daily',
-      _due_time_utc: dueTimeUtc,
-      _first_due: firstDue,
+      _due_time_local: opts.localHHMM,
       _label: opts.label,
     })
     if (error) throw error
@@ -112,12 +108,10 @@ export async function updateTaskForWard(
     | { kind: 'interval'; hours: number; label: string },
 ): Promise<void> {
   if (opts.kind === 'daily') {
-    const { dueTimeUtc, firstDue } = localTimeToUtc(opts.localHHMM)
     const { error } = await supabase.rpc('update_checkin_task', {
       _task: taskId,
       _kind: 'daily',
-      _due_time_utc: dueTimeUtc,
-      _first_due: firstDue,
+      _due_time_local: opts.localHHMM,
       _label: opts.label,
     })
     if (error) throw error
@@ -132,16 +126,11 @@ export async function updateTaskForWard(
   }
 }
 
-/** 被守护者响应(接受/拒绝);接受 daily 任务时计算首个到期 */
+/** 被守护者响应(接受/拒绝) */
 export async function respondTask(task: CheckinTask, accept: boolean): Promise<void> {
-  let firstDue: string | null = null
-  if (accept && task.kind === 'daily' && task.due_time_utc) {
-    firstDue = localTimeToUtc(utcTimeToLocal(task.due_time_utc)).firstDue
-  }
   const { error } = await supabase.rpc('respond_checkin_task', {
     _task: task.id,
     _accept: accept,
-    _first_due: firstDue ?? undefined,
   })
   if (error) throw error
 }
