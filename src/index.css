@@ -67,8 +67,16 @@ body,
 #root {
   margin: 0;
   height: 100%;
-  overflow: hidden;
   overscroll-behavior: none;
+}
+
+/* overflow:hidden 只放 body/#root。html 保持默认 overflow —— root 元素一旦
+   overflow!=visible 就会阻断其背景向 iOS canvas 传播,底部 home 指示条安全区
+   便露出系统默认白/‑‑bg,这正是历轮「html 画布同色」没生效的根因。留 html
+   默认 overflow 后,下方 html{background:var(--bg-soft)} 才能铺到安全区。 */
+body,
+#root {
+  overflow: hidden;
 }
 
 /* iOS PWA 从通知拉起等场景会让视觉视口短暂大于布局视口,底部露出"画布"
