@@ -42,6 +42,17 @@
     </script>
   </head>
   <body>
+    <script>
+      (function() {
+        var isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+          navigator.standalone === true;
+        if (isIos && isStandalone) {
+          document.documentElement.classList.add('kc-ios-standalone');
+        }
+      })();
+    </script>
     <div id="root">
       <div class="splash">
         <div class="splash__content">
@@ -101,6 +112,9 @@
             rgba(224, 133, 95, 0.06),
             transparent 60%
           );
+        }
+        html.kc-ios-standalone .splash {
+          height: 100vh;
         }
         .splash__content {
           display: flex;

@@ -71,23 +71,6 @@ body,
   overscroll-behavior: none;
 }
 
-/* iOS PWA:home 指示条那条安全区在布局视口之外,页面背景/画布都到不了,iOS
-   默认涂白 → tab 栏下方常驻一条白带。用一个 fixed 底条,高度取
-   env(safe-area-inset-bottom),涂成 tab 栏同色 --bg-soft,把那条白带盖成 bar 色。
-   不动 tab 栏布局(不上抬图标、不双计安全区)。env 兜底 0px → 仅 iOS PWA(env>0)
-   可见;pointer-events:none 不挡 home 指示条手势。 */
-body::after {
-  content: '';
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: env(safe-area-inset-bottom, 0px);
-  background: var(--bg-soft);
-  z-index: 30;
-  pointer-events: none;
-}
-
 /* iOS PWA 从通知拉起等场景会让视觉视口短暂大于布局视口,底部露出"画布"
    (html 的背景)。把画布染成与底部导航栏同色,残影就与导航栏融为一体,
    不再是一条突兀的空带。正常状态下 body 全覆盖,此色不可见。 */
@@ -121,6 +104,21 @@ body {
   #root {
     height: 100dvh;
   }
+}
+
+/* iOS Home Screen App 的实机诊断显示 100dvh=797px、100vh=843.98px。
+   只在 standalone 模式把完整 flex 高度链切到 100vh；Safari 仍使用上面的
+   100dvh 跟随浏览器栏。TabBar 是 .home 的 flex 子项，因此会随父层抵达
+   物理屏底，再在栏内给 Home Indicator 留出 34px safe-area。 */
+html.kc-ios-standalone,
+html.kc-ios-standalone body,
+html.kc-ios-standalone #root,
+html.kc-ios-standalone #root .home {
+  height: 100vh;
+}
+
+html.kc-ios-standalone #root .tabbar--mobile {
+  padding-bottom: calc(0.4rem + env(safe-area-inset-bottom, 0px));
 }
 
 button {
