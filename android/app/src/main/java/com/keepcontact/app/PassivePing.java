@@ -198,6 +198,15 @@ final class PassivePing {
 
     private static void updateActivityTransitions(Context context, boolean enable) {
         try {
+            if (Build.VERSION.SDK_INT >= 29
+                && ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.ACTIVITY_RECOGNITION
+                ) != PackageManager.PERMISSION_GRANTED) {
+                Log.w(TAG, "Activity recognition permission not granted; skipping transition update");
+                return;
+            }
+
             Intent intent = new Intent(context, ActivityTransitionReceiver.class);
             intent.setAction("com.keepcontact.app.ACTION_PROCESS_ACTIVITY_TRANSITIONS");
             // Must specify FLAG_MUTABLE starting with Android 12 for GMS PendingIntents
