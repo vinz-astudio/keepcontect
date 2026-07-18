@@ -39,6 +39,11 @@
   display: {
     mode: 'standalone' | 'fullscreen' | 'minimal-ui' | 'browser'
     navigatorStandalone: boolean | null
+    iosStandaloneClass: boolean
+    viewportUnits: {
+      vhPx: number | null
+      dvhPx: number | null
+    }
     safeArea: null | {
       top: string
       right: string
@@ -176,6 +181,37 @@ function getSafeArea(): ViewportTraceEntry['display']['safeArea'] {
   }
   probe.remove()
   return out
+}
+
+function getViewportUnitHeights(): ViewportTraceEntry['display']['viewportUnits'] {
+  if (!document.body) return { vhPx: null, dvhPx: null }
+
+  const measure = (height: string): number | null => {
+    const probe = document.createElement('div')
+    probe.setAttribute('aria-hidden', 'true')
+    probe.style.cssText = [
+      'position:absolute',
+      'visibility:hidden',
+      'pointer-events:none',
+      'left:-9999px',
+      'top:-9999px',
+      'width:0',
+      `height:${height}`,
+    ].join(';')
+    document.body.appendChild(probe)
+    const value = parsePx(getComputedStyle(probe).height)
+    probe.remove()
+    return value
+  }
+
+  const supportsDvh = typeof CSS !== 'undefined' && CSS.supports
+    ? CSS.supports('height: 100dvh')
+    : false
+
+  return {
+    vhPx: measure('100vh'),
+    dvhPx: supportsDvh ? measure('100dvh') : null,
+  }
 }
 
 function getElementTrace(selector: string): ElementTrace | null {
@@ -352,6 +388,8 @@ export function collectViewportTraceEntry(
       navigatorStandalone: typeof (navigator as Navigator & { standalone?: boolean }).standalone === 'boolean'
         ? Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
         : null,
+      iosStandaloneClass: document.documentElement.classList.contains('kc-ios-standalone'),
+      viewportUnits: getViewportUnitHeights(),
       safeArea: getSafeArea(),
       supportsDvh: typeof CSS !== 'undefined' && CSS.supports ? CSS.supports('height: 100dvh') : null,
     },
@@ -436,8 +474,88 @@ export function installViewportDiagnostics(): void {
   })
 }
 
-export function exportViewportTraceText(): string {
-  const entries = readViewportTrace()
+function compactElementTrace(element: ElementTrace | null) {
+  if (!element) return null
+  return {
+    rect: element.rect,
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    paddingBottom: element.styles.paddingBottom,
+  }
+}
+
+function toCompactEntry(entry: ViewportTraceEntry) {
+  return {
+    seq: entry.seq,
+    label: entry.label,
+    at: entry.at,
+    ageMs: entry.ageMs,
+    viewport: {
+      innerWidth: entry.viewport.innerWidth,
+      innerHeight: entry.viewport.innerHeight,
+      outerHeight: entry.viewport.outerHeight,
+      clientWidth: entry.viewport.clientWidth,
+      clientHeight: entry.viewport.clientHeight,
+      screenWidth: entry.viewport.screenWidth,
+      screenHeight: entry.viewport.screenHeight,
+      availHeight: entry.viewport.availHeight,
+      orientation: entry.viewport.orientation,
+      devicePixelRatio: entry.viewport.devicePixelRatio,
+    },
+    visualViewport: entry.visualViewport,
+    display: entry.display,
+    elements: {
+      root: compactElementTrace(entry.elements.root),
+      home: compactElementTrace(entry.elements.home),
+      tabbar: compactElementTrace(entry.elements.tabbar),
+    },
+    derived: entry.derived,
+  }
+}
+
+type CompactViewportTraceEntry = ReturnType<typeof toCompactEntry>
+
+function compactStateSignature(entry: CompactViewportTraceEntry): string {
+  return JSON.stringify({
+    viewport: entry.viewport,
+    visualViewport: entry.visualViewport,
+    display: entry.display,
+    elements: entry.elements,
+    derived: entry.derived,
+  })
+}
+
+export function exportCompactViewportTraceText(
+  entries: ViewportTraceEntry[] = readViewportTrace(),
+  maxEntries = 12,
+): string {
+  const seen = new Set<string>()
+  const limit = Math.min(Math.max(0, maxEntries), 12)
+  const distinct = entries
+    .map(toCompactEntry)
+    .filter((entry) => {
+      const signature = compactStateSignature(entry)
+      if (seen.has(signature)) return false
+      seen.add(signature)
+      return true
+    })
+    .slice(0, limit)
+
+  return JSON.stringify(
+    {
+      format: 'kc-viewport-compact-v2',
+      exportedAt: new Date().toISOString(),
+      totalEntries: entries.length,
+      includedStates: distinct.length,
+      latestSuspects: entries.find((entry) => entry.derived.suspects.length)?.derived.suspects ?? [],
+      entries: distinct,
+    },
+    null,
+    2,
+  )
+}
+
+export function exportFullViewportTraceText(entries: ViewportTraceEntry[] = readViewportTrace()): string {
   return JSON.stringify(
     {
       exportedAt: new Date().toISOString(),
@@ -447,4 +565,9 @@ export function exportViewportTraceText(): string {
     null,
     2,
   )
+}
+
+/** @deprecated Use the explicit compact or full exporter. */
+export function exportViewportTraceText(): string {
+  return exportFullViewportTraceText()
 }
