@@ -49,34 +49,7 @@
         var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
           navigator.standalone === true;
         if (!isIos || !isStandalone) return;
-
-        var root = document.documentElement;
-        var probe = document.createElement('div');
-        probe.setAttribute('aria-hidden', 'true');
-        probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;' +
-          'padding-top:env(safe-area-inset-top);width:0;height:0;';
-        document.body.appendChild(probe);
-
-        function syncIosPwaViewport() {
-          var safeTop = parseFloat(getComputedStyle(probe).paddingTop) || 0;
-          var viewportGap = window.screen.height - window.innerHeight;
-          var shouldCompensate = safeTop > 0 && viewportGap > 0 &&
-            Math.abs(viewportGap - safeTop) <= 2;
-
-          root.classList.toggle('kc-ios-pwa-viewport-gap', shouldCompensate);
-          if (shouldCompensate) {
-            root.style.setProperty('--kc-ios-pwa-screen-height', window.screen.height + 'px');
-          } else {
-            root.style.removeProperty('--kc-ios-pwa-screen-height');
-          }
-        }
-
-        syncIosPwaViewport();
-        window.addEventListener('resize', syncIosPwaViewport);
-        window.addEventListener('orientationchange', syncIosPwaViewport);
-        window.addEventListener('pageshow', syncIosPwaViewport);
-        window.visualViewport?.addEventListener('resize', syncIosPwaViewport);
-        window.setTimeout(syncIosPwaViewport, 250);
+        document.documentElement.classList.add('kc-ios-standalone');
       })();
     </script>
     <div id="root">
@@ -125,7 +98,7 @@
           left: 0;
           width: 100vw;
           height: 100vh;
-          height: var(--kc-ios-pwa-screen-height, 100dvh);
+          height: 100dvh;
           background: var(--splash-bg);
           color: var(--splash-fg);
           display: flex;
@@ -138,6 +111,9 @@
             rgba(224, 133, 95, 0.06),
             transparent 60%
           );
+        }
+        html.kc-ios-standalone .splash {
+          height: 100vh;
         }
         .splash__content {
           display: flex;

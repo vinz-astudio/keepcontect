@@ -94,8 +94,7 @@ body {
   flex-direction: column;
 }
 
-/* 移动端：用动态视口高度，让底部 sticky 栏始终贴合可见区域最底部，
-   不被地址栏占位推到屏幕外（100% 取的是大视口，地址栏出现时会溢出）。 */
+/* Safari/browser：动态视口跟随地址栏展开和收起。 */
 @supports (height: 100dvh) {
   html,
   body,
@@ -104,20 +103,18 @@ body {
   }
 }
 
-/* iOS installed-PWA 异常态：系统窗口仍是 844pt，但 WebKit 把布局视口错误地
-   缩成 797pt（差值恰好等于 safe-area top 47pt）。index.html 只在实测满足
-   screen.height - innerHeight ≈ safe-area top 时加此 class，避免正常 844pt
-   状态被重复加成 891pt。四层容器必须一起扩展；.home 自己也声明了 100dvh。 */
-html.kc-ios-pwa-viewport-gap,
-html.kc-ios-pwa-viewport-gap body,
-html.kc-ios-pwa-viewport-gap #root,
-html.kc-ios-pwa-viewport-gap #root .home {
-  height: var(--kc-ios-pwa-screen-height, calc(100dvh + env(safe-area-inset-top, 0px)));
+/* iOS Home Screen App：不能继承上面的 Safari 地址栏逻辑。WebKit 254868
+   记录了 standalone + viewport-fit=cover 会让动态/小视口高度少算 safe area；
+   其已知规避方式是在 standalone 使用包含安全区的 100vh。 */
+html.kc-ios-standalone,
+html.kc-ios-standalone body,
+html.kc-ios-standalone #root,
+html.kc-ios-standalone #root .home {
+  height: 100vh;
 }
 
-/* 盒子抵达物理屏底后，才在 tab 栏内部给 home indicator 让位；背景仍铺满。 */
-html.kc-ios-pwa-viewport-gap #root .tabbar--mobile {
-  padding-bottom: calc(0.4rem + env(safe-area-inset-bottom, 0px));
+html.kc-ios-standalone .splash {
+  height: 100vh;
 }
 
 button {

@@ -22,34 +22,38 @@ function ruleBlock(source: string, prelude: string): string {
 }
 
 describe('iOS installed-PWA viewport regression', () => {
-  it('enables compensation only for the measured iOS standalone viewport gap', () => {
+  it('marks iOS Home Screen mode before the app shell renders', () => {
     expect(html).toMatch(/navigator\.standalone === true/)
-    expect(html).toMatch(/window\.screen\.height - window\.innerHeight/)
-    expect(html).toMatch(/Math\.abs\(viewportGap - safeTop\) <= 2/)
     expect(html).toMatch(
-      /classList\.toggle\('kc-ios-pwa-viewport-gap', shouldCompensate\)/,
+      /classList\.add\('kc-ios-standalone'\)/,
     )
+    expect(html).not.toMatch(/window\.screen\.height - window\.innerHeight/)
+    expect(html).not.toMatch(/kc-ios-pwa-viewport-gap/)
   })
 
-  it('extends every 100dvh app container to the measured physical screen height', () => {
-    const compensatedContainers = ruleBlock(
-      css,
-      'html.kc-ios-pwa-viewport-gap,',
-    )
-
-    expect(compensatedContainers).toMatch(
-      /height:\s*var\(--kc-ios-pwa-screen-height, calc\(100dvh \+ env\(safe-area-inset-top, 0px\)\)\);/,
-    )
-    expect(css).toMatch(/html\.kc-ios-pwa-viewport-gap #root \.home/)
-  })
-
-  it('keeps nav controls above the home indicator after extending the app box', () => {
+  it('keeps 100dvh for browser chrome but uses WebKit full-height 100vh in iOS standalone', () => {
     expect(css).toMatch(
-      /html\.kc-ios-pwa-viewport-gap #root \.tabbar--mobile\s*\{[^}]*padding-bottom:\s*calc\(0\.4rem \+ env\(safe-area-inset-bottom, 0px\)\);/s,
+      /@supports \(height: 100dvh\)[\s\S]*height:\s*100dvh;/,
+    )
+
+    const standaloneContainers = ruleBlock(
+      css,
+      'html.kc-ios-standalone,',
+    )
+
+    expect(standaloneContainers).toMatch(/height:\s*100vh;/)
+    expect(css).toMatch(/html\.kc-ios-standalone #root \.home/)
+  })
+
+  it('uses the same standalone height while the startup splash is visible', () => {
+    expect(css).toMatch(
+      /html\.kc-ios-standalone \.splash\s*\{[^}]*height:\s*100vh;/s,
     )
   })
 
-  it('removes the viewport-anchored pseudo strip that cannot reach the missing 47pt', () => {
+  it('removes both disproved viewport-overflow workarounds', () => {
     expect(css).not.toMatch(/body::after\s*\{/)
+    expect(css).not.toMatch(/--kc-ios-pwa-screen-height/)
+    expect(css).not.toMatch(/kc-ios-pwa-viewport-gap/)
   })
 })
