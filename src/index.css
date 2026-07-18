@@ -67,16 +67,25 @@ body,
 #root {
   margin: 0;
   height: 100%;
+  overflow: hidden;
   overscroll-behavior: none;
 }
 
-/* overflow:hidden 只放 body/#root。html 保持默认 overflow —— root 元素一旦
-   overflow!=visible 就会阻断其背景向 iOS canvas 传播,底部 home 指示条安全区
-   便露出系统默认白/‑‑bg,这正是历轮「html 画布同色」没生效的根因。留 html
-   默认 overflow 后,下方 html{background:var(--bg-soft)} 才能铺到安全区。 */
-body,
-#root {
-  overflow: hidden;
+/* iOS PWA:home 指示条那条安全区在布局视口之外,页面背景/画布都到不了,iOS
+   默认涂白 → tab 栏下方常驻一条白带。用一个 fixed 底条,高度取
+   env(safe-area-inset-bottom),涂成 tab 栏同色 --bg-soft,把那条白带盖成 bar 色。
+   不动 tab 栏布局(不上抬图标、不双计安全区)。env 兜底 0px → 仅 iOS PWA(env>0)
+   可见;pointer-events:none 不挡 home 指示条手势。 */
+body::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: env(safe-area-inset-bottom, 0px);
+  background: var(--bg-soft);
+  z-index: 30;
+  pointer-events: none;
 }
 
 /* iOS PWA 从通知拉起等场景会让视觉视口短暂大于布局视口,底部露出"画布"
