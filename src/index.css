@@ -71,26 +71,7 @@ body,
   overscroll-behavior: none;
 }
 
-/* iOS PWA:home 指示条那条安全区在布局视口之外,页面背景/画布都到不了,iOS
-   默认涂白 → tab 栏下方常驻一条白带。用一个 fixed 底条,高度取
-   env(safe-area-inset-bottom),涂成 tab 栏同色 --bg-soft,把那条白带盖成 bar 色。
-   不动 tab 栏布局(不上抬图标、不双计安全区)。env 兜底 0px → 仅 iOS PWA(env>0)
-   可见;pointer-events:none 不挡 home 指示条手势。 */
-body::after {
-  content: '';
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: env(safe-area-inset-bottom, 0px);
-  background: var(--bg-soft);
-  z-index: 30;
-  pointer-events: none;
-}
-
-/* iOS PWA 从通知拉起等场景会让视觉视口短暂大于布局视口,底部露出"画布"
-   (html 的背景)。把画布染成与底部导航栏同色,残影就与导航栏融为一体,
-   不再是一条突兀的空带。正常状态下 body 全覆盖,此色不可见。 */
+/* 浏览器画布兜底色；正常布局由 body 和应用容器完全覆盖。 */
 html {
   background: var(--bg-soft);
 }
@@ -121,6 +102,22 @@ body {
   #root {
     height: 100dvh;
   }
+}
+
+/* iOS installed-PWA 异常态：系统窗口仍是 844pt，但 WebKit 把布局视口错误地
+   缩成 797pt（差值恰好等于 safe-area top 47pt）。index.html 只在实测满足
+   screen.height - innerHeight ≈ safe-area top 时加此 class，避免正常 844pt
+   状态被重复加成 891pt。四层容器必须一起扩展；.home 自己也声明了 100dvh。 */
+html.kc-ios-pwa-viewport-gap,
+html.kc-ios-pwa-viewport-gap body,
+html.kc-ios-pwa-viewport-gap #root,
+html.kc-ios-pwa-viewport-gap #root .home {
+  height: var(--kc-ios-pwa-screen-height, calc(100dvh + env(safe-area-inset-top, 0px)));
+}
+
+/* 盒子抵达物理屏底后，才在 tab 栏内部给 home indicator 让位；背景仍铺满。 */
+html.kc-ios-pwa-viewport-gap #root .tabbar--mobile {
+  padding-bottom: calc(0.4rem + env(safe-area-inset-bottom, 0px));
 }
 
 button {
