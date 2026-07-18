@@ -10,7 +10,7 @@
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  padding: 0.4rem 0.5rem;
+  padding: 0.4rem 0.5rem calc(0.4rem + env(safe-area-inset-bottom, 0px));
   background: var(--bg-soft);
   border-top: 1px solid var(--line);
   user-select: none;
@@ -20,13 +20,16 @@
   overscroll-behavior: none;
 }
 
-/* 各平台底部适配策略(勿再往这里塞 env() 预留):
-   - iOS PWA:不预留 env(safe-area-inset-bottom)(预留会常驻一条空带);偶发的
-     视口错位残影由 index.css 的 html 画布同色化解决。
+/* 各平台底部适配策略:
+   - iOS PWA:用 env(safe-area-inset-bottom) 撑高本栏 padding-bottom,让本栏自己的
+     background(--bg-soft)铺满 home 指示条那条安全区 —— 那条带即 bar 色,不再露出
+     更浅的 --bg / 系统默认白底。(2026-07 人类拍板:带色=bar 色即可,栏略高可接受;
+     推翻 f306702「不预留、只靠 html 画布同色」的做法 —— 那套在实机浅色主题下仍露白带。)
+     env 带 0px 兜底,故仅 iOS PWA(env>0)生效;index.css 的 html 画布同色留作视口
+     错位残影的二道防线。
    - Android APK:WebView 的 env() 恒为 0,底部让位由 capacitor.config 的
-     adjustMarginsForEdgeToEdge 原生处理(Android 15 强制 edge-to-edge 时自动
-     按系统手势条实际高度加边距)。
-   - Android Chrome PWA / 桌面:浏览器自行处理,无需预留。 */
+     adjustMarginsForEdgeToEdge 原生处理(Android 15 edge-to-edge)。
+   - Android Chrome PWA / 桌面:env()=0,浏览器自处理,本规则不影响。 */
 
 .tabbar__btn {
   flex: 1;
