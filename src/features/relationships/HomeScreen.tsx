@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { EmergencyInfoCard } from '@/features/profile/EmergencyInfoCard'
 import { GuardiansCard } from '@/features/guardians/GuardiansCard'
-import { SafeAwayBar } from '@/features/baseline/SafeAwayBar'
 import { RoutineSettings } from '@/features/baseline/RoutineSettings'
 import { CheckinTasksCard } from '@/features/tasks/CheckinTasksCard'
 import { PassiveSignalCard } from '@/features/passive/PassiveSignalCard'
@@ -495,7 +494,6 @@ export function HomeScreen() {
         <main className="home__page">
           <div className={`dashboard-grid ${tab !== 'home' ? 'home__tab-content--hidden' : ''}`}>
             <div className="dashboard-grid__col1">
-              <SafeAwayBar />
               <NotificationsCard onChanged={refreshUnread} />
             </div>
             <div className="dashboard-grid__col2">

@@ -122,3 +122,28 @@ export async function calculateWebHmac(token: string, message: string): Promise<
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
 }
+
+export interface EventLivenessContext {
+  nowMs: number
+  alertCreatedAtMs?: number | null
+}
+
+export function isEventLivenessQualifying(
+  event: {
+    observedAtMs: number
+    receivedAtMs: number
+    ingestVersion: number
+    kind?: string
+  },
+  context: EventLivenessContext
+): boolean {
+  if (event.ingestVersion !== 2) return false
+  if (!Number.isFinite(event.observedAtMs) || !Number.isFinite(event.receivedAtMs)) return false
+  if (context.alertCreatedAtMs !== undefined && context.alertCreatedAtMs !== null) {
+    if (event.observedAtMs < context.alertCreatedAtMs) return false
+    if (event.receivedAtMs < context.alertCreatedAtMs) return false
+  }
+  if (event.observedAtMs > context.nowMs + 5 * 60 * 1000) return false
+  if (Math.abs(event.receivedAtMs - event.observedAtMs) > 5 * 60 * 1000) return false
+  return true
+}

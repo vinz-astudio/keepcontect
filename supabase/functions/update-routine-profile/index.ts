@@ -210,6 +210,8 @@ Deno.serve(async (req) => {
     error?: string
   }> = []
 
+  let hasFailures = false
+
   // 4. Process each user
   for (const uid of usersToProcess) {
     try {
@@ -223,16 +225,19 @@ Deno.serve(async (req) => {
       }
 
       const pattern = profile.routine_pattern || 'regular_9to5'
-      const { data: settings } = await supabase
+      const { data: settings, error: settingsErr } = await supabase
         .from('user_settings')
         .select('timezone, sensitivity, sleep_start_utc, sleep_end_utc')
         .eq('user_id', uid)
         .maybeSingle()
+      if (settingsErr) {
+        throw new Error(`Settings error: ${settingsErr.message}`)
+      }
       const timezone = settings?.timezone || 'UTC'
       const sensitivity = settings?.sensitivity || 'balanced'
 
       // Query historical aggregates (last 90 days)
-      let { data: aggregates, error: aggErr } = await supabase
+      const { data: aggregates, error: aggErr } = await supabase
         .from('daily_activity_aggregates')
         .select('date, hourly_density')
         .eq('user_id', uid)
@@ -241,24 +246,6 @@ Deno.serve(async (req) => {
 
       if (aggErr) {
         throw new Error(`Failed to query aggregates: ${aggErr.message}`)
-      }
-
-      // Self-healing: if no aggregates exist, seed them now
-      if (!aggregates || aggregates.length === 0) {
-        console.log(`Seeding initial routine aggregates for user ${uid}`)
-        const { error: seedErr } = await supabase.rpc('initialize_user_routine_data', { _user_id: uid })
-        if (seedErr) {
-          console.error(`Failed to seed routine aggregates for ${uid}:`, seedErr)
-        } else {
-          // Re-fetch
-          const { data: refetched } = await supabase
-            .from('daily_activity_aggregates')
-            .select('date, hourly_density')
-            .eq('user_id', uid)
-            .order('date', { ascending: false })
-            .limit(90)
-          aggregates = refetched
-        }
       }
 
       const since = new Date(Date.now() - 90 * 24 * 3_600_000).toISOString()
@@ -275,10 +262,14 @@ Deno.serve(async (req) => {
       const gapStats = summarizeGapStats(pings || [], timezone)
 
       let fallbackReason = 'Gemini Key is missing in Deno env'
+      if (profile?.consent_data_sharing !== true) {
+        fallbackReason = 'User has not consented to data sharing'
+      }
 
-      // Check if Gemini is available and if user consented or if it's personal optimization
-      if (geminiKey && aggregates && aggregates.length > 0) {
-        let success = false
+      let success = false
+
+      // Check if Gemini is available and if user consented
+      if (profile?.consent_data_sharing === true && geminiKey && aggregates && aggregates.length > 0) {
         const modelsToTry = [
           'gemini-3.1-flash-lite',
           'gemini-3.5-flash',
@@ -320,7 +311,7 @@ Guidelines for generating thresholds (in hours):
 - Off-hours / Transition Hours: Set moderate thresholds (e.g., 3.0 to 4.5 hours).
 - Shift / Irregular Pattern: If "shift_irregular" is chosen, or if the density matrix shows erratic hours, keep thresholds flatter and wider (e.g., 5.0 to 6.5 hours) to prevent false alerts.
 - Weekend Multiplier: Typically between 1.0 and 1.5. If the user shifts their sleep/wake cycle on weekends, output a multiplier to scale thresholds.
-- Sensitivity: Do not bake sensitivity into the profile. The server applies it later: sensitive ~= model threshold + 30 minutes, balanced/relaxed wait longer.
+- Sensitivity: Do not bake sensitivity into the profile. The server applies it later.
 - Confidence: Consider sample counts, stable active windows, and recent gap distributions. Low sample hours should have lower confidence.
 
 Ensure the returned thresholds represent the neutral usual silence baseline (in hours) before sensitivity adjustment. Thresholds must be double precision floats between 1.0 and 12.0.
@@ -328,56 +319,63 @@ Ensure the returned thresholds represent the neutral usual silence baseline (in 
 
         for (const modelName of modelsToTry) {
           try {
-            console.log(`Attempting Gemini analysis for user ${uid} using model ${modelName}...`)
-            const response = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: promptText }] }],
-                  generationConfig: {
-                    responseMimeType: 'application/json',
-                    responseSchema: {
-                      type: 'OBJECT',
-                      properties: {
-                        hourly_thresholds: {
-                          type: 'ARRAY',
-                          description: '24 double precision floats representing custom hourly thresholds (in hours) starting from hour 0 to hour 23',
-                          items: { type: 'NUMBER' },
+            console.log(`Attempting Gemini analysis using model ${modelName}...`)
+            if (profile.consent_data_sharing !== true) {
+              throw new Error('Consent required for Gemini request')
+            }
+            let response;
+            try {
+              response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }],
+                    generationConfig: {
+                      responseMimeType: 'application/json',
+                      responseSchema: {
+                        type: 'OBJECT',
+                        properties: {
+                          hourly_thresholds: {
+                            type: 'ARRAY',
+                            description: '24 double precision floats representing custom hourly thresholds (in hours) starting from hour 0 to hour 23',
+                            items: { type: 'NUMBER' },
+                          },
+                          weekend_multiplier: {
+                            type: 'NUMBER',
+                            description: 'Multiplier for thresholds on weekends. Must be between 0.8 and 2.0',
+                          },
+                          reasoning: {
+                            type: 'STRING',
+                            description: 'Brief explanation of the routine analysis',
+                          },
+                          model_confidence: {
+                            type: 'NUMBER',
+                            description: 'Overall confidence from 0.0 to 1.0',
+                          },
+                          hourly_confidence: {
+                            type: 'ARRAY',
+                            description: '24 confidence values from 0.0 to 1.0 starting from hour 0 to hour 23',
+                            items: { type: 'NUMBER' },
+                          },
+                          model_explanation: {
+                            type: 'STRING',
+                            description: 'User-readable explanation of the usual behavior model and confidence',
+                          },
                         },
-                        weekend_multiplier: {
-                          type: 'NUMBER',
-                          description: 'Multiplier for thresholds on weekends (Saturday and Sunday). Must be between 0.8 and 2.0',
-                        },
-                        reasoning: {
-                          type: 'STRING',
-                          description: 'Brief explanation of the routine analysis',
-                        },
-                        model_confidence: {
-                          type: 'NUMBER',
-                          description: 'Overall confidence from 0.0 to 1.0',
-                        },
-                        hourly_confidence: {
-                          type: 'ARRAY',
-                          description: '24 confidence values from 0.0 to 1.0 starting from hour 0 to hour 23',
-                          items: { type: 'NUMBER' },
-                        },
-                        model_explanation: {
-                          type: 'STRING',
-                          description: 'User-readable explanation of the usual behavior model and confidence',
-                        },
+                        required: ['hourly_thresholds', 'weekend_multiplier'],
                       },
-                      required: ['hourly_thresholds', 'weekend_multiplier'],
                     },
-                  },
-                }),
-              }
-            )
+                  }),
+                }
+              )
+            } catch (fetchErr) {
+              throw new Error(`Network failure during Gemini API call: ${(fetchErr as Error).message}`)
+            }
 
             if (!response.ok) {
-              const errBody = await response.text().catch(() => '')
-              throw new Error(`Gemini API returned status ${response.status} (${response.statusText}). Body: ${errBody}`)
+              throw new Error(`Gemini API returned status ${response.status} (${response.statusText}).`)
             }
 
             const geminiData = await response.json()
@@ -411,7 +409,7 @@ Ensure the returned thresholds represent the neutral usual silence baseline (in 
                   ? parsed.reasoning.trim()
                   : `Usual behavior model from ${pings?.length ?? 0} recent pings; confidence ${parsedModelConfidence.toFixed(2)}.`
 
-            await supabase.from('user_activity_profiles').upsert({
+            const { error: upsertErr } = await supabase.from('user_activity_profiles').upsert({
               user_id: uid,
               hourly_thresholds,
               weekend_multiplier,
@@ -423,7 +421,11 @@ Ensure the returned thresholds represent the neutral usual silence baseline (in 
               updated_at: new Date().toISOString(),
             })
 
-            console.log(`Successfully updated routine profile using model ${modelName} for user ${uid}`)
+            if (upsertErr) {
+              throw new Error(`Upsert error: ${upsertErr.message}`)
+            }
+
+            console.log(`Successfully updated routine profile using model ${modelName}...`)
             results.push({ user_id: uid, status: 'success', method: 'gemini', model: modelName })
             success = true
             break
@@ -436,14 +438,14 @@ Ensure the returned thresholds represent the neutral usual silence baseline (in 
         if (success) {
           continue
         } else {
-          fallbackReason = `All Gemini models failed. Key info: len=${geminiKey?.length}, prefix=${geminiKey?.substring(0, 6)}. Last error: ${lastErrorMsg}`
+          fallbackReason = `All Gemini models failed. Last error: ${lastErrorMsg}`
         }
       }
 
       // 5. Rule-based fallback
       const { hourly_thresholds, weekend_multiplier } = getRuleBasedProfile(pattern, gapStats)
       const fallbackModelConfidence = modelConfidence(gapStats)
-      await supabase.from('user_activity_profiles').upsert({
+      const { error: upsertErr } = await supabase.from('user_activity_profiles').upsert({
         user_id: uid,
         hourly_thresholds,
         weekend_multiplier,
@@ -455,12 +457,18 @@ Ensure the returned thresholds represent the neutral usual silence baseline (in 
         updated_at: new Date().toISOString(),
       })
 
+      if (upsertErr) {
+        throw new Error(`Upsert error: ${upsertErr.message}`)
+      }
+
       results.push({ user_id: uid, status: 'success', method: 'rule-based', error: fallbackReason })
     } catch (err) {
-      console.error(`Failed to process routine profile for user ${uid}:`, err)
+      console.error(`Failed to process routine profile:`, err)
       results.push({ user_id: uid, status: 'failed', method: 'rule-based', error: (err as Error).message })
     }
   }
 
-  return json({ ok: true, processedCount: results.length, results })
+  const anyFailed = results.some((r) => r.status === 'failed')
+  const statusCode = anyFailed ? 500 : 200
+  return json({ ok: !anyFailed, processedCount: results.length, results }, statusCode)
 })

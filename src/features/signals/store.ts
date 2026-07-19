@@ -6,7 +6,7 @@ import { getAutomaticPingSource, PING_SOURCES } from '@/features/passive/api'
 
 const DB_NAME = 'keepcontact'
 const STORE = 'signals'
-const VERSION = 1
+const VERSION = 2
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -26,6 +26,18 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
+function generateUUID(): string {
+  const cryptoObj = typeof window !== 'undefined' ? window.crypto : (globalThis as any).crypto
+  if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {
+    return cryptoObj.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
 export async function recordSignal(
   kind: SignalKind,
   t: number = Date.now(),
@@ -38,11 +50,32 @@ export async function recordSignal(
     recordSource = getAutomaticPingSource()
   }
 
+  // Get session user_id or null before storage safely
+  let verifiedUserId: string | null = null
+  try {
+    const { data } = await supabase.auth.getSession()
+    verifiedUserId = data?.session?.user?.id ?? null
+  } catch {
+    verifiedUserId = null
+  }
+  const event_id = generateUUID()
+  const at = new Date(t).toISOString()
+
   const db = await openDb()
   let addedId: number | undefined
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite')
-    const req = tx.objectStore(STORE).add({ t, kind, uploaded: false, source: recordSource })
+    const req = tx.objectStore(STORE).add({
+      t,
+      at,
+      kind,
+      uploaded: false,
+      quarantined: false,
+      quarantine: false,
+      source: recordSource,
+      event_id,
+      user_id: verifiedUserId
+    })
     req.onsuccess = () => {
       addedId = req.result as number
       resolve()
@@ -59,19 +92,22 @@ export async function recordSignal(
     const DEBOUNCE_MS = 10 * 60 * 1000 // 10 minutes
 
     if (kind === 'manual_checkin' || t - lastUpload >= DEBOUNCE_MS) {
-      // If automatic ping but on plain browser, do not insert
-      if (recordSource) {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user?.id) {
-          const { error } = await supabase.from('behavior_pings').insert({
-            user_id: session.user.id,
-            kind,
-            at: new Date(t).toISOString(),
-            source: recordSource,
-          })
-          if (!error) {
+      // If ownerless (quarantined) or plain browser, do not upload
+      if (verifiedUserId && recordSource) {
+        const { data: status, error } = await supabase.rpc('record_behavior_ping', {
+          event_id,
+          observed_at: at,
+          source: recordSource,
+          kind
+        })
+
+        if (!error) {
+          const isSuccess = status === 'inserted' || status === 'duplicate' || status === 'coalesced'
+          const isQuarantined = status === 'invalid'
+
+          if (isSuccess || isQuarantined) {
             localStorage.setItem('kc.lastUploadT', String(t))
-            
+
             if (addedId !== undefined) {
               const dbMark = await openDb()
               const txMark = dbMark.transaction(STORE, 'readwrite')
@@ -80,7 +116,13 @@ export async function recordSignal(
               getReq.onsuccess = () => {
                 const data = getReq.result
                 if (data) {
-                  data.uploaded = true
+                  if (isSuccess) {
+                    data.uploaded = true
+                  }
+                  if (isQuarantined) {
+                    data.quarantined = true
+                    data.quarantine = true
+                  }
                   osMark.put(data)
                 }
               }
@@ -109,7 +151,7 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
   try {
     const cutoff = Date.now() - 35 * 86_400_000
     const sinceStr = new Date(cutoff).toISOString()
-    
+
     // 1. Fetch recent server pings (limit to 200 to avoid postgrest cap and save bandwidth)
     const { data: serverData, error } = await supabase
       .from('behavior_pings')
@@ -118,94 +160,99 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
       .gte('at', sinceStr)
       .order('at', { ascending: false })
       .limit(200)
-      
+
     if (error) throw error
-    
+
     const serverEvents = (serverData ?? []).map(r => ({
       t: new Date(r.at).getTime(),
       kind: r.kind
     }))
-    
+
     const serverTimestamps = new Set(serverEvents.map(e => e.t))
-    
-    // 2. Fetch local signals that need uploading (where uploaded !== true)
+
+    // 2. Fetch local signals that need uploading
     const db = await openDb()
-    const allPending = await new Promise<Array<{ id: number; t: number; kind: SignalKind; source?: string | null }>>((resolve, reject) => {
+    const allPending = await new Promise<Array<{ id: number; t: number; kind: SignalKind; at?: string; uploaded?: boolean; source?: string | null; event_id?: string | null; user_id?: string | null; quarantined?: boolean }>>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly')
       const req = tx.objectStore(STORE).getAll()
       req.onsuccess = () => {
-        const all = req.result as Array<{ id: number; t: number; kind: SignalKind; uploaded?: boolean; source?: string | null }>
-        const pending = all.filter(e => e.uploaded !== true && e.t >= cutoff)
+        const all = req.result as Array<{ id: number; t: number; kind: SignalKind; at?: string; uploaded?: boolean; source?: string | null; event_id?: string | null; user_id?: string | null; quarantined?: boolean }>
+        const pending = all.filter(e => {
+          return e.uploaded !== true &&
+                 e.quarantined !== true &&
+                 e.user_id === uid &&
+                 typeof e.event_id === 'string' &&
+                 typeof e.source === 'string' &&
+                 typeof e.at === 'string' &&
+                 Object.values(PING_SOURCES).includes(e.source as any) &&
+                 e.t >= cutoff
+        })
         resolve(pending)
       }
       req.onerror = () => reject(req.error)
     })
     db.close()
 
-    // Dedupe: skip anything the server already has, then cap to avoid flood
+    // Dedupe: skip anything the server already has
     const dedupedPending = allPending.filter(e => !serverTimestamps.has(e.t))
-    // Filter out rows whose record-time surface was plain-browser (explicitly source === null).
-    // Note: undefined is accepted as legacy and mapped to 'app' or surfaceSource.
-    const uploadablePending = dedupedPending.filter(e => e.source !== null)
+
     // Take the most recent SYNC_CAP items (sort descending by t, then slice)
-    uploadablePending.sort((a, b) => b.t - a.t)
-    const localEventsToUpload = uploadablePending.slice(0, SYNC_CAP)
+    dedupedPending.sort((a, b) => b.t - a.t)
+    const localEventsToUpload = dedupedPending.slice(0, SYNC_CAP)
 
     // 3. Upload local signals that are missing on the server
     if (localEventsToUpload.length > 0) {
-      const surfaceSource = getAutomaticPingSource()
-      const inserts = localEventsToUpload
-        .map(e => {
-          // If e.source is defined, we use it directly. If undefined (legacy), we fall back.
-          let sourceVal = e.source
-          if (sourceVal === undefined) {
-            sourceVal = e.kind === 'manual_checkin' ? PING_SOURCES.MANUAL : (surfaceSource || 'app')
-          }
-          return {
-            user_id: uid,
-            kind: e.kind,
-            at: new Date(e.t).toISOString(),
-            source: sourceVal,
-          }
-        })
-
-      if (inserts.length > 0) {
-        const { error: uploadError } = await supabase
-          .from('behavior_pings')
-          .insert(inserts)
-          
-        if (uploadError) throw uploadError
-      }
-
-      // Mark these local events as uploaded
-      const dbMark = await openDb()
-      await new Promise<void>((resolve, reject) => {
-        const tx = dbMark.transaction(STORE, 'readwrite')
-        const os = tx.objectStore(STORE)
-        const getReq = os.getAll()
-        getReq.onsuccess = () => {
-          const all = getReq.result as Array<{ id: number; t: number; kind: SignalKind; uploaded?: boolean }>
-          for (const item of all) {
-            let changed = false
-            if (localEventsToUpload.some(x => x.id === item.id)) {
-              item.uploaded = true
-              changed = true
-            } else if (item.uploaded === undefined && serverTimestamps.has(item.t)) {
-              item.uploaded = true
-              changed = true
-            }
-            if (changed) {
-              os.put(item)
-            }
-          }
+      const events = localEventsToUpload.map(e => {
+        return {
+          event_id: e.event_id!,
+          observed_at: e.at!,
+          source: e.source!,
+          kind: e.kind
         }
-        tx.oncomplete = () => resolve()
-        tx.onerror = () => reject(tx.error)
       })
-      dbMark.close()
+
+      const { data, error: uploadError } = await supabase.rpc('record_behavior_pings', {
+        events
+      })
+      if (uploadError) throw uploadError
+
+      if (data && Array.isArray(data) && data.length === localEventsToUpload.length) {
+        const statuses = data.map((d: any) => d.status || d)
+
+        // Mark these local events as uploaded or quarantined based on responses
+        const dbMark = await openDb()
+        await new Promise<void>((resolve, reject) => {
+          const tx = dbMark.transaction(STORE, 'readwrite')
+          const os = tx.objectStore(STORE)
+          const getReq = os.getAll()
+          getReq.onsuccess = () => {
+            const all = getReq.result as Array<{ id: number; t: number; kind: SignalKind; uploaded?: boolean; quarantined?: boolean; quarantine?: boolean }>
+            for (const item of all) {
+              const idx = localEventsToUpload.findIndex(x => x.id === item.id)
+              if (idx !== -1) {
+                const status = statuses[idx]
+                if (status === 'inserted' || status === 'duplicate' || status === 'coalesced') {
+                  item.uploaded = true
+                  os.put(item)
+                } else if (status === 'invalid') {
+                  item.quarantined = true
+                  item.quarantine = true
+                  os.put(item)
+                }
+              } else if (item.uploaded === undefined && serverTimestamps.has(item.t)) {
+                item.uploaded = true
+                os.put(item)
+              }
+            }
+          }
+          tx.oncomplete = () => resolve()
+          tx.onerror = () => reject(tx.error)
+        })
+        dbMark.close()
+      }
     }
-    
-    // 4. Download server signals that are missing locally
+
+    // 4. Download server pings that are missing locally
     const localEvents = await getAllSignals()
     const localTimestamps = new Set(localEvents.map(e => e.t))
     const toDownload = serverEvents.filter(e => !localTimestamps.has(e.t))
@@ -215,7 +262,16 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
         const tx = dbDl.transaction(STORE, 'readwrite')
         const os = tx.objectStore(STORE)
         for (const se of toDownload) {
-          os.add({ t: se.t, kind: se.kind as SignalKind, uploaded: true })
+          os.add({
+            t: se.t,
+            at: new Date(se.t).toISOString(),
+            kind: se.kind as SignalKind,
+            uploaded: true,
+            quarantined: false,
+            quarantine: false,
+            user_id: uid,
+            event_id: generateUUID()
+          })
         }
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)

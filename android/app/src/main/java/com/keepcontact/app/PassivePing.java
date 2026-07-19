@@ -280,19 +280,31 @@ final class PassivePing {
         EXECUTOR.execute(() -> {
             HttpURLConnection conn = null;
             try {
-                long t = System.currentTimeMillis() / 1000;
-                String sig = calculateHMAC(String.valueOf(t), token);
-                String url =
-                    base +
-                    "/functions/v1/ping?token=" +
-                    URLEncoder.encode(token, StandardCharsets.UTF_8.name()) +
-                    "&source=capacitor" +
-                    "&t=" + t +
-                    "&sig=" + URLEncoder.encode(sig, StandardCharsets.UTF_8.name());
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
+                sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                String observedAt = sdf.format(new java.util.Date(now));
+                String eventId = java.util.UUID.randomUUID().toString();
+
+                String bodyJson = "{" +
+                    "\"token\":\"" + token + "\"," +
+                    "\"event_id\":\"" + eventId + "\"," +
+                    "\"observed_at\":\"" + observedAt + "\"," +
+                    "\"source\":\"capacitor\"" +
+                    "}";
+
+                String url = base + "/functions/v1/ping";
                 conn = (HttpURLConnection) new URL(url).openConnection();
                 conn.setConnectTimeout(8000);
                 conn.setReadTimeout(8000);
-                conn.setRequestMethod("GET");
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                conn.setDoOutput(true);
+
+                try (java.io.OutputStream os = conn.getOutputStream()) {
+                    byte[] input = bodyJson.getBytes(StandardCharsets.UTF_8);
+                    os.write(input, 0, input.length);
+                }
+
                 int code = conn.getResponseCode();
                 if (code < 400) {
                     prefs.edit().putLong(KEY_LAST_PING, now).apply();
