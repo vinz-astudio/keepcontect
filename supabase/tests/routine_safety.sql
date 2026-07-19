@@ -1,7 +1,7 @@
 -- pgTAP database-level routine safety and security tests
 BEGIN;
 
-SELECT plan(29);
+SELECT plan(35);
 
 -- Setup test users with typical columns to avoid constraints
 INSERT INTO auth.users (id, email, aud, role) VALUES
@@ -298,6 +298,64 @@ RESET ROLE;
 SELECT lives_ok(
     $$ select public.run_daily_aggregations(); $$,
     'Executing daily aggregations RPC directly succeeds'
+);
+
+-- ADR-0022: sensitivity remains an additive user tool on the deterministic
+-- 1.5h Gate 1 base. Learned profiles stay quarantined from live safety.
+RESET ROLE;
+UPDATE public.user_settings
+SET sensitivity = 'high'
+WHERE user_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+SELECT results_eq(
+    $$ SELECT round(extract(epoch from private.silence_threshold('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')) / 3600.0, 2) $$,
+    $$ VALUES (1.50::numeric) $$,
+    'High sensitivity must equal the 1.5h neutral base plus 0 minutes'
+);
+
+UPDATE public.user_settings
+SET sensitivity = 'balanced'
+WHERE user_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+SELECT results_eq(
+    $$ SELECT round(extract(epoch from private.silence_threshold('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')) / 3600.0, 2) $$,
+    $$ VALUES (2.25::numeric) $$,
+    'Balanced sensitivity must equal the 1.5h neutral base plus 45 minutes'
+);
+
+UPDATE public.user_settings
+SET sensitivity = 'low'
+WHERE user_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+SELECT results_eq(
+    $$ SELECT round(extract(epoch from private.silence_threshold('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')) / 3600.0, 2) $$,
+    $$ VALUES (3.00::numeric) $$,
+    'Low sensitivity must equal the 1.5h neutral base plus 90 minutes'
+);
+
+INSERT INTO public.user_activity_profiles (user_id, hourly_thresholds, weekend_multiplier)
+VALUES (
+  'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  array_fill(12.0::double precision, ARRAY[24]),
+  5.0
+)
+ON CONFLICT (user_id) DO UPDATE
+SET hourly_thresholds = excluded.hourly_thresholds,
+    weekend_multiplier = excluded.weekend_multiplier;
+SELECT results_eq(
+    $$ SELECT round(extract(epoch from private.silence_threshold('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')) / 3600.0, 2) $$,
+    $$ VALUES (3.00::numeric) $$,
+    'Learned profile thresholds and multipliers must not widen the live Gate 1 threshold'
+);
+
+SELECT ok(
+    NOT has_function_privilege('authenticated', 'private.silence_threshold(uuid)', 'EXECUTE'),
+    'Authenticated users must not execute the private threshold function directly'
+);
+
+SET local role authenticated;
+SELECT set_config('request.jwt.claims', '{"sub": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"}', true);
+SELECT results_eq(
+    $$ SELECT (public.my_routine_status() ->> 'threshold_seconds')::bigint $$,
+    $$ VALUES (10800::bigint) $$,
+    'Routine server-truth RPC must expose the same corrected low threshold'
 );
 
 SELECT * FROM finish();

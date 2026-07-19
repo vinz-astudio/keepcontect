@@ -43,8 +43,8 @@ export const SENSITIVITY_PRESETS: Record<
   Sensitivity,
   { multiplier: number; bufferHours: number; floorHours: number }
 > = {
-  high: { multiplier: 1, bufferHours: 0.25, floorHours: 1 },
-  balanced: { multiplier: 1, bufferHours: 0.5, floorHours: 2 },
+  high: { multiplier: 1, bufferHours: 0, floorHours: 1 },
+  balanced: { multiplier: 1, bufferHours: 0.75, floorHours: 2 },
   low: { multiplier: 1, bufferHours: 1.5, floorHours: 3 },
 }
 
