@@ -50,6 +50,14 @@ describe('buildUsualBehaviorModel', () => {
     expect(relaxed).toBeGreaterThanOrEqual(3)
   })
 
+  it('applies the displayed +0m/+45m/+90m contract to the 1.5h neutral Gate 1 base', () => {
+    const baseHours = 1.5
+
+    expect(applySensitivityToThreshold(baseHours, 'high')).toBe(1.5)
+    expect(applySensitivityToThreshold(baseHours, 'balanced')).toBe(2.25)
+    expect(applySensitivityToThreshold(baseHours, 'low')).toBe(3)
+  })
+
   it('uses low confidence when there are too few behavior samples', () => {
     const model = buildUsualBehaviorModel([
       { t: midnight(0) + 8 * HOUR, kind: 'interaction' },

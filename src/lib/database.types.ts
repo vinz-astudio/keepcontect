@@ -122,6 +122,9 @@ export type Database = {
           kind: string
           source: string | null
           user_id: string
+          received_at: string
+          ingest_version: number
+          event_id: string | null
         }
         Insert: {
           at?: string
@@ -129,6 +132,9 @@ export type Database = {
           kind?: string
           source?: string | null
           user_id: string
+          received_at?: string | null
+          ingest_version?: number
+          event_id?: string | null
         }
         Update: {
           at?: string
@@ -136,6 +142,9 @@ export type Database = {
           kind?: string
           source?: string | null
           user_id?: string
+          received_at?: string | null
+          ingest_version?: number
+          event_id?: string | null
         }
         Relationships: []
       }
@@ -706,6 +715,31 @@ export type Database = {
       initialize_user_routine_data: {
         Args: { _user_id: string }
         Returns: undefined
+      }
+      record_behavior_ping: {
+        Args: {
+          event_id: string
+          observed_at: string
+          source: string
+          kind: string
+        }
+        Returns: 'inserted' | 'duplicate' | 'coalesced' | 'invalid'
+      }
+      record_behavior_pings: {
+        Args: {
+          events: Json
+        }
+        Returns: Array<{ status: 'inserted' | 'duplicate' | 'coalesced' | 'invalid' }>
+      }
+      record_behavior_ping_for_user: {
+        Args: {
+          _user_id: string
+          _event_id: string
+          _observed_at: string
+          _source: string
+          _kind: string
+        }
+        Returns: 'inserted' | 'duplicate' | 'coalesced' | 'invalid'
       }
       join_community_by_code: { Args: { _code: string }; Returns: string }
       join_group_by_code: { Args: { _code: string }; Returns: string }
