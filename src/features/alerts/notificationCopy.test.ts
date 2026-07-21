@@ -41,3 +41,43 @@ describe('notification copy', () => {
     expect(copy).toBe('Demo User is confirmed safe. Alert resolved.')
   })
 })
+
+describe('auto_resolved notification copy', () => {
+  it('renders the watcher template instead of the raw server body', () => {
+    const copy = renderNotificationCopy(
+      {
+        kind: 'auto_resolved',
+        body: '阿明 的告警已自动解除（检测到活动恢复）。',
+        params: { target: 'Ming' },
+      },
+      { userId: 'u1', displayName: 'Chunwei' },
+    )
+
+    expect(copy).toContain('Ming')
+    expect(copy.toLowerCase()).toContain('automatically')
+    expect(copy).not.toBe('阿明 的告警已自动解除（检测到活动恢复）。')
+  })
+
+  it('uses second person when the auto-resolved alert is about the current user', () => {
+    const copy = renderNotificationCopy(
+      {
+        kind: 'auto_resolved',
+        body: '原文',
+        params: { target: 'Demo User', target_is_recipient: 'true' },
+      },
+      { userId: 'u1', displayName: 'Demo User' },
+    )
+
+    expect(copy.toLowerCase()).toContain('your alert')
+  })
+
+  it('keeps the raw-body fallback for unknown kinds', () => {
+    const copy = renderNotificationCopy({
+      kind: 'kind_from_the_future',
+      body: 'raw body',
+      params: {},
+    })
+
+    expect(copy).toBe('raw body')
+  })
+})

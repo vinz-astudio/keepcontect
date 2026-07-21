@@ -19,25 +19,22 @@ export async function resolveMyAlert(): Promise<void> {
   emitAlertChange()
 }
 
-export async function raiseSos(
-  lat?: number | null,
-  lng?: number | null,
-  accuracy?: number | null,
-): Promise<string> {
-  const { data, error } = await supabase.rpc('raise_sos', {
-    _lat: lat ?? undefined,
-    _lng: lng ?? undefined,
+export async function raiseSos(): Promise<string> {
+  const { data, error } = await supabase.rpc('raise_sos')
+  if (error) throw error
+  return data as string
+}
+
+export async function updateSosLocation(
+  lat: number,
+  lng: number,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc('update_sos_location', {
+    _lat: lat,
+    _lng: lng,
   })
   if (error) throw error
-  if (lat && lng) {
-    try {
-      const { saveSOSLocation } = await import('@/features/profile/emergencyApi')
-      await saveSOSLocation(lat, lng, accuracy ?? 0)
-    } catch (err) {
-      console.error('Failed to save SOS location:', err)
-    }
-  }
-  return data as string
+  return !!data
 }
 
 // ---- 响应者两段式确认 ----
@@ -96,21 +93,13 @@ export async function clearMyNotifications(): Promise<void> {
 }
 
 /**
- * 清除「已完成」的通知,保留仍需我处理的——即对应仍 open 的告警、
- * 带「我去联系 / 确认安全」按键的那些(keepAlertIds 为这些 open 告警的 id)。
+ * 清除「已完成」的通知,保留仍需我处理的(对应仍 open 的告警)。
+ * keep 判定在服务端 RPC 里做:客户端 items 状态可能陈旧/为空(构建窗口、
+ * limit 30),曾导致 open 告警的通知也被清掉、响应卡片无法重建。
  */
-export async function clearFinishedNotifications(
-  keepAlertIds: string[],
-): Promise<void> {
-  const { data: u } = await supabase.auth.getUser()
-  const uid = u.user?.id
-  if (!uid) return
-  let q = supabase.from('notifications').delete().eq('recipient_id', uid)
-  if (keepAlertIds.length > 0) {
-    // 删除:alert_id 为空 或 不在 keep 列表里的;= 保留 keep 列表对应的开放告警通知
-    q = q.or(`alert_id.is.null,alert_id.not.in.(${keepAlertIds.join(',')})`)
-  }
-  const { error } = await q
+export async function clearFinishedNotifications(): Promise<void> {
+  // 类型待 database.types.ts 重新生成后补上(该文件归 KC-R4 SOS 任务写集)
+  const { error } = await supabase.rpc('clear_finished_notifications' as any)
   if (error) throw error
 }
 

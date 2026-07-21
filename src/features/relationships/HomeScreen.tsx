@@ -14,7 +14,8 @@ import '@/features/baseline/LivenessCard.css'
 import { AlertOverlay } from '@/features/baseline/AlertOverlay'
 import { NotificationsCard } from '@/features/alerts/NotificationsCard'
 import { TabBar, type Tab } from '@/features/nav/TabBar'
-import { listMyNotifications, raiseSos } from '@/features/alerts/api'
+import { listMyNotifications } from '@/features/alerts/api'
+import { dispatchSos } from '@/features/alerts/sosDispatch'
 import { subscribeAlertSignals, subscribeGroupStatusSignals } from '@/features/alerts/realtime'
 import { setBadge } from '@/lib/badge'
 import { reportClient } from '@/lib/clientReport'
@@ -50,7 +51,7 @@ import { ApkUpgradeNotice } from '@/features/install/ApkUpgradeNotice'
 import { EditableName } from '@/features/common/EditableName'
 import { Icon } from '@/features/common/Icon'
 import { setDisplayName } from '@/features/profile/profileApi'
-import { getCurrentCoords } from '@/lib/geo'
+
 import { becomeGuardianByCode } from '@/features/guardians/api'
 import {
   buildInviteUrl,
@@ -64,7 +65,6 @@ import { ThemeToggle } from '@/lib/theme'
 import {
   ensurePushSubscription,
   getPushStatus,
-  triggerPushDispatch,
   type PushStatus,
 } from '@/features/push/pushApi'
 import { getPushPromptPlacement } from '@/features/push/pushPrompt'
@@ -308,9 +308,7 @@ export function HomeScreen() {
     setSosBusy(true)
     toast(t('sos.sending'), 'info')
     try {
-      const coords = await getCurrentCoords() // 附带实时位置，给 Group/Community
-      await raiseSos(coords?.lat, coords?.lng, coords?.accuracy)
-      void triggerPushDispatch() // 不等 cron，立即推送到 Group 锁屏
+      await dispatchSos()
       toast(t('sos.sent'), 'danger')
       await refresh()
       void refreshUnread()

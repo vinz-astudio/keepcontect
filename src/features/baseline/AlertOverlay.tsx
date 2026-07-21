@@ -7,9 +7,7 @@ import {
   verifyPattern,
 } from '@/features/pattern/patternStore'
 import { startAlarm, stopAlarm } from '@/features/baseline/alarm'
-import { raiseSos } from '@/features/alerts/api'
-import { triggerPushDispatch } from '@/features/push/pushApi'
-import { getCurrentCoords } from '@/lib/geo'
+import { dispatchSos } from '@/features/alerts/sosDispatch'
 import { useI18n } from '@/lib/i18n'
 import { setServerPatternHash } from '@/features/baseline/settingsApi'
 import { toast } from '@/lib/toast'
@@ -171,9 +169,7 @@ export function AlertOverlay() {
     setBusy(true)
     setError(null)
     try {
-      const coords = await getCurrentCoords() // 附带实时位置
-      await raiseSos(coords?.lat, coords?.lng)
-      void triggerPushDispatch() // 不等 cron，立即推送到 Group
+      await dispatchSos()
       setSosSent(true)
     } catch {
       setError(t('err.op'))

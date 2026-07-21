@@ -534,9 +534,7 @@ export function NotificationsCard({
           <button
             className="nfeed__clear"
             disabled={busy}
-            onClick={() =>
-              act(() => clearFinishedNotifications(items.map((i) => i.alert.id)))
-            }
+            onClick={() => act(() => clearFinishedNotifications())}
           >
             {t('notif.clearAll')}
           </button>

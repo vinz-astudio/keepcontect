@@ -8,6 +8,7 @@ const NOTIF_KINDS = new Set([
   'sos',
   'on_it',
   'resolved',
+  'auto_resolved',
   'task_invite',
   'task_due',
   'task_missed',
@@ -68,7 +69,10 @@ export function renderNotificationCopy(
   const params = paramsRecord(notification.params)
   const targetIsViewer = isCurrentUserTarget(params, viewer)
   const key =
-    targetIsViewer && (notification.kind === 'on_it' || notification.kind === 'resolved')
+    targetIsViewer &&
+    (notification.kind === 'on_it' ||
+      notification.kind === 'resolved' ||
+      notification.kind === 'auto_resolved')
       ? `notif.${notification.kind}.you`
       : `notif.${notification.kind}`
 

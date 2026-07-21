@@ -716,6 +716,10 @@ export type Database = {
       raise_sos:
         | { Args: never; Returns: string }
         | { Args: { _lat?: number; _lng?: number }; Returns: string }
+      update_sos_location: {
+        Args: { _lat: number; _lng: number }
+        Returns: boolean
+      }
       raise_test_alert: { Args: never; Returns: undefined }
       register_fcm_token: {
         Args: { _platform?: string; _token: string }
