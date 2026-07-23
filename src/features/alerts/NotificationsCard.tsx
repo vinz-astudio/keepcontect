@@ -3,7 +3,7 @@ import {
   ackAlert,
   clearFinishedNotifications,
   deleteNotification,
-  getAlert,
+  listOpenAlerts,
   getEmergencyInfoForUser,
   getProfileName,
   listMyNotifications,
@@ -15,6 +15,7 @@ import {
   type EmergencyInfo,
   type ClientDevice,
 } from '@/features/alerts/api'
+import { buildResponderItems } from '@/features/alerts/responderItems'
 import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
@@ -41,6 +42,7 @@ interface ResponderItem {
   /** 已认领「我去联系」的成员名（alerts.paused_by 对应的 profile） */
   reacherName: string | null
   clients: ClientDevice[]
+  isUnread: boolean
 }
 
 const PUSH_PROMPT_DISMISSED_KEY = 'kc.pushPrompt.dismissed'
@@ -86,25 +88,16 @@ export function NotificationsCard({
   const refresh = useCallback(async () => {
     setError(null)
     try {
-      const list = await listMyNotifications()
+      const [list, openAlerts] = await Promise.all([
+        listMyNotifications(),
+        listOpenAlerts(),
+      ])
       setNotifs(list)
 
-      // 需要我响应的：有 alert_id 且为 group/community/terminal/sos 的去重
-      const ids = [
-        ...new Set(
-          list
-            .filter(
-              (n) =>
-                n.alert_id &&
-                ['group', 'community', 'terminal', 'sos'].includes(n.kind),
-            )
-            .map((n) => n.alert_id as string),
-        ),
-      ]
+      const itemsMap = buildResponderItems(openAlerts, list)
       const built: ResponderItem[] = []
-      for (const id of ids) {
-        const alert = await getAlert(id)
-        if (!alert || alert.status !== 'open') continue
+      for (const alertId of Object.keys(itemsMap)) {
+        const { alert, isUnread } = itemsMap[alertId]
         const [name, emergency, reacherName, clients] = await Promise.all([
           getProfileName(alert.user_id),
           getEmergencyInfoForUser(alert.user_id).catch(() => null),
@@ -119,6 +112,7 @@ export function NotificationsCard({
           emergency,
           reacherName,
           clients,
+          isUnread,
         })
       }
       setItems(built)

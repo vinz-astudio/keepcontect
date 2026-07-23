@@ -66,6 +66,21 @@ export async function listMyNotifications(limit = 30): Promise<AppNotification[]
   return data ?? []
 }
 
+/** 获取对当前用户可见的且属于其他用户的 open 状态告警 */
+export async function listOpenAlerts(): Promise<Alert[]> {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) return []
+  const { data, error } = await supabase
+    .from('alerts')
+    .select('*')
+    .eq('status', 'open')
+    .neq('user_id', uid)
+  if (error) throw error
+  return data ?? []
+}
+
+
 export async function markNotificationRead(id: string): Promise<void> {
   const { error } = await supabase
     .from('notifications')

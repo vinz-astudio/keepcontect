@@ -22,8 +22,19 @@ if (urlInvite) {
 }
 
 function Gate() {
-  const { session, loading, hasStoredAuth } = useAuth()
+  const { session, loading, hasStoredAuth, bootstrapError, bootstrapTimedOut, retryBootstrap } = useAuth()
   const { t } = useI18n()
+
+  if (!session && (bootstrapError || bootstrapTimedOut)) {
+    return (
+      <div className="app app--center" style={{ flexDirection: 'column', gap: '16px', padding: '24px', textAlign: 'center' }}>
+        <p className="home__error" style={{ margin: 0 }}>{t('auth.bootstrap.error')}</p>
+        <button className="share" onClick={retryBootstrap}>
+          {t('auth.bootstrap.retry')}
+        </button>
+      </div>
+    )
+  }
 
   // 老用户：本地已有会话凭据 → 首帧直接进 watch，不等异步 getSession / 网络
   if (session || (loading && hasStoredAuth)) return <HomeScreen />

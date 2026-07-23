@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -8,6 +9,7 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { bootstrapSession } from './authBootstrap'
 
 interface AuthState {
   session: Session | null
@@ -16,6 +18,9 @@ interface AuthState {
   /** 同步得知本地是否已存在会话凭据，供首帧乐观渲染用 */
   hasStoredAuth: boolean
   signOut: () => Promise<void>
+  bootstrapError: Error | null
+  bootstrapTimedOut: boolean
+  retryBootstrap: () => void
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined)
@@ -46,7 +51,18 @@ function readHasStoredAuth(): boolean {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const [bootstrapError, setBootstrapError] = useState<Error | null>(null)
+  const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+
   const hasStoredAuth = useMemo(() => readHasStoredAuth(), [])
+
+  const retryBootstrap = useCallback(() => {
+    setLoading(true)
+    setBootstrapError(null)
+    setBootstrapTimedOut(false)
+    setRetryCount((c) => c + 1)
+  }, [])
 
   useEffect(() => {
     if (session && window.location.pathname !== '/') {
@@ -54,24 +70,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [session])
 
+  // Initial bounded session bootstrap
   useEffect(() => {
     let mounted = true
 
-    supabase.auth.getSession().then(({ data }) => {
+    const runBootstrap = async () => {
+      const getSessionFn = () => supabase.auth.getSession()
+      const result = await bootstrapSession(getSessionFn, 5000)
       if (!mounted) return
-      setSession(data.session)
-      setLoading(false)
-    })
+
+      if (result.timedOut) {
+        setBootstrapTimedOut(true)
+        setLoading(false)
+      } else if (result.error) {
+        setBootstrapError(result.error)
+        setLoading(false)
+      } else {
+        setSession(result.session)
+        setLoading(false)
+      }
+    }
+
+    void runBootstrap()
+
+    return () => {
+      mounted = false
+    }
+  }, [retryCount])
+
+  // General auth change and iOS focus refetch
+  useEffect(() => {
+    let mounted = true
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
-      setSession(next)
+      if (mounted) {
+        setSession(next)
+        if (next) {
+          setBootstrapError(null)
+          setBootstrapTimedOut(false)
+        }
+      }
     })
 
-    // iOS PWA：OAuth 在内嵌浏览器层完成后回到 App 不会自动刷新，
-    // 重新聚焦/可见时主动重查会话，把已落盘的登录捡起来。
     const refetch = () => {
       void supabase.auth.getSession().then(({ data }) => {
-        if (mounted) setSession(data.session)
+        if (mounted) {
+          setSession(data.session)
+        }
       })
     }
     const onVisible = () => {
@@ -117,8 +162,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut: async () => {
         await supabase.auth.signOut()
       },
+      bootstrapError,
+      bootstrapTimedOut,
+      retryBootstrap,
     }),
-    [session, loading, hasStoredAuth],
+    [session, loading, hasStoredAuth, bootstrapError, bootstrapTimedOut, retryBootstrap],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
