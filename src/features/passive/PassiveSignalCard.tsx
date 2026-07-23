@@ -450,6 +450,8 @@ export function PassiveSignalCard() {
                         return
                       }
                     }
+                    // Note: setSensorEnabled saves purely to localStorage and configures native hooks,
+                    // so it is offline-first and doesn't hit server DB/RLS (KCA-18 transparent save exempt).
                     await setSensorEnabled(sensor.key, checked)
                     if (sensor.key === 'app_activity' && !checked) {
                       localStorage.removeItem('kc.sensor.app_activity.pendingPermissions')

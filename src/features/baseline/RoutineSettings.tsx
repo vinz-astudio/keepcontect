@@ -6,14 +6,16 @@ import {
   setSensitivity,
 } from '@/features/baseline/configStore'
 import {
-  clearSleepWindow,
   getSleepWindow,
-  setServerSensitivity,
-  setSleepWindow,
+  getServerSensitivity,
+  saveSensitivitySafe,
+  saveSleepWindowSafe,
+  clearSleepWindowSafe,
+  updateRoutineProfileSafe,
 } from '@/features/baseline/settingsApi'
 import { useI18n } from '@/lib/i18n'
 import type { Sensitivity } from '@/features/baseline/types'
-import { getRoutineProfile, updateRoutineProfile } from '@/features/profile/profileApi'
+import { getRoutineProfile } from '@/features/profile/profileApi'
 import { getRoutineModeOptions, getRoutineModeSummary } from '@/features/baseline/routineModeCopy'
 import { toast } from '@/lib/toast'
 import './LivenessCard.css'
@@ -34,15 +36,38 @@ export function RoutineSettings() {
   const [consentDataSharing, setConsentDataSharing] = useState(false)
   const [statusKey, setStatusKey] = useState(0)
 
+  // States to track actual server values and saving/dirty status (KCA-18)
+  const [serverSensitivity, setServerSensitivity] = useState<Sensitivity | null>(null)
+  const [isSavingSensitivity, setIsSavingSensitivity] = useState(false)
+
+  const [serverSleepWindow, setServerSleepWindow] = useState<{ start: string; end: string } | null>(null)
+
+  const [serverRoutinePattern, setServerRoutinePattern] = useState<string>('regular_9to5')
+  const [isSavingRoutinePattern, setIsSavingRoutinePattern] = useState(false)
+
+  const [serverConsentDataSharing, setServerConsentDataSharing] = useState<boolean>(false)
+  const [isSavingConsent, setIsSavingConsent] = useState(false)
+
   const { statusLine, basisInner, scheduleInner, serverLastBehaviorAt } = useRoutineInsights(statusKey)
 
   useEffect(() => {
+    void getServerSensitivity()
+      .then((s) => {
+        if (s) {
+          setServerSensitivity(s)
+        }
+      })
+      .catch(() => {})
+
     void getSleepWindow()
       .then((w) => {
         if (w) {
           setSleepStart(w.start)
           setSleepEnd(w.end)
           setSleepOn(true)
+          setServerSleepWindow(w)
+        } else {
+          setServerSleepWindow(null)
         }
       })
       .catch(() => {})
@@ -51,48 +76,113 @@ export function RoutineSettings() {
       .then((p) => {
         setRoutinePattern(p.routine_pattern)
         setConsentDataSharing(p.consent_data_sharing)
+        setServerRoutinePattern(p.routine_pattern)
+        setServerConsentDataSharing(p.consent_data_sharing)
       })
       .catch(() => {})
   }, [])
 
   async function saveSleep() {
     setSleepBusy(true)
-    try {
-      await setSleepWindow(sleepStart, sleepEnd)
+    const previous = serverSleepWindow
+    const res = await saveSleepWindowSafe(sleepStart, sleepEnd, previous)
+    if (res.success) {
       setSleepOn(true)
-    } catch {
-      /* 忽略 */
-    } finally {
-      setSleepBusy(false)
+      setServerSleepWindow(res.value)
+      toast(lang === 'zh' ? '已更新睡眠时间' : 'Sleep hours updated', 'ok')
+    } else {
+      if (previous) {
+        setSleepStart(previous.start)
+        setSleepEnd(previous.end)
+        setSleepOn(true)
+      } else {
+        setSleepOn(false)
+      }
+      toast(t('err.save'), 'danger')
     }
+    setSleepBusy(false)
   }
 
   async function turnOffSleep() {
     setSleepBusy(true)
-    try {
-      await clearSleepWindow()
+    const previous = serverSleepWindow
+    const res = await clearSleepWindowSafe(previous)
+    if (res.success) {
       setSleepOn(false)
-    } catch {
-      /* 忽略 */
-    } finally {
-      setSleepBusy(false)
+      setServerSleepWindow(null)
+      toast(lang === 'zh' ? '已关闭睡眠时间' : 'Sleep hours disabled', 'ok')
+    } else {
+      if (previous) {
+        setSleepStart(previous.start)
+        setSleepEnd(previous.end)
+        setSleepOn(true)
+      }
+      toast(t('err.save'), 'danger')
     }
+    setSleepBusy(false)
   }
 
-  // —— 短期:灵敏度(切换后即时刷新上方判断依据里的真实阈值)——
+  // Dirty indicators and status texts (KCA-18)
+  const isSensitivityDirty = serverSensitivity !== null && config.sensitivity !== serverSensitivity
+  const sensitivityStatus = isSavingSensitivity
+    ? (lang === 'zh' ? ' (保存中...)' : ' (Saving...)')
+    : isSensitivityDirty
+      ? (lang === 'zh' ? ' (未保存更改)' : ' (Unsaved Changes)')
+      : (lang === 'zh' ? ' (已保存)' : ' (Saved)')
+
+  const isSleepDirty = serverSleepWindow === null
+    ? sleepOn
+    : (!sleepOn || sleepStart !== serverSleepWindow.start || sleepEnd !== serverSleepWindow.end)
+  const sleepStatus = sleepBusy
+    ? (lang === 'zh' ? ' (保存中...)' : ' (Saving...)')
+    : isSleepDirty
+      ? (lang === 'zh' ? ' (未保存更改)' : ' (Unsaved Changes)')
+      : (lang === 'zh' ? ' (已保存)' : ' (Saved)')
+
+  const isRoutinePatternDirty = routinePattern !== serverRoutinePattern
+  const routinePatternStatus = isSavingRoutinePattern
+    ? (lang === 'zh' ? ' (保存中...)' : ' (Saving...)')
+    : isRoutinePatternDirty
+      ? (lang === 'zh' ? ' (未保存更改)' : ' (Unsaved Changes)')
+      : (lang === 'zh' ? ' (已保存)' : ' (Saved)')
+
+  const isConsentDirty = consentDataSharing !== serverConsentDataSharing
+  const consentStatus = isSavingConsent
+    ? (lang === 'zh' ? ' (保存中...)' : ' (Saving...)')
+    : isConsentDirty
+      ? (lang === 'zh' ? ' (未保存更改)' : ' (Unsaved Changes)')
+      : (lang === 'zh' ? ' (已保存)' : ' (Saved)')
+
+  // —— 短期:灵敏度 ——
   const sensitivityRow = (
     <div className="liveness__row">
-      <span className="liveness__rowlabel">{t('live.sensitivity')}</span>
+      <span className="liveness__rowlabel">
+        {t('live.sensitivity')}
+        <span style={{ fontSize: '0.8rem', fontWeight: 'normal', marginLeft: '6px', color: isSensitivityDirty ? 'var(--danger)' : 'var(--fg-muted)' }}>
+          {sensitivityStatus}
+        </span>
+      </span>
       <div className="liveness__seg liveness__seg--stacked">
         {(['high', 'balanced', 'low'] as Sensitivity[]).map((s) => (
           <button
             key={s}
             className={config.sensitivity === s ? 'active' : ''}
+            disabled={isSavingSensitivity}
             onClick={async () => {
+              if (isSavingSensitivity) return
+              const previous = config.sensitivity
               setSensitivity(s)
-              await setServerSensitivity(s).catch(() => {})
-              await reload()
-              setStatusKey((k) => k + 1)
+              setIsSavingSensitivity(true)
+              const res = await saveSensitivitySafe(s, previous)
+              if (res.success) {
+                setServerSensitivity(s)
+                await reload()
+                setStatusKey((k) => k + 1)
+              } else {
+                setSensitivity(previous)
+                toast(t('err.save'), 'danger')
+              }
+              setIsSavingSensitivity(false)
             }}
           >
             <span className="liveness__seg-name">{t(`live.sens.${s}`)}</span>
@@ -112,7 +202,12 @@ export function RoutineSettings() {
       {scheduleInner}
 
       <div className="liveness__row">
-        <span className="liveness__rowlabel">{t('live.sleep')}</span>
+        <span className="liveness__rowlabel">
+          {t('live.sleep')}
+          <span style={{ fontSize: '0.8rem', fontWeight: 'normal', marginLeft: '6px', color: isSleepDirty ? 'var(--danger)' : 'var(--fg-muted)' }}>
+            {sleepStatus}
+          </span>
+        </span>
         <div className="liveness__custom">
           <input
             type="time"
@@ -147,6 +242,9 @@ export function RoutineSettings() {
       <div className="routine-mode">
         <div className="liveness__rowlabel routine-mode__label">
           {lang === 'zh' ? '作息模式' : 'Routine Mode'}
+          <span style={{ fontSize: '0.8rem', fontWeight: 'normal', marginLeft: '6px', color: isRoutinePatternDirty ? 'var(--danger)' : 'var(--fg-muted)' }}>
+            {routinePatternStatus}
+          </span>
         </div>
         <p className="routine-mode__summary">{getRoutineModeSummary(lang)}</p>
         <div className="routine-mode__list">
@@ -156,14 +254,22 @@ export function RoutineSettings() {
               <button
                 key={item.value}
                 className={`routine-mode__button${isActive ? ' is-active' : ''}`}
+                disabled={isSavingRoutinePattern}
                 onClick={async () => {
+                  if (isSavingRoutinePattern) return
+                  const previous = serverRoutinePattern
                   setRoutinePattern(item.value)
-                  try {
-                    await updateRoutineProfile({ routine_pattern: item.value })
+                  setIsSavingRoutinePattern(true)
+                  const currentProfile = { routine_pattern: previous, consent_data_sharing: consentDataSharing }
+                  const res = await updateRoutineProfileSafe({ routine_pattern: item.value }, currentProfile)
+                  if (res.success) {
+                    setServerRoutinePattern(item.value)
                     toast(lang === 'zh' ? '已更新作息模式' : 'Routine mode updated', 'ok')
-                  } catch {
-                    toast(lang === 'zh' ? '保存失败' : 'Failed to save', 'danger')
+                  } else {
+                    setRoutinePattern(previous)
+                    toast(t('err.save'), 'danger')
                   }
+                  setIsSavingRoutinePattern(false)
                 }}
               >
                 <span className="routine-mode__copy">
@@ -184,21 +290,32 @@ export function RoutineSettings() {
             type="checkbox"
             style={{ marginTop: '3px' }}
             checked={consentDataSharing}
+            disabled={isSavingConsent}
             onChange={async (e) => {
+              if (isSavingConsent) return
               const checked = e.target.checked
+              const previous = serverConsentDataSharing
               setConsentDataSharing(checked)
-              try {
-                await updateRoutineProfile({ consent_data_sharing: checked })
+              setIsSavingConsent(true)
+              const currentProfile = { routine_pattern: routinePattern, consent_data_sharing: previous }
+              const res = await updateRoutineProfileSafe({ consent_data_sharing: checked }, currentProfile)
+              if (res.success) {
+                setServerConsentDataSharing(checked)
                 toast(lang === 'zh' ? '共享协议设置已更新' : 'Data sharing agreement updated', 'ok')
-              } catch {
-                toast(lang === 'zh' ? '保存失败' : 'Failed to save', 'danger')
+              } else {
+                setConsentDataSharing(previous)
+                toast(t('err.save'), 'danger')
               }
+              setIsSavingConsent(false)
             }}
           />
           <span style={{ fontSize: '0.85rem', color: 'var(--fg-muted)', lineHeight: '1.4' }}>
             {lang === 'zh'
               ? '我同意授权匿名共享我的活跃频次数据,帮助改进作息分析模型且优化新用户的冷启动样板。'
               : 'I consent to anonymous sharing of my activity density data to help improve routine models and optimize patterns for new users.'}
+            <span style={{ fontSize: '0.8rem', fontWeight: 'normal', marginLeft: '6px', color: isConsentDirty ? 'var(--danger)' : 'var(--fg-muted)' }}>
+              {consentStatus}
+            </span>
           </span>
         </label>
       </div>

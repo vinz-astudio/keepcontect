@@ -116,3 +116,76 @@ export async function syncServerTimezone(): Promise<void> {
   }
 }
 
+export interface SaveResult<T> {
+  success: boolean
+  value: T
+  error: string | null
+}
+
+export async function saveSensitivitySafe(
+  newValue: Sensitivity,
+  fallbackValue: Sensitivity
+): Promise<SaveResult<Sensitivity>> {
+  try {
+    await setServerSensitivity(newValue)
+    return { success: true, value: newValue, error: null }
+  } catch (err: any) {
+    return {
+      success: false,
+      value: fallbackValue,
+      error: err?.message || String(err),
+    }
+  }
+}
+
+export async function saveSleepWindowSafe(
+  startLocal: string,
+  endLocal: string,
+  fallback: { start: string; end: string } | null
+): Promise<SaveResult<{ start: string; end: string } | null>> {
+  try {
+    await setSleepWindow(startLocal, endLocal)
+    return { success: true, value: { start: startLocal, end: endLocal }, error: null }
+  } catch (err: any) {
+    return {
+      success: false,
+      value: fallback,
+      error: err?.message || String(err),
+    }
+  }
+}
+
+export async function clearSleepWindowSafe(
+  fallback: { start: string; end: string } | null
+): Promise<SaveResult<{ start: string; end: string } | null>> {
+  try {
+    await clearSleepWindow()
+    return { success: true, value: null, error: null }
+  } catch (err: any) {
+    return {
+      success: false,
+      value: fallback,
+      error: err?.message || String(err),
+    }
+  }
+}
+
+import { updateRoutineProfile, type RoutineProfile } from '@/features/profile/profileApi'
+
+export async function updateRoutineProfileSafe(
+  updates: Partial<RoutineProfile>,
+  fallback: RoutineProfile
+): Promise<SaveResult<RoutineProfile>> {
+  try {
+    await updateRoutineProfile(updates)
+    return { success: true, value: { ...fallback, ...updates }, error: null }
+  } catch (err: any) {
+    return {
+      success: false,
+      value: fallback,
+      error: err?.message || String(err),
+    }
+  }
+}
+
+
