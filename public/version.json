@@ -1,5 +1,5 @@
 {
   "version": "0.5.20",
   "apkUrl": "https://github.com/vinz-astudio/keepcontect/releases/download/v0.5.20/keep-contact-0.5.20.apk",
-  "exeUrl": "https://github.com/vinz-astudio/keepcontect/releases/download/v0.5.20/KeepContact-0.5.20-Setup.exe"
+  "exeUrl": "https://keep-contact-mauve.vercel.app/desktop/KeepContact-Setup.exe"
 }
