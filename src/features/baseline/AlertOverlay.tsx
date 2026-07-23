@@ -8,6 +8,7 @@ import {
 } from '@/features/pattern/patternStore'
 import { startAlarm, stopAlarm } from '@/features/baseline/alarm'
 import { dispatchSos } from '@/features/alerts/sosDispatch'
+import { useAuth } from '@/features/auth/AuthProvider'
 import { useI18n } from '@/lib/i18n'
 import { setServerPatternHash } from '@/features/baseline/settingsApi'
 import { toast } from '@/lib/toast'
@@ -28,6 +29,8 @@ import './AlertOverlay.css'
 
 export function AlertOverlay() {
   const { t, lang } = useI18n()
+  const { user } = useAuth()
+  const uid = user?.id ?? ''
   const { serverAlert, mode, alertHint, confirmSafe, closeOverlay } =
     useLivenessContext()
   const [error, setError] = useState<string | null>(null)
@@ -60,7 +63,7 @@ export function AlertOverlay() {
   const [lockVersion, setLockVersion] = useState(0)
   useEffect(() => {
     if (forceSetup) {
-      const has = hasPattern()
+      const has = hasPattern(uid)
       setHadOld(has)
       setSetupStep(has ? 'verify' : 'draw')
       setFirstSeq(null)
@@ -82,7 +85,7 @@ export function AlertOverlay() {
   if (!show) return null
 
   // 告警路径:还没设过手势的用户在告警时现场设置(危机场景不加验证摩擦)
-  const needSetup = !forceSetup && !hasPattern()
+  const needSetup = !forceSetup && !hasPattern(uid)
   // 告警不能"跳过"；演练/设置可以退出
   const exitable = !showAsAlert && mode !== 'none' && !(forceSetup && !hadOld)
   const showSosAction = shouldShowSosAction({ isPatternSetup: forceSetup })
@@ -117,11 +120,15 @@ export function AlertOverlay() {
     setBusy(true)
     setError(null)
     try {
+      if (!uid) {
+        setError(t('overlay.error'))
+        return
+      }
       if (forceSetup) {
         setNotice(null)
         // 修改手势三段式:验旧 → 画新 → 重画确认;每步清空格子+绿色反馈
         if (setupStep === 'verify') {
-          if (await verifyPattern(seq)) {
+          if (await verifyPattern(uid, seq)) {
             setNotice(getPatternSetupNotice('verified', lang))
             setSetupStep('draw')
           } else {
@@ -132,8 +139,7 @@ export function AlertOverlay() {
           setNotice(getPatternSetupNotice('captured', lang))
           setSetupStep('confirm')
         } else if (patternsMatch(firstSeq, seq)) {
-          await setPattern(seq)
-          const localHash = localStorage.getItem('kc.patternHash')
+          const localHash = await setPattern(uid, seq)
           if (localHash) {
             await setServerPatternHash(localHash)
           }
@@ -147,13 +153,12 @@ export function AlertOverlay() {
         return
       }
       if (needSetup) {
-        await setPattern(seq)
-        const localHash = localStorage.getItem('kc.patternHash')
+        const localHash = await setPattern(uid, seq)
         if (localHash) {
           await setServerPatternHash(localHash)
         }
         await confirmSafe()
-      } else if (await verifyPattern(seq)) {
+      } else if (await verifyPattern(uid, seq)) {
         await confirmSafe()
       } else {
         setError(t('overlay.error'))

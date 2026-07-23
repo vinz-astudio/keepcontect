@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 import { encryptText, decryptText, deriveKeyFromPassword } from '@/lib/crypto'
 import { listMyGroups, listGroupMembers } from '@/features/relationships/api'
+import { getPatternHash } from '@/features/pattern/patternStore'
 
 export type EmergencyInfo = Tables<'emergency_info'>
 
@@ -33,7 +34,8 @@ export async function getEncryptionKey(userId: string): Promise<CryptoKey | null
     console.error('Failed to get group key:', e)
   }
 
-  const patternHash = localStorage.getItem('kc.patternHash')
+  // KCA-04：手势哈希按账户命名空间读取，绝不用他人（或无主遗留）哈希派生密钥。
+  const patternHash = getPatternHash(userId)
   if (patternHash) {
     const salt = new TextEncoder().encode(userId)
     return deriveKeyFromPassword(patternHash, salt)
@@ -57,10 +59,11 @@ export async function getDecryptionKeyForUser(targetUserId: string): Promise<Cry
     console.error('Failed to get decryption key:', e)
   }
 
-  // Fallback to personal pattern key if target is self
+  // Fallback to personal pattern key only when the target is the current user,
+  // reading that user's own namespaced hash (KCA-04).
   const uid = await requireUid()
   if (targetUserId === uid) {
-    const patternHash = localStorage.getItem('kc.patternHash')
+    const patternHash = getPatternHash(uid)
     if (patternHash) {
       const salt = new TextEncoder().encode(uid)
       return deriveKeyFromPassword(patternHash, salt)

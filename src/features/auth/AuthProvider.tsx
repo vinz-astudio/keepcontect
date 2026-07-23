@@ -8,6 +8,7 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { purgeLocalSafetyState } from '@/features/pattern/patternStore'
 
 interface AuthState {
   session: Session | null
@@ -115,6 +116,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       hasStoredAuth,
       signOut: async () => {
+        // KCA-04：先清本机安全状态（手势哈希/openAlert），保证即使网络登出挂起
+        // 也不会把上一个账户的凭据留给下一个登录者。
+        purgeLocalSafetyState()
         await supabase.auth.signOut()
       },
     }),

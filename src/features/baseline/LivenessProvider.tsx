@@ -24,7 +24,13 @@ import {
   syncServerTimezone,
 } from '@/features/baseline/settingsApi'
 import { getConfig, setConfig } from '@/features/baseline/configStore'
-import { hasPattern } from '@/features/pattern/patternStore'
+import {
+  hasPattern,
+  getPatternHash,
+  patternKey,
+  resolvePatternAdoption,
+} from '@/features/pattern/patternStore'
+import { useAuth } from '@/features/auth/AuthProvider'
 import { primeAlarm } from '@/features/baseline/alarm'
 import type { BaselineConfig, Evaluation } from '@/features/baseline/types'
 import { shouldShowSelfCheckForNotificationKind } from '@/features/alerts/notificationRouting'
@@ -63,6 +69,8 @@ const ALERT_POLL_MS = 30_000
 
 export function LivenessProvider({ children }: { children: ReactNode }) {
   const live = useLiveness()
+  const { user } = useAuth()
+  const uid = user?.id ?? null
   const lastStatusRef = useRef<string | null>(null)
   const [serverAlert, setServerAlert] = useState<Alert | null>(null)
   const [mode, setMode] = useState<OverlayMode>('none')
@@ -99,36 +107,37 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
       window.history.replaceState(null, '', window.location.pathname) // 清掉参数，避免刷新再触发
     }
 
+  }, [])
+
+  // 手势哈希按账户同步/迁移（KCA-04）：只在拿到 uid 后运行；
+  // 遗留的无主全局键永不被跨账户采用，只会被清除。
+  const syncedUidRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!uid || syncedUidRef.current === uid) return
+    syncedUidRef.current = uid
     const syncPattern = async () => {
       try {
-        if (hasPattern()) {
-          // 本地有，同步给服务器（如果服务器还没有）
-          const localHash = localStorage.getItem('kc.patternHash')
-          if (localHash) {
-            const serverHash = await getServerPatternHash()
-            if (!serverHash) {
-              await setServerPatternHash(localHash)
-            }
-          }
-        } else {
-          // 本地没有，查服务器
-          const serverHash = await getServerPatternHash()
-          if (serverHash) {
-            localStorage.setItem('kc.patternHash', serverHash)
-          } else {
-            // 服务器和本地都没有，说明是新用户首次登录，展示设置手势引导
-            setMode('setup')
-          }
+        const scopedHash = getPatternHash(uid)
+        const legacyHash = localStorage.getItem('kc.patternHash')
+        const serverHash = await getServerPatternHash()
+        const decision = resolvePatternAdoption({ scopedHash, legacyHash, serverHash })
+        if (decision.clearLegacy) localStorage.removeItem('kc.patternHash')
+        if (decision.hashToStore) {
+          localStorage.setItem(patternKey(uid), decision.hashToStore)
+        }
+        if (decision.needsSetup) {
+          setMode('setup')
+        } else if (scopedHash && !serverHash) {
+          // 本地已登记但服务器缺失：上传本账户自己的哈希（绝不含遗留键）
+          await setServerPatternHash(scopedHash)
         }
       } catch (err) {
         console.error('Failed to sync pattern with server:', err)
-        if (!hasPattern()) {
-          setMode('setup')
-        }
+        if (!hasPattern(uid)) setMode('setup')
       }
     }
     void syncPattern()
-  }, [])
+  }, [uid])
 
   const reloadRef = useRef(live.reload)
   const statusRef = useRef(status)
@@ -265,7 +274,7 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     serverAlert,
     mode,
     alertHint,
-    startPractice: () => setMode(hasPattern() ? 'practice' : 'setup'),
+    startPractice: () => setMode(uid && hasPattern(uid) ? 'practice' : 'setup'),
     startSetup: () => setMode('setup'),
     closeOverlay: () => setMode('none'),
     confirmSafe: async () => {
