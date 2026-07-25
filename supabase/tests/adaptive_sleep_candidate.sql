@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(39);
+SELECT plan(42);
 
 INSERT INTO auth.users (id, email, aud, role) VALUES
   ('42000000-0000-0000-0000-000000000001', 'sleep-owner@example.invalid', 'authenticated', 'authenticated'),
@@ -7,7 +7,7 @@ INSERT INTO auth.users (id, email, aud, role) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 WITH config AS (
-  SELECT '{"sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8},"context":{"definition_version":"sleep-candidate-v1"},"personal":{"min_samples":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30},"cohort":{"min_contributors":3,"min_support_dates":2,"max_age_days":30,"algorithm":"trimmed_mean","trim_fraction":0.1},"sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},"candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},"sleep_compensation":{"max_start_delay_minutes":45,"max_wake_advance_minutes":45,"max_wake_delay_minutes":90,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":2,"timezone_tolerance_minutes":30}}'::jsonb AS value
+  SELECT '{"sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8,"training_horizon_days":30,"intervention_window_minutes":30},"context":{"definition_version":"sleep-candidate-v1","day_partition":"all_days","hour_bucket_minutes":60},"personal":{"min_samples":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"confidence_formula_version":"support_ratio_v1"},"cohort":{"min_contributors":3,"min_support_dates":2,"max_age_days":30,"algorithm":"trimmed_mean","trim_fraction":0.1},"sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},"candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},"sleep_compensation":{"max_start_delay_minutes":45,"max_wake_advance_minutes":45,"max_wake_delay_minutes":90,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":2,"timezone_tolerance_minutes":30}}'::jsonb AS value
 )
 INSERT INTO public.alert_model_versions (id, name, status, config, config_sha256, evidence_version)
 SELECT '42000000-0000-0000-0000-000000000010', 'sleep-candidate-test', 'replay', value,
@@ -77,6 +77,35 @@ SELECT results_eq(
   $$ SELECT starts_at, ends_at, basis FROM private.candidate_sleep_intervals('42000000-0000-0000-0000-000000000001', '2026-04-01 00:00+00', '2026-04-05 00:00+00', '42000000-0000-0000-0000-000000000010') ORDER BY starts_at $$,
   $$ VALUES ('2026-04-01 23:45+00'::timestamptz, '2026-04-02 07:00+00'::timestamptz, 'positive_evidence_adjusted'::text), ('2026-04-02 23:40+00'::timestamptz, '2026-04-03 07:00+00'::timestamptz, 'positive_evidence_adjusted'::text), ('2026-04-03 23:00+00'::timestamptz, '2026-04-04 07:30+00'::timestamptz, 'positive_evidence_adjusted'::text) $$,
   'two qualified prior nights affect only the next valid night and one-step rate cap limits the prospective wake delay');
+SELECT is(
+  (SELECT provenance ->> 'confidence'
+   FROM private.candidate_sleep_intervals('42000000-0000-0000-0000-000000000001', '2026-04-03 00:00+00', '2026-04-05 00:00+00', '42000000-0000-0000-0000-000000000010')
+   WHERE starts_at = '2026-04-03 23:00+00'),
+  '1',
+  'provenance records the returned confidence');
+SELECT is(
+  (SELECT provenance ->> 'cap_reason'
+   FROM private.candidate_sleep_intervals('42000000-0000-0000-0000-000000000001', '2026-04-03 00:00+00', '2026-04-05 00:00+00', '42000000-0000-0000-0000-000000000010')
+   WHERE starts_at = '2026-04-03 23:00+00'),
+  'prior_max_start_delay_minutes,max_update_minutes_per_day',
+  'provenance identifies both the per-night evidence cap and wake-update rate cap');
+INSERT INTO public.alert_sleep_night_contexts (
+  version_id, user_id, anchor_date, timezone, sleep_start_local, sleep_end_local,
+  anchor_starts_at, anchor_ends_at, utc_offset_minutes, coverage_state, captured_at,
+  finalized_at, evidence_version, provenance_sha256
+) VALUES
+  ('42000000-0000-0000-0000-000000000010', '42000000-0000-0000-0000-000000000001', '2026-06-01', 'UTC', '23:00', '07:00', '2026-06-01 12:00+00', '2026-06-01 16:00+00', 0, 'valid', '2026-06-01 12:00+00', '2026-06-01 16:00+00', 'canonical-v2', repeat('3', 64)),
+  ('42000000-0000-0000-0000-000000000010', '42000000-0000-0000-0000-000000000001', '2026-06-02', 'UTC', '23:00', '07:00', '2026-06-02 12:00+00', '2026-06-02 16:00+00', 0, 'valid', '2026-06-02 12:00+00', '2026-06-02 16:00+00', 'canonical-v2', repeat('4', 64)),
+  ('42000000-0000-0000-0000-000000000010', '42000000-0000-0000-0000-000000000001', '2026-06-03', 'UTC', '23:00', '07:00', '2026-06-03 23:00+00', '2026-06-04 07:00+00', 0, 'valid', '2026-06-03 23:00+00', '2026-06-04 07:00+00', 'canonical-v2', repeat('5', 64));
+INSERT INTO public.behavior_pings (user_id, kind, at, received_at, ingest_version) VALUES
+  ('42000000-0000-0000-0000-000000000001', 'app', '2026-06-01 12:30+00', '2026-06-01 12:30+00', 2),
+  ('42000000-0000-0000-0000-000000000001', 'app', '2026-06-01 12:40+00', '2026-06-01 12:40+00', 2),
+  ('42000000-0000-0000-0000-000000000001', 'app', '2026-06-02 12:30+00', '2026-06-02 12:30+00', 2),
+  ('42000000-0000-0000-0000-000000000001', 'app', '2026-06-02 12:40+00', '2026-06-02 12:40+00', 2);
+SELECT results_eq(
+  $$ SELECT starts_at, ends_at, basis FROM private.candidate_sleep_intervals('42000000-0000-0000-0000-000000000001', '2026-06-03 00:00+00', '2026-06-05 00:00+00', '42000000-0000-0000-0000-000000000010') $$,
+  $$ VALUES ('2026-06-03 23:00+00'::timestamptz, '2026-06-04 07:00+00'::timestamptz, 'configured_anchor'::text) $$,
+  'malformed prior local-to-UTC anchors cannot extend a later valid night');
 SELECT results_eq(
   $$ SELECT starts_at, ends_at, basis FROM private.candidate_sleep_intervals('42000000-0000-0000-0000-000000000001', '2026-04-10 00:00+00', '2026-04-11 00:00+00', '42000000-0000-0000-0000-000000000010') $$,
   $$ VALUES ('2026-04-10 14:00+00'::timestamptz, '2026-04-10 16:00+00'::timestamptz, 'configured_anchor'::text) $$,

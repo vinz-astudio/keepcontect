@@ -79,13 +79,19 @@ DECLARE
   _anchor_start timestamptz;
   _anchor_end timestamptz;
   _midpoint timestamptz;
+  _raw_start_delay integer;
+  _raw_wake_advance integer;
+  _raw_wake_delay integer;
   _start_delay integer;
   _wake_advance integer;
   _wake_delay integer;
+  _rate_cap integer;
   _first_count integer;
   _second_count integer;
   _prior_count integer;
+  _prior_start_cap_applied boolean;
   _quality_reason text;
+  _cap_reasons text[];
   _offset_minutes integer;
 BEGIN
   IF _user_id IS NULL OR _version_id IS NULL OR _from IS NULL OR _to IS NULL OR _from >= _to THEN
@@ -163,7 +169,7 @@ BEGIN
       count(*) FILTER (WHERE b.received_at >= _midpoint AND b.received_at < _anchor_end)::integer,
       coalesce(floor(extract(epoch FROM (max(b.received_at) FILTER (WHERE b.received_at >= _anchor_start AND b.received_at < _midpoint) - _anchor_start)) / 60)::integer, 0),
       coalesce(floor(extract(epoch FROM (_anchor_end - min(b.received_at) FILTER (WHERE b.received_at >= _midpoint AND b.received_at < _anchor_end))) / 60)::integer, 0)
-    INTO _first_count, _second_count, _start_delay, _wake_advance
+    INTO _first_count, _second_count, _raw_start_delay, _raw_wake_advance
     FROM public.behavior_pings AS b
     WHERE b.user_id = _user_id
       AND b.ingest_version = 2
@@ -171,10 +177,20 @@ BEGIN
       AND b.at < _to
       AND b.received_at < _to;
 
-    _start_delay := least(_max_start_delay, greatest(0, _start_delay));
-    _wake_advance := least(_max_wake_advance, greatest(0, _wake_advance));
+    _cap_reasons := ARRAY[]::text[];
+    IF _raw_start_delay > _max_start_delay THEN
+      _cap_reasons := pg_catalog.array_append(_cap_reasons, 'max_start_delay_minutes');
+    END IF;
+    IF _raw_wake_advance > _max_wake_advance THEN
+      _cap_reasons := pg_catalog.array_append(_cap_reasons, 'max_wake_advance_minutes');
+    END IF;
+    _start_delay := least(_max_start_delay, greatest(0, _raw_start_delay));
+    _wake_advance := least(_max_wake_advance, greatest(0, _raw_wake_advance));
     _wake_delay := 0;
+    _raw_wake_delay := 0;
+    _rate_cap := 0;
     _prior_count := 0;
+    _prior_start_cap_applied := false;
     _quality_reason := CASE WHEN _context.coverage_state = 'valid' THEN 'coverage_valid' ELSE 'coverage_' || _context.coverage_state END;
 
     IF _context.coverage_state = 'valid' THEN
@@ -192,8 +208,16 @@ BEGIN
           AND abs(p.utc_offset_minutes - _context.utc_offset_minutes) <= _timezone_tolerance
           AND p.captured_at <= p.anchor_starts_at
           AND p.finalized_at >= p.anchor_ends_at
+          AND ((p.anchor_date + p.sleep_start_local) AT TIME ZONE p.timezone) = p.anchor_starts_at
+          AND ((
+            p.anchor_date
+            + CASE WHEN p.sleep_end_local <= p.sleep_start_local THEN 1 ELSE 0 END
+            + p.sleep_end_local
+          ) AT TIME ZONE p.timezone) = p.anchor_ends_at
+          AND extract(epoch FROM (((p.anchor_starts_at AT TIME ZONE p.timezone) AT TIME ZONE 'UTC') - p.anchor_starts_at))::integer / 60 = p.utc_offset_minutes
       ), prior_delays AS (
         SELECT p.anchor_date,
+          floor(extract(epoch FROM (max(b.received_at) - p.anchor_starts_at)) / 60)::integer AS raw_delay_minutes,
           least(_max_start_delay, floor(extract(epoch FROM (max(b.received_at) - p.anchor_starts_at)) / 60)::integer) AS delay_minutes
         FROM prior_contexts AS p
         JOIN public.behavior_pings AS b
@@ -208,12 +232,23 @@ BEGIN
         HAVING count(*) >= _min_late_events
       )
       SELECT count(*)::integer,
-        coalesce(percentile_disc(0.5) WITHIN GROUP (ORDER BY delay_minutes)::integer, 0)
-      INTO _prior_count, _wake_delay
+        coalesce(percentile_disc(0.5) WITHIN GROUP (ORDER BY delay_minutes)::integer, 0),
+        coalesce(bool_or(raw_delay_minutes > _max_start_delay), false)
+      INTO _prior_count, _raw_wake_delay, _prior_start_cap_applied
       FROM prior_delays;
 
       IF _prior_count >= _min_positive THEN
-        _wake_delay := least(_max_wake_delay, _wake_delay, greatest(0, _prior_count - _min_positive + 1) * _max_update_per_day);
+        _rate_cap := greatest(0, _prior_count - _min_positive + 1) * _max_update_per_day;
+        IF _prior_start_cap_applied THEN
+          _cap_reasons := pg_catalog.array_append(_cap_reasons, 'prior_max_start_delay_minutes');
+        END IF;
+        IF _raw_wake_delay > _max_wake_delay THEN
+          _cap_reasons := pg_catalog.array_append(_cap_reasons, 'max_wake_delay_minutes');
+        END IF;
+        IF least(_raw_wake_delay, _max_wake_delay) > _rate_cap THEN
+          _cap_reasons := pg_catalog.array_append(_cap_reasons, 'max_update_minutes_per_day');
+        END IF;
+        _wake_delay := least(_max_wake_delay, _raw_wake_delay, _rate_cap);
         _quality_reason := 'coverage_valid_prior_positive';
       ELSE
         _wake_delay := 0;
@@ -244,6 +279,8 @@ BEGIN
       'wake_advance_minutes', _wake_advance,
       'wake_delay_minutes', _wake_delay,
       'caps', jsonb_build_object('max_start_delay_minutes', _max_start_delay, 'max_wake_advance_minutes', _max_wake_advance, 'max_wake_delay_minutes', _max_wake_delay, 'max_update_minutes_per_day', _max_update_per_day),
+      'confidence', confidence,
+      'cap_reason', coalesce(pg_catalog.array_to_string(_cap_reasons, ','), 'none'),
       'timezone', _context.timezone,
       'utc_offset_minutes', _context.utc_offset_minutes,
       'coverage_state', _context.coverage_state,
