@@ -1,12 +1,13 @@
 BEGIN;
-SELECT plan(40);
+SELECT plan(43);
 
 INSERT INTO auth.users (id, email, aud, role) VALUES
   ('43000000-0000-0000-0000-000000000001', 'gap-main@example.invalid', 'authenticated', 'authenticated'),
   ('43000000-0000-0000-0000-000000000002', 'gap-missing@example.invalid', 'authenticated', 'authenticated'),
   ('43000000-0000-0000-0000-000000000003', 'gap-outage@example.invalid', 'authenticated', 'authenticated'),
   ('43000000-0000-0000-0000-000000000004', 'gap-prompt@example.invalid', 'authenticated', 'authenticated'),
-  ('43000000-0000-0000-0000-000000000005', 'gap-sleep@example.invalid', 'authenticated', 'authenticated')
+  ('43000000-0000-0000-0000-000000000005', 'gap-sleep@example.invalid', 'authenticated', 'authenticated'),
+  ('43000000-0000-0000-0000-000000000006', 'gap-coverage-transition@example.invalid', 'authenticated', 'authenticated')
 ON CONFLICT (id) DO NOTHING;
 
 WITH config AS (
@@ -25,7 +26,9 @@ INSERT INTO public.alert_observation_coverage_intervals (
   ('43000000-0000-0000-0000-000000000010', '43000000-0000-0000-0000-000000000001', '2026-01-01 00:00+00', '2026-01-05 23:59+00', 'UTC', 0, 'valid', 'valid', 'valid', '2025-12-31 23:00+00', '2026-01-05 23:59+00', 'canonical-v2', repeat('a', 64)),
   ('43000000-0000-0000-0000-000000000010', '43000000-0000-0000-0000-000000000003', '2026-01-01 00:00+00', '2026-01-02 00:00+00', 'UTC', 0, 'outage', 'valid', 'valid', '2025-12-31 23:00+00', '2026-01-02 00:00+00', 'canonical-v2', repeat('b', 64)),
   ('43000000-0000-0000-0000-000000000010', '43000000-0000-0000-0000-000000000004', '2026-01-01 00:00+00', '2026-01-02 00:00+00', 'UTC', 0, 'valid', 'valid', 'valid', '2025-12-31 23:00+00', '2026-01-02 00:00+00', 'canonical-v2', repeat('c', 64)),
-  ('43000000-0000-0000-0000-000000000010', '43000000-0000-0000-0000-000000000005', '2026-02-01 20:00+00', '2026-02-02 05:00+00', 'UTC', 0, 'valid', 'valid', 'valid', '2026-02-01 19:00+00', '2026-02-02 05:00+00', 'canonical-v2', repeat('d', 64));
+  ('43000000-0000-0000-0000-000000000010', '43000000-0000-0000-0000-000000000005', '2026-02-01 20:00+00', '2026-02-02 05:00+00', 'UTC', 0, 'valid', 'valid', 'valid', '2026-02-01 19:00+00', '2026-02-02 05:00+00', 'canonical-v2', repeat('d', 64)),
+  ('43000000-0000-0000-0000-000000000010', '43000000-0000-0000-0000-000000000006', '2026-01-01 00:00+00', '2026-01-01 02:03+00', 'UTC', 0, 'valid', 'valid', 'valid', '2025-12-31 23:00+00', '2026-01-02 06:00+00', 'canonical-v2', repeat('5', 64)),
+  ('43000000-0000-0000-0000-000000000010', '43000000-0000-0000-0000-000000000006', '2026-01-01 02:03+00', '2026-01-01 06:00+00', 'UTC', 0, 'valid', 'valid', 'valid', '2025-12-31 23:00+00', '2026-01-02 06:00+00', 'canonical-v2', repeat('6', 64));
 
 -- Five events are one session; the four-hour quiet period is one completed gap.
 INSERT INTO public.behavior_pings (user_id, kind, at, received_at, ingest_version) VALUES
@@ -44,7 +47,11 @@ INSERT INTO public.behavior_pings (user_id, kind, at, received_at, ingest_versio
   ('43000000-0000-0000-0000-000000000004', 'app', '2026-01-01 00:00+00', '2026-01-01 00:00+00', 2),
   ('43000000-0000-0000-0000-000000000004', 'app', '2026-01-01 01:00+00', '2026-01-01 01:00+00', 2),
   ('43000000-0000-0000-0000-000000000005', 'app', '2026-02-01 21:00+00', '2026-02-01 21:00+00', 2),
-  ('43000000-0000-0000-0000-000000000005', 'app', '2026-02-02 04:00+00', '2026-02-02 04:00+00', 2);
+  ('43000000-0000-0000-0000-000000000005', 'app', '2026-02-02 04:00+00', '2026-02-02 04:00+00', 2),
+  ('43000000-0000-0000-0000-000000000006', 'app', '2026-01-01 00:00+00', '2026-01-01 00:00+00', 2),
+  ('43000000-0000-0000-0000-000000000006', 'app', '2026-01-01 02:00+00', '2026-01-01 02:00+00', 2),
+  ('43000000-0000-0000-0000-000000000006', 'app', '2026-01-01 02:05+00', '2026-01-01 02:05+00', 2),
+  ('43000000-0000-0000-0000-000000000006', 'app', '2026-01-01 04:05+00', '2026-01-01 04:05+00', 2);
 
 INSERT INTO public.alert_intervention_events (version_id, user_id, occurred_at, kind, captured_at, evidence_version, provenance_sha256)
 VALUES ('43000000-0000-0000-0000-000000000010', '43000000-0000-0000-0000-000000000004', '2026-01-01 00:45+00', 'self_prompt', '2026-01-01 00:45+00', 'canonical-v2', repeat('e', 64));
@@ -61,6 +68,7 @@ SELECT throws_ok($$ INSERT INTO public.alert_observation_coverage_intervals (ver
 SELECT throws_ok($$ INSERT INTO public.alert_model_versions (name,status,config,config_sha256,evidence_version) VALUES ('gap-config-missing','draft','{"sessionization":{"gap_minutes":1,"per_user_day_gap_cap":1},"context":{"definition_version":"x"},"personal":{"min_samples":1,"min_support_dates":1,"min_span_days":1,"max_age_days":1},"cohort":{"min_contributors":1,"min_support_dates":1,"max_age_days":1,"algorithm":"trimmed_mean","trim_fraction":0},"sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},"candidate_bounds":{"floor_minutes":1,"ceiling_minutes":2},"sleep_compensation":{"max_start_delay_minutes":0,"max_wake_advance_minutes":0,"max_wake_delay_minutes":0,"max_update_minutes_per_day":0,"min_positive_nights":1,"lookback_nights":1,"min_late_events_per_night":1,"timezone_tolerance_minutes":0}}'::jsonb,repeat('2',64),'canonical-v2') $$, '23514'::char(5), NULL, 'missing Task 4 config fields are rejected');
 
 SELECT is((SELECT count(*)::integer FROM private.qualified_behavior_sessions('43000000-0000-0000-0000-000000000001','2026-01-01 00:00+00','2026-01-06 00:00+00','43000000-0000-0000-0000-000000000010')), 2, 'five-event burst is one session and future event is isolated by exclusive cutoff');
+SELECT is((SELECT count(*)::integer FROM private.qualified_behavior_sessions('43000000-0000-0000-0000-000000000006','2026-01-01 00:00+00','2026-01-03 00:00+00','43000000-0000-0000-0000-000000000010') ), 4, 'coverage identity transition creates a new session even inside the session gap');
 SELECT results_eq($$ SELECT session_start, session_end, evidence_count FROM private.qualified_behavior_sessions('43000000-0000-0000-0000-000000000001','2026-01-01 00:00+00','2026-01-06 00:00+00','43000000-0000-0000-0000-000000000010') ORDER BY session_start LIMIT 2 $$, $$ VALUES ('2026-01-01 00:00+00'::timestamptz,'2026-01-01 00:20+00'::timestamptz,5),('2026-01-01 04:20+00'::timestamptz,'2026-01-01 04:30+00'::timestamptz,2) $$, 'raw within-session heartbeat gaps never become training sessions');
 SELECT is_empty($$ SELECT * FROM private.qualified_behavior_sessions('43000000-0000-0000-0000-000000000002','2026-01-01 00:00+00','2026-01-03 00:00+00','43000000-0000-0000-0000-000000000010') $$, 'missing coverage never becomes training evidence');
 SELECT is_empty($$ SELECT * FROM private.qualified_behavior_sessions('43000000-0000-0000-0000-000000000003','2026-01-01 00:00+00','2026-01-03 00:00+00','43000000-0000-0000-0000-000000000010') $$, 'outage coverage never becomes training evidence');
@@ -71,6 +79,8 @@ CREATE TEMP TABLE before_live AS SELECT (SELECT coalesce(md5(string_agg(to_jsonb
 SELECT ok((private.rebuild_alert_gap_profiles('43000000-0000-0000-0000-000000000010', '2026-01-05') ->> 'completed_gaps')::integer >= 1, 'rebuild returns only aggregate completed-gap counts');
 SELECT is((SELECT sample_count FROM public.alert_gap_profiles WHERE version_id='43000000-0000-0000-0000-000000000010' AND user_id='43000000-0000-0000-0000-000000000001' AND context_key='personal_global' AND through_date='2026-01-05'), 1, 'stable hash daily cap avoids earliest or longest raw-gap bias');
 SELECT is((SELECT neutral_p95_minutes FROM public.alert_gap_profiles WHERE version_id='43000000-0000-0000-0000-000000000010' AND user_id='43000000-0000-0000-0000-000000000001' AND context_key='personal_global' AND through_date='2026-01-05'), 240, 'nearest-rank p95 uses completed four-hour gap');
+SELECT ok((private.rebuild_alert_gap_profiles('43000000-0000-0000-0000-000000000010', '2026-01-02') ->> 'completed_gaps')::integer >= 1, 'daily-cap fixture rebuilds qualified gaps');
+SELECT is((SELECT sample_count FROM public.alert_gap_profiles WHERE version_id='43000000-0000-0000-0000-000000000010' AND user_id='43000000-0000-0000-0000-000000000006' AND context_key='personal_global' AND through_date='2026-01-02'), 1, 'stable hash daily cap retains only one of multiple same-day qualified gaps');
 SELECT ok(EXISTS (SELECT 1 FROM public.alert_gap_profiles WHERE version_id='43000000-0000-0000-0000-000000000010' AND user_id='43000000-0000-0000-0000-000000000001' AND context_key <> 'personal_global' AND quality_state='valid' AND confidence=1), 'global and comparable-context profiles include quality and confidence');
 SELECT is_empty($$ SELECT * FROM public.alert_gap_profiles WHERE version_id='43000000-0000-0000-0000-000000000010' AND user_id='43000000-0000-0000-0000-000000000002' $$, 'right-censored final absence is never learned');
 SELECT is_empty($$ SELECT * FROM public.alert_gap_profiles WHERE version_id='43000000-0000-0000-0000-000000000010' AND user_id='43000000-0000-0000-0000-000000000004' $$, 'intervention response and its gap do not train a profile');
