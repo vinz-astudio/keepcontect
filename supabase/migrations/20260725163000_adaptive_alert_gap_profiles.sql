@@ -85,6 +85,7 @@ LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = ''
+SET TimeZone = 'UTC'
 AS $$
 DECLARE
   _config jsonb;
@@ -221,6 +222,7 @@ LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
 SET search_path = ''
+SET TimeZone = 'UTC'
 AS $$
 DECLARE
   _config jsonb;
@@ -292,7 +294,8 @@ BEGIN
     FROM sessions
   ), coverage_gaps AS (
     SELECT p.user_id, p.session_end, p.next_start, p.context_key,
-      c.timezone, c.utc_offset_minutes
+      c.id AS coverage_id, c.timezone, c.utc_offset_minutes,
+      c.provenance_sha256 AS coverage_provenance_sha256
     FROM paired AS p
     JOIN public.alert_observation_coverage_intervals AS c
       ON c.version_id = _version_id
@@ -338,31 +341,55 @@ BEGIN
       )
   ), effective AS (
     SELECT g.*,
-      greatest(0::numeric, extract(epoch FROM (g.next_start - g.session_end)) - coalesce(sleep.sleep_seconds, 0))::double precision AS effective_seconds
+      greatest(0::numeric, extract(epoch FROM (g.next_start - g.session_end)) - coalesce(sleep.sleep_seconds, 0))::double precision AS effective_seconds,
+      sleep.sleep_provenance_sha256
     FROM coverage_gaps AS g
     CROSS JOIN LATERAL (
-      SELECT coalesce(sum(extract(epoch FROM (upper(r) - lower(r)))), 0)::double precision AS sleep_seconds
-      FROM (
-        SELECT unnest(range_agg(tstzrange(greatest(si.starts_at, g.session_end), least(si.ends_at, g.next_start), '[)'))) AS r
+      WITH raw_sleep AS (
+        SELECT si.starts_at, si.ends_at, si.basis, si.confidence, si.provenance,
+          tstzrange(greatest(si.starts_at, g.session_end), least(si.ends_at, g.next_start), '[)') AS clipped_range
         FROM private.candidate_sleep_intervals(g.user_id, g.session_end, g.next_start, _version_id) AS si
         WHERE si.starts_at < g.next_start AND si.ends_at > g.session_end
-      ) AS merged
+      ), merged AS (
+        SELECT unnest(range_agg(clipped_range)) AS r
+        FROM raw_sleep
+      )
+      SELECT
+        coalesce((SELECT sum(extract(epoch FROM (upper(r) - lower(r)))) FROM merged), 0)::double precision AS sleep_seconds,
+        encode(extensions.digest(coalesce((
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'starts_at_utc', to_char(starts_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+              'ends_at_utc', to_char(ends_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+              'basis', basis,
+              'confidence', confidence,
+              'provenance', provenance
+            ) ORDER BY starts_at, ends_at, basis, confidence, provenance::text
+          )
+          FROM raw_sleep
+        ), '[]'::jsonb)::text, 'sha256'), 'hex') AS sleep_provenance_sha256
     ) AS sleep
   ), capped AS (
     SELECT *, (next_start AT TIME ZONE timezone)::date AS local_date,
       row_number() OVER (
         PARTITION BY user_id, (next_start AT TIME ZONE timezone)::date
-        ORDER BY md5(_version_id::text || ':' || user_id::text || ':' || session_end::text || ':' || next_start::text)
+        ORDER BY md5(
+          _version_id::text || ':' || user_id::text || ':'
+          || to_char(session_end AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') || ':'
+          || to_char(next_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+        )
       ) AS daily_rank
     FROM effective
     WHERE effective_seconds > 0
   ), selected AS (
     SELECT * FROM capped WHERE daily_rank <= _daily_cap
   ), grouped AS (
-    SELECT user_id, 'personal_global'::text AS context_key, session_end, next_start, local_date, effective_seconds
+    SELECT user_id, 'personal_global'::text AS context_key, session_end, next_start, local_date, effective_seconds,
+      coverage_id, timezone, utc_offset_minutes, coverage_provenance_sha256, sleep_provenance_sha256
     FROM selected
     UNION ALL
-    SELECT user_id, context_key, session_end, next_start, local_date, effective_seconds
+    SELECT user_id, context_key, session_end, next_start, local_date, effective_seconds,
+      coverage_id, timezone, utc_offset_minutes, coverage_provenance_sha256, sleep_provenance_sha256
     FROM selected
   ), aggregate_inputs AS (
     SELECT user_id, context_key,
@@ -372,7 +399,17 @@ BEGIN
       max(local_date) AS support_ended_on,
       max(next_start) AS latest_evidence_at,
       ceil(percentile_disc(0.95) WITHIN GROUP (ORDER BY effective_seconds) / 60.0)::integer AS neutral_p95_minutes,
-      jsonb_agg(jsonb_build_object('session_end', session_end, 'next_start', next_start, 'local_date', local_date, 'effective_seconds', effective_seconds) ORDER BY session_end, next_start) AS gap_inputs
+      jsonb_agg(jsonb_build_object(
+        'session_end_utc', to_char(session_end AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+        'next_start_utc', to_char(next_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+        'local_date', local_date,
+        'effective_seconds', effective_seconds,
+        'coverage_id', coverage_id,
+        'coverage_timezone', timezone,
+        'coverage_utc_offset_minutes', utc_offset_minutes,
+        'coverage_provenance_sha256', coverage_provenance_sha256,
+        'sleep_provenance_sha256', sleep_provenance_sha256
+      ) ORDER BY session_end, next_start, coverage_id) AS gap_inputs
     FROM grouped
     GROUP BY user_id, context_key
   ), hashes AS (
@@ -403,7 +440,7 @@ BEGIN
       'through_date', _through_date, 'neutral_p95_minutes', p.neutral_p95_minutes,
       'sample_count', p.sample_count, 'distinct_support_dates', p.distinct_support_dates,
       'support_started_on', p.support_started_on, 'support_ended_on', p.support_ended_on,
-      'latest_evidence_at', p.latest_evidence_at, 'quality_state', p.quality_state,
+      'latest_evidence_at_utc', to_char(p.latest_evidence_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'), 'quality_state', p.quality_state,
       'confidence', p.confidence, 'input_sha256', p.input_sha256
     )::text, 'sha256'), 'hex') AS profile_sha256
   FROM prepared AS p;
@@ -431,7 +468,8 @@ BEGIN
       quality_state = EXCLUDED.quality_state,
       confidence = EXCLUDED.confidence,
       profile_sha256 = EXCLUDED.profile_sha256,
-      input_sha256 = EXCLUDED.input_sha256
+      input_sha256 = EXCLUDED.input_sha256,
+      computed_at = clock_timestamp()
   WHERE target.input_sha256 IS DISTINCT FROM EXCLUDED.input_sha256
      OR target.profile_sha256 IS DISTINCT FROM EXCLUDED.profile_sha256;
   GET DIAGNOSTICS _profiles_written = ROW_COUNT;
