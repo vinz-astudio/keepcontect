@@ -255,7 +255,7 @@ VALUES (
   '41000000-0000-0000-0000-000000000001',
   'shadow-schema-test',
   'draft',
-  '{"sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8},"context":{"definition_version":"shadow-schema-test-v1"},"personal":{"min_samples":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30},"cohort":{"min_contributors":3,"min_support_dates":2,"max_age_days":30,"algorithm":"trimmed_mean","trim_fraction":0.1},"sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},"candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},"sleep_compensation":{"max_start_delay_minutes":60,"max_wake_advance_minutes":60,"max_wake_delay_minutes":60,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":1,"timezone_tolerance_minutes":30}}'::jsonb,
+  '{"sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8,"training_horizon_days":30,"intervention_window_minutes":30},"context":{"definition_version":"shadow-schema-test-v1","day_partition":"all_days","hour_bucket_minutes":60},"personal":{"min_samples":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"confidence_formula_version":"support_ratio_v1"},"cohort":{"min_contributors":3,"min_support_dates":2,"max_age_days":30,"algorithm":"trimmed_mean","trim_fraction":0.1},"sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},"candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},"sleep_compensation":{"max_start_delay_minutes":60,"max_wake_advance_minutes":60,"max_wake_delay_minutes":60,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":1,"timezone_tolerance_minutes":30}}'::jsonb,
   repeat('a', 64),
   'canonical-v2'
 );
