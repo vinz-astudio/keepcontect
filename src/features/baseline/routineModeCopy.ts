@@ -1,9 +1,7 @@
 import type { Lang } from '@/lib/i18n'
+import type { RoutineMode } from '@/features/baseline/routineMode'
 
-export type RoutineModeValue =
-  | 'regular_9to5'
-  | 'semester_break'
-  | 'shift_irregular'
+export type RoutineModeValue = RoutineMode
 
 export interface RoutineModeOption {
   value: RoutineModeValue
