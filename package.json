@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "local:gate": "node scripts/local-gate.mjs",
     "local:gate:static": "node scripts/local-gate.mjs --static-only",
+    "db:replay:compat": "node scripts/local-supabase-replay.mjs",
     "cap:sync": "cap sync",
     "release:canary": "node scripts/release-canary.mjs",
     "release:promote": "node scripts/promote-release.mjs",
