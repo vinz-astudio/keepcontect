@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(42);
+SELECT plan(45);
 
 INSERT INTO auth.users (id, email, aud, role) VALUES
   ('42000000-0000-0000-0000-000000000001', 'sleep-owner@example.invalid', 'authenticated', 'authenticated'),
@@ -7,7 +7,7 @@ INSERT INTO auth.users (id, email, aud, role) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 WITH config AS (
-  SELECT '{"sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8,"training_horizon_days":30,"intervention_window_minutes":30},"context":{"definition_version":"sleep-candidate-v1","day_partition":"all_days","hour_bucket_minutes":60},"personal":{"min_samples":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"confidence_formula_version":"support_ratio_v1"},"cohort":{"min_contributors":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"min_confidence":0.5,"contribution_floor_minutes":1,"contribution_ceiling_minutes":600,"confidence_formula_version":"cohort_support_min_v1","algorithm":"trimmed_mean","trim_fraction":0.1},"sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},"candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},"sleep_compensation":{"max_start_delay_minutes":45,"max_wake_advance_minutes":45,"max_wake_delay_minutes":90,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":2,"timezone_tolerance_minutes":30}}'::jsonb AS value
+  SELECT '{"sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8,"training_horizon_days":30,"intervention_window_minutes":30},"context":{"definition_version":"sleep-candidate-v1","day_partition":"all_days","hour_bucket_minutes":60},"personal":{"min_samples":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"min_confidence":0.7,"confidence_formula_version":"support_ratio_v1"},"cohort":{"min_contributors":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"min_confidence":0.5,"contribution_floor_minutes":1,"contribution_ceiling_minutes":600,"confidence_formula_version":"cohort_support_min_v1","algorithm":"trimmed_mean","trim_fraction":0.1},"sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},"candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},"sleep_compensation":{"max_start_delay_minutes":45,"max_wake_advance_minutes":45,"max_wake_delay_minutes":90,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":2,"timezone_tolerance_minutes":30},"evaluator":{"contract_version":"adaptive_candidate_v1"},"emergency":{"contract_version":"adr0022_v1","neutral_minutes":90,"expected_live_definition_sha256":"1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21"}}'::jsonb AS value
 )
 INSERT INTO public.alert_model_versions (id, name, status, config, config_sha256, evidence_version)
 SELECT '42000000-0000-0000-0000-000000000010', 'sleep-candidate-test', 'replay', value,
@@ -124,7 +124,10 @@ SELECT results_eq(
 SELECT ok(NOT EXISTS (SELECT 1 FROM pg_class c CROSS JOIN LATERAL aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl WHERE c.oid = 'public.alert_sleep_night_contexts'::regclass AND acl.grantee = 0), 'night contexts have no PUBLIC table privilege');
 SELECT ok(NOT EXISTS (SELECT 1 FROM information_schema.column_privileges WHERE table_schema = 'public' AND table_name = 'alert_sleep_night_contexts' AND grantee IN ('PUBLIC', 'anon', 'authenticated', 'service_role')), 'night contexts have no Data API column privilege');
 SELECT ok((SELECT p.prosecdef AND p.provolatile = 's' FROM pg_proc p WHERE p.oid = 'private.candidate_sleep_intervals(uuid,timestamptz,timestamptz,uuid)'::regprocedure), 'candidate function is stable security definer');
-SELECT is((SELECT array_to_string(proconfig, ',') FROM pg_proc WHERE oid = 'private.candidate_sleep_intervals(uuid,timestamptz,timestamptz,uuid)'::regprocedure), 'search_path=""', 'candidate function pins an empty search path');
+SELECT ok((SELECT proconfig @> ARRAY['search_path=""'] FROM pg_proc WHERE oid = 'private.candidate_sleep_intervals(uuid,timestamptz,timestamptz,uuid)'::regprocedure), 'candidate function pins an empty search path');
+SELECT ok((SELECT proconfig @> ARRAY['TimeZone=UTC'] FROM pg_proc WHERE oid = 'private.candidate_sleep_intervals(uuid,timestamptz,timestamptz,uuid)'::regprocedure), 'candidate function pins UTC timezone');
+SELECT ok((SELECT proconfig @> ARRAY['DateStyle=ISO, YMD'] FROM pg_proc WHERE oid = 'private.candidate_sleep_intervals(uuid,timestamptz,timestamptz,uuid)'::regprocedure), 'candidate function pins ISO datestyle');
+SELECT ok((SELECT proconfig @> ARRAY['extra_float_digits=3'] FROM pg_proc WHERE oid = 'private.candidate_sleep_intervals(uuid,timestamptz,timestamptz,uuid)'::regprocedure), 'candidate function pins extra float digits');
 SELECT is((SELECT r.rolname FROM pg_proc p JOIN pg_roles r ON r.oid = p.proowner WHERE p.oid = 'private.candidate_sleep_intervals(uuid,timestamptz,timestamptz,uuid)'::regprocedure), current_user, 'candidate function remains owner-only');
 SELECT throws_ok($$ SET LOCAL ROLE anon; SELECT * FROM public.alert_sleep_night_contexts $$, '42501'::char(5), NULL, 'anonymous callers cannot read nightly contexts');
 INSERT INTO public.alert_sleep_night_contexts (version_id, user_id, anchor_date, timezone, sleep_start_local, sleep_end_local, anchor_starts_at, anchor_ends_at, utc_offset_minutes, coverage_state, captured_at, finalized_at, evidence_version, provenance_sha256)
