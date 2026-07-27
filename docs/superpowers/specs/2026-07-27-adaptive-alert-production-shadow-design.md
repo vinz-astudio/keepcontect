@@ -5,7 +5,7 @@
 | Field | Value |
 |---|---|
 | ID | SPEC-KC-ADAPTIVE-SHADOW-PROD-001 |
-| Status | proposed; implementation blocked pending human review and a new accepted High-risk ADR |
+| Status | accepted under ADR-0028; local implementation planning/build/audit preparation authorized; production and publication remain separately gated |
 | Date | 2026-07-27 |
 | Change class | High-risk / M3 for implementation and release |
 | Requirement | Collect production-quality adaptive candidate evidence without changing live alert behavior |
