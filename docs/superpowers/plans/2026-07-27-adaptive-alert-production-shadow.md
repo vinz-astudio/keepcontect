@@ -180,7 +180,7 @@ private.maintain_adaptive_alert_shadow(
 
 ---
 
-### Task AS-01: Integrate the audited candidate with a fail-closed source manifest
+### Task 1: AS-01 — Integrate the audited candidate with a fail-closed source manifest
 
 **Owner:** agy Executor package A under a locked Codex order; Codex verifies every hash and diff.
 
@@ -322,7 +322,7 @@ Expected: commit excludes `20260726011500_explicit_data_api_acl_baseline.sql`, `
 
 ---
 
-### Task AS-02: Add the private coverage lease contract and finalizer
+### Task 2: AS-02 — Add the private coverage lease contract and finalizer
 
 **Owner:** agy Executor package A, same locked order after AS-01 GREEN; Codex reviews SQL semantics before accepting the artifact.
 
@@ -434,7 +434,7 @@ git commit -m "feat(alerts): add private shadow coverage leases"
 
 ---
 
-### Task AS-03: Add the token wrapper and Android 15-minute coverage reporter
+### Task 3: AS-03 — Add the token wrapper and Android 15-minute coverage reporter
 
 **Owner:** agy Executor package B under a new locked order. The order contains only the files listed below and the already locked SQL result codes.
 
@@ -580,7 +580,7 @@ git commit -m "feat(android): report healthy shadow coverage leases"
 
 ---
 
-### Task AS-04: Add the Tauri native-health five-minute lease loop
+### Task 4: AS-04 — Add the Tauri native-health five-minute lease loop
 
 **Owner:** agy Executor package C under a new locked order.
 
@@ -706,7 +706,7 @@ git commit -m "feat(tauri): report healthy shadow coverage leases"
 
 ---
 
-### Task AS-05: Add bounded context, intervention, invalidation, retention, and aggregate producers
+### Task 5: AS-05 — Add bounded context, intervention, invalidation, retention, and aggregate producers
 
 **Owner:** agy Executor package D under a new locked order; it receives the exact table/function contracts from this plan.
 
@@ -784,7 +784,7 @@ git commit -m "feat(alerts): add bounded shadow evidence producers"
 
 ---
 
-### Task AS-06: Add the scheduler-off operational recorder, cycle, dispatcher, and kill switch
+### Task 6: AS-06 — Add the scheduler-off operational recorder, cycle, dispatcher, and kill switch
 
 **Owner:** agy Executor package D, same order after AS-05 GREEN; Codex reviews every protected-path query.
 
@@ -884,7 +884,7 @@ git commit -m "feat(alerts): add scheduler-off shadow cycle"
 
 ---
 
-### Task AS-07: Run the integrated deterministic verification gate
+### Task 7: AS-07 — Run the integrated deterministic verification gate
 
 **Owner:** Codex Manager directly. No Executor repairs are allowed inside this gate.
 
@@ -985,7 +985,7 @@ Expected: clean worktree; version files unchanged; no linked `supabase db push`,
 
 ---
 
-### Task AS-08: Conduct the independent non-author Claude audit
+### Task 8: AS-08 — Conduct the independent non-author Claude audit
 
 **Owner:** Claude Manager/auditor through `brain-task.mjs invoke-claude`; Codex writes one locked read-only order first.
 
@@ -1032,7 +1032,7 @@ If `APPROVE`, Codex independently rechecks the final HEAD and receipt hashes. If
 
 ---
 
-### Task AS-09: Freeze the local implementation and create separate release successors
+### Task 9: AS-09 — Freeze the local implementation and create separate release successors
 
 **Owner:** Codex Manager.
 
