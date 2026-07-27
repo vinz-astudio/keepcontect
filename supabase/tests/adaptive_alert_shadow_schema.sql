@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(48);
+SELECT plan(63);
 
 INSERT INTO auth.users (id, email, aud, role)
 VALUES (
@@ -34,6 +34,16 @@ SELECT has_column('public', 'routine_mode_cohort_priors', 'published_at', 'cohor
 SELECT has_column('public', 'alert_judgment_shadow_decisions', 'fallback_path', 'shadow decision records its hierarchy path');
 SELECT has_column('public', 'alert_judgment_shadow_decisions', 'evaluator_version', 'shadow decision identifies its evaluator');
 SELECT has_column('public', 'alert_judgment_shadow_decisions', 'provenance_sha256', 'shadow decision hashes provenance');
+SELECT has_column('public', 'alert_judgment_shadow_decisions', 'evidence_cutoff', 'shadow decision records the recorder evidence cutoff');
+SELECT has_column('public', 'alert_judgment_shadow_decisions', 'unclamped_candidate_threshold_minutes', 'shadow decision records the pre-clamp candidate threshold');
+SELECT has_column('public', 'alert_judgment_shadow_decisions', 'candidate_floor_minutes', 'shadow decision records the applied candidate floor');
+SELECT has_column('public', 'alert_judgment_shadow_decisions', 'candidate_ceiling_minutes', 'shadow decision records the applied candidate ceiling');
+SELECT has_column('public', 'alert_judgment_shadow_decisions', 'candidate_cap_reason', 'shadow decision records why the candidate was capped');
+SELECT has_column('public', 'alert_judgment_shadow_decisions', 'deadline_basis', 'shadow decision records how its deadline was derived');
+SELECT has_column('public', 'alert_judgment_shadow_decisions', 'selected_source_sha256', 'shadow decision records its nullable selected source hash');
+SELECT has_column('public', 'alert_judgment_shadow_decisions', 'subject_context_sha256', 'shadow decision binds its subject context hash');
+SELECT has_column('public', 'alert_judgment_shadow_decisions', 'decision_provenance', 'shadow decision stores its canonical provenance object');
+SELECT has_column('public', 'alert_judgment_shadow_decisions', 'decision_sha256', 'shadow decision hashes its complete canonical decision');
 SELECT has_column('public', 'alert_judgment_evaluations', 'evaluation_kind', 'evaluation identifies its aggregate kind');
 SELECT has_column('public', 'alert_judgment_evaluations', 'evaluated_from', 'evaluation records its lower bound');
 SELECT has_column('public', 'alert_judgment_evaluations', 'evaluated_to', 'evaluation records its upper bound');
@@ -42,6 +52,46 @@ SELECT has_column('public', 'alert_judgment_evaluations', 'output_sha256', 'eval
 SELECT has_column('public', 'alert_judgment_evaluations', 'evaluator_version', 'evaluation identifies its evaluator');
 SELECT hasnt_column('public', 'routine_mode_cohort_priors', 'user_id', 'cohort priors never retain membership identity');
 SELECT hasnt_column('public', 'alert_judgment_evaluations', 'user_id', 'evaluations stay aggregate-only');
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.alert_judgment_shadow_decisions'::regclass
+      AND conname = 'alert_judgment_shadow_decisions_check'
+  ),
+  'the invalid final-threshold-at-least-neutral constraint is removed'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.alert_judgment_shadow_decisions'::regclass
+      AND conname =
+        'alert_judgment_shadow_decisions_candidate_threshold_nonnegative'
+      AND pg_get_constraintdef(oid) !~ 'neutral_threshold_minutes'
+  ),
+  'the replacement final-threshold check preserves non-negativity without a neutral lower bound'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.alert_judgment_shadow_decisions'::regclass
+      AND conname = 'alert_judgment_shadow_decisions_candidate_cap_contract'
+  ),
+  'the decision table pins the evaluator cap-reason contract'
+);
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.alert_judgment_shadow_decisions'::regclass
+      AND conname =
+        'alert_judgment_shadow_decisions_decision_provenance_check'
+  ),
+  'the decision table validates canonical decision provenance'
+);
 
 SELECT ok(
   (
@@ -299,20 +349,59 @@ WITH gap_profile AS (
         version_id, user_id, evaluated_at, basis, evaluator_version, context_key,
       neutral_threshold_minutes, sensitivity_buffer_minutes, candidate_threshold_minutes,
       effective_silence_minutes, candidate_deadline, would_alert, confidence, quality_state,
-       fallback_path, sleep_interval_provenance, provenance_sha256, guardian_used_as_activity
+       fallback_path, sleep_interval_provenance, provenance_sha256, guardian_used_as_activity,
+       evidence_cutoff, unclamped_candidate_threshold_minutes, candidate_floor_minutes,
+       candidate_ceiling_minutes, candidate_cap_reason, deadline_basis,
+       selected_source_sha256, subject_context_sha256, decision_provenance, decision_sha256
     ) VALUES (
       '41000000-0000-0000-0000-000000000001',
       '41000000-0000-0000-0000-000000000002',
       '2026-07-26 12:34:56+00',
        'deterministic_emergency', 'shadow-schema-test-v1', 'global', 90, 0, 90, 91,
       '2026-07-26 12:33:00+00', true, 0.1, 'low_support',
-       ARRAY['deterministic_emergency']::text[], '[]'::jsonb, repeat('1', 64), false
+       ARRAY['deterministic_emergency']::text[], '[]'::jsonb,
+       encode(extensions.digest('{}'::jsonb::text, 'sha256'), 'hex'), false,
+       '2026-07-26 12:33:00+00', 90, 1, 600, 'emergency_exempt', 'no_future_exclusion',
+       NULL, repeat('2', 64), '{}'::jsonb, repeat('3', 64)
     ) RETURNING evaluated_minute
     )
 SELECT is(
   (SELECT evaluated_minute FROM decision),
   '2026-07-26 12:34:00+00'::timestamptz,
   'representative owner DML stores the UTC-truncated shadow minute'
+);
+
+SELECT results_eq(
+  $$
+    SELECT
+      evidence_cutoff,
+      unclamped_candidate_threshold_minutes,
+      candidate_floor_minutes,
+      candidate_ceiling_minutes,
+      candidate_cap_reason,
+      deadline_basis,
+      selected_source_sha256,
+      subject_context_sha256,
+      decision_provenance,
+      decision_sha256
+    FROM public.alert_judgment_shadow_decisions
+    WHERE version_id = '41000000-0000-0000-0000-000000000001'
+  $$,
+  $$
+    VALUES (
+      '2026-07-26 12:33:00+00'::timestamptz,
+      90,
+      1,
+      600,
+      'emergency_exempt'::text,
+      'no_future_exclusion'::text,
+      NULL::text,
+      repeat('2', 64),
+      '{}'::jsonb,
+      repeat('3', 64)
+    )
+  $$,
+  'representative owner DML preserves every appended non-null decision field'
 );
 
 SELECT results_eq(
