@@ -17,6 +17,8 @@ export const PINNED_INPUTS = Object.freeze({
 
 export const FIXTURE_FILENAME =
   '20260623085959_local_replay_admin_fixture.sql';
+export const INSPECTION_FIXTURE_FILENAME =
+  '20991231235959_local_replay_inspection_acl.sql';
 
 const FIXTURE_SQL = `-- ADR-0024 local replay fixture; never production
 insert into auth.users (id, aud, role, email, created_at, updated_at)
@@ -29,6 +31,14 @@ values (
   now()
 )
 on conflict (id) do nothing;
+`;
+
+const INSPECTION_FIXTURE_SQL = `-- Local pgTAP inspection only; never production.
+-- Runs after all source migrations. Production ACL remains governed by ADR-0027.
+grant select on table public.behavior_pings to authenticated;
+grant select on table public.alerts, public.behavior_pings, public.device_state, public.notifications to service_role;
+grant usage on schema cron to service_role;
+grant select on table cron.job to service_role;
 `;
 
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
@@ -212,6 +222,7 @@ async function verifyCopiedTree(sourceSupabaseRoot, copiedSupabaseRoot, adaptedR
   const expectedFiles = new Set([
     ...sourceFiles,
     join('migrations', FIXTURE_FILENAME),
+    join('migrations', INSPECTION_FIXTURE_FILENAME),
   ]);
 
   if (
@@ -243,6 +254,13 @@ async function verifyCopiedTree(sourceSupabaseRoot, copiedSupabaseRoot, adaptedR
   const fixture = await readFile(join(copiedSupabaseRoot, 'migrations', FIXTURE_FILENAME));
   if (!fixture.equals(Buffer.from(FIXTURE_SQL, 'utf8'))) {
     throw new Error('Copied tree fixture differs from the authorized fixture.');
+  }
+
+  const inspectionFixture = await readFile(
+    join(copiedSupabaseRoot, 'migrations', INSPECTION_FIXTURE_FILENAME),
+  );
+  if (!inspectionFixture.equals(Buffer.from(INSPECTION_FIXTURE_SQL, 'utf8'))) {
+    throw new Error('Copied tree inspection fixture differs from the authorized fixture.');
   }
 }
 
@@ -285,6 +303,10 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
   await verifyCopiedSources(migrationsRoot, disposableMigrationsRoot);
 
   const fixtureMigration = join(disposableMigrationsRoot, FIXTURE_FILENAME);
+  const inspectionFixtureMigration = join(
+    disposableMigrationsRoot,
+    INSPECTION_FIXTURE_FILENAME,
+  );
   const patchedMigration = join(
     disposableMigrationsRoot,
     '20260624140000_adaptive_routine_impl.sql',
@@ -293,11 +315,17 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
   const compatibilityActions = [];
 
   await writeFile(fixtureMigration, FIXTURE_SQL, 'utf8');
+  await writeFile(inspectionFixtureMigration, INSPECTION_FIXTURE_SQL, 'utf8');
   await writeFile(patchedMigration, adaptedRoutine.sql, 'utf8');
   compatibilityActions.push({
     type: 'add-local-admin-fixture',
     filename: FIXTURE_FILENAME,
     resultingHash: await hashFile(fixtureMigration),
+  });
+  compatibilityActions.push({
+    type: 'add-local-inspection-acl-fixture',
+    filename: INSPECTION_FIXTURE_FILENAME,
+    resultingHash: await hashFile(inspectionFixtureMigration),
   });
   compatibilityActions.push({
     type: 'replace-legacy-loop-token',
@@ -330,6 +358,7 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
     disposableProjectRoot: output,
     verifiedInputs,
     fixtureMigration,
+    inspectionFixtureMigration,
     patchedMigration,
     replacementCount: adaptedRoutine.replacementCount,
     compatibilityActions,
@@ -346,6 +375,24 @@ export function buildReplayCommands(disposableProjectRoot) {
         'exec', '--yes', '--package=supabase@2.109.1', '--',
         'supabase', 'db', 'reset', '--local',
         '--workdir', disposableProjectRoot, '--no-seed',
+      ],
+    },
+    {
+      command,
+      args: [
+        'exec', '--yes', '--package=supabase@2.109.1', '--',
+        'supabase', 'db', 'query', '--local',
+        '--workdir', disposableProjectRoot,
+        "select cron.unschedule('process-escalations');",
+      ],
+    },
+    {
+      command,
+      args: [
+        'exec', '--yes', '--package=supabase@2.109.1', '--',
+        'supabase', 'db', 'query', '--local',
+        '--workdir', disposableProjectRoot,
+        "select cron.unschedule('process-checkin-tasks');",
       ],
     },
     {

@@ -64,6 +64,25 @@ describe('local Supabase replay compatibility harness', () => {
     expect(await readFile(manifest.fixtureMigration, 'utf8')).toContain(
       'b897a59f-0a54-42df-9926-8452e477d8bd',
     );
+    const fixtureSql = await readFile(manifest.inspectionFixtureMigration, 'utf8');
+    expect(fixtureSql).toContain(
+      'grant select on table public.behavior_pings to authenticated;',
+    );
+    expect(fixtureSql).toContain(
+      'grant select on table public.alerts, public.behavior_pings, public.device_state, public.notifications to service_role;',
+    );
+    expect(fixtureSql).toContain(
+      'grant usage on schema cron to service_role;',
+    );
+    expect(fixtureSql).not.toMatch(
+      /\b(?:insert|update|delete|truncate)\s+(?:into\s+|from\s+)?public\./i,
+    );
+    expect(fixtureSql).toContain(
+      'grant select on table cron.job to service_role;',
+    );
+    expect(fixtureSql).not.toMatch(
+      /grant\s+(?:all|insert|update|delete|truncate|references|trigger)\b/i,
+    );
   });
 
   it('strips only the two authorized leading BOMs in the disposable copy', async () => {
@@ -170,7 +189,7 @@ describe('local Supabase replay compatibility harness', () => {
     }
   });
 
-  it('builds only pinned local reset and pgTAP commands', () => {
+  it('builds only pinned local reset, cron freeze, and pgTAP commands', () => {
     const commands = buildReplayCommands(DISPOSABLE_PROJECT_ROOT);
 
     expect(commands).toEqual([
@@ -180,6 +199,24 @@ describe('local Supabase replay compatibility harness', () => {
           'exec', '--yes', '--package=supabase@2.109.1', '--',
           'supabase', 'db', 'reset', '--local',
           '--workdir', DISPOSABLE_PROJECT_ROOT, '--no-seed',
+        ],
+      },
+      {
+        command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+        args: [
+          'exec', '--yes', '--package=supabase@2.109.1', '--',
+          'supabase', 'db', 'query', '--local',
+          '--workdir', DISPOSABLE_PROJECT_ROOT,
+          "select cron.unschedule('process-escalations');",
+        ],
+      },
+      {
+        command: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+        args: [
+          'exec', '--yes', '--package=supabase@2.109.1', '--',
+          'supabase', 'db', 'query', '--local',
+          '--workdir', DISPOSABLE_PROJECT_ROOT,
+          "select cron.unschedule('process-checkin-tasks');",
         ],
       },
       {
