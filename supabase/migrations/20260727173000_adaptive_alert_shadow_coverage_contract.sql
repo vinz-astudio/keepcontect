@@ -81,6 +81,7 @@ DECLARE
   _utc_offset_minutes integer;
   _enabled boolean;
   _accept boolean;
+  _inserted integer;
 BEGIN
   SELECT enabled, accept_coverage_leases
   INTO _enabled, _accept
@@ -92,29 +93,29 @@ BEGIN
     RETURN 'disabled';
   END IF;
 
-  IF _user_id IS NULL THEN RETURN 'not_authenticated'; END IF;
-  IF _event_id IS NULL THEN RETURN 'invalid_event_id'; END IF;
+  IF _user_id IS NULL THEN RETURN 'invalid'; END IF;
+  IF _event_id IS NULL THEN RETURN 'invalid'; END IF;
   IF _client_id IS NULL OR length(trim(_client_id)) NOT BETWEEN 1 AND 64 THEN
-    RETURN 'invalid_client_id';
+    RETURN 'invalid';
   END IF;
-  IF _channel NOT IN ('tauri', 'android-apk') THEN RETURN 'invalid_channel'; END IF;
+  IF _channel NOT IN ('tauri', 'android-apk') THEN RETURN 'unsupported'; END IF;
   IF (
     _channel = 'tauri' AND _collector_contract <> 'tauri-idle-v1'
   ) OR (
     _channel = 'android-apk' AND _collector_contract <> 'android-passive-v1'
   ) THEN
-    RETURN 'invalid_contract';
+    RETURN 'unsupported';
   END IF;
   IF _collector_state IS DISTINCT FROM 'operational' THEN
-    RETURN 'invalid_collector_state';
+    RETURN 'unsupported';
   END IF;
   IF _capability_sha256 IS NULL
      OR _capability_sha256 !~ '^[a-f0-9]{64}$' THEN
-    RETURN 'invalid_capability';
+    RETURN 'invalid';
   END IF;
   IF _observed_at IS NULL
      OR abs(extract(epoch FROM (_received_at - _observed_at))) > 300 THEN
-    RETURN 'observed_time_drift';
+    RETURN 'invalid';
   END IF;
 
   SELECT c.platform, c.app_version
@@ -123,16 +124,16 @@ BEGIN
   WHERE c.user_id = _user_id
     AND c.client_id = _client_id;
 
-  IF NOT FOUND THEN RETURN 'client_not_registered'; END IF;
+  IF NOT FOUND THEN RETURN 'unregistered_client'; END IF;
   IF (
     _channel = 'tauri' AND _platform IS DISTINCT FROM 'tauri'
   ) OR (
     _channel = 'android-apk' AND _platform IS DISTINCT FROM 'android'
   ) THEN
-    RETURN 'client_platform_mismatch';
+    RETURN 'capability_mismatch';
   END IF;
   IF _app_version IS NULL OR length(trim(_app_version)) NOT BETWEEN 1 AND 32 THEN
-    RETURN 'client_version_missing';
+    RETURN 'capability_mismatch';
   END IF;
 
   SELECT coalesce(s.timezone, 'UTC')
@@ -146,7 +147,7 @@ BEGIN
     FROM pg_catalog.pg_timezone_names
     WHERE name = _timezone
   ) THEN
-    RETURN 'invalid_timezone';
+    RETURN 'invalid';
   END IF;
 
   _utc_offset_minutes := round(
@@ -167,7 +168,11 @@ BEGIN
   )
   ON CONFLICT (user_id, event_id) DO NOTHING;
 
-  RETURN 'accepted';
+  GET DIAGNOSTICS _inserted = ROW_COUNT;
+  IF _inserted = 1 THEN
+    RETURN 'inserted';
+  END IF;
+  RETURN 'duplicate';
 END;
 $$;
 
