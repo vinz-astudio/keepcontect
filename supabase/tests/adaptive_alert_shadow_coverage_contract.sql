@@ -2,7 +2,7 @@
 -- This remains default-disabled, source-identified, non-notifying, and unscheduled.
 
 BEGIN;
-SELECT plan(36);
+SELECT plan(38);
 
 INSERT INTO auth.users (id, email, aud, role)
 VALUES (
@@ -26,7 +26,11 @@ INSERT INTO public.clients (
   ),
   (
     '48000000-0000-0000-0000-000000000001',
-    'android-a', 'android', '0.5.20', clock_timestamp(), clock_timestamp()
+    'android-a', 'android-apk', '0.5.20', clock_timestamp(), clock_timestamp()
+  ),
+  (
+    '48000000-0000-0000-0000-000000000001',
+    'android-legacy', 'android', '0.5.20', clock_timestamp(), clock_timestamp()
   )
 ON CONFLICT (user_id, client_id) DO UPDATE
 SET platform = EXCLUDED.platform, app_version = EXCLUDED.app_version;
@@ -208,12 +212,28 @@ SELECT is(
 ); -- 14
 SELECT is(
   public.record_alert_shadow_coverage_lease(
+    'android-a','android-apk','android-passive-v1','operational',
+    repeat('b',64),clock_timestamp(),gen_random_uuid()
+  ),
+  'inserted',
+  'canonical report_client Android platform is accepted'
+); -- 15
+SELECT is(
+  public.record_alert_shadow_coverage_lease(
+    'android-legacy','android-apk','android-passive-v1','operational',
+    repeat('b',64),clock_timestamp(),gen_random_uuid()
+  ),
+  'capability_mismatch',
+  'non-canonical Android platform is rejected'
+); -- 16
+SELECT is(
+  public.record_alert_shadow_coverage_lease(
     'tauri-a','tauri','tauri-idle-v1','operational',
     'not-a-hash',clock_timestamp(),gen_random_uuid()
   ),
   'invalid',
   'malformed capability hash returns invalid'
-); -- 15
+); -- 17
 RESET ROLE;
 
 -- The duplicate did not create a second source row.
