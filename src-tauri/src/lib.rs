@@ -71,6 +71,41 @@ fn get_system_idle_time_ms() -> Option<u32> {
     sys_idle::get_idle_time_ms()
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriCoverageCapability {
+    collector_contract: &'static str,
+    collector_state: &'static str,
+    idle_probe_available: bool,
+    app_version: String,
+    channel: &'static str,
+}
+
+fn build_shadow_coverage_capability(
+    idle_probe_available: bool,
+    app_version: &str,
+) -> TauriCoverageCapability {
+    TauriCoverageCapability {
+        collector_contract: "tauri-idle-v1",
+        collector_state: if idle_probe_available {
+            "operational"
+        } else {
+            "unavailable"
+        },
+        idle_probe_available,
+        app_version: app_version.to_string(),
+        channel: "tauri",
+    }
+}
+
+#[tauri::command]
+fn get_alert_shadow_coverage_capability(
+    app: tauri::AppHandle,
+) -> TauriCoverageCapability {
+    let version = app.package_info().version.to_string();
+    build_shadow_coverage_capability(sys_idle::get_idle_time_ms().is_some(), &version)
+}
+
 #[tauri::command]
 async fn download_and_install(window: tauri::Window, url: String) -> Result<(), String> {
   tauri::async_runtime::spawn_blocking(move || {
@@ -235,7 +270,33 @@ pub fn run() {
         let _ = window.hide();
       }
     })
-    .invoke_handler(tauri::generate_handler![get_system_idle_time_ms, download_and_install, open_in_browser])
+    .invoke_handler(tauri::generate_handler![
+      get_system_idle_time_ms,
+      get_alert_shadow_coverage_capability,
+      download_and_install,
+      open_in_browser
+    ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod shadow_coverage_tests {
+    use super::*;
+
+    #[test]
+    fn tauri_capability_is_unavailable_when_idle_probe_is_missing() {
+        let value = build_shadow_coverage_capability(false, "0.5.20");
+        assert_eq!(value.collector_state, "unavailable");
+        assert!(!value.idle_probe_available);
+    }
+
+    #[test]
+    fn tauri_capability_contract_is_fixed() {
+        let value = build_shadow_coverage_capability(true, "0.5.20");
+        assert_eq!(value.collector_contract, "tauri-idle-v1");
+        assert_eq!(value.collector_state, "operational");
+        assert_eq!(value.channel, "tauri");
+        assert_eq!(value.app_version, "0.5.20");
+    }
 }
