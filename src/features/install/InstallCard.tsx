@@ -8,7 +8,7 @@ import {
 } from '@/features/install/installPrompt'
 import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
-import { APK_URL } from '@/features/install/apk'
+import { APK_URL, getApkDownloadFilename } from '@/features/install/apk'
 
 export function InstallCard({ compact = false }: { compact?: boolean }) {
   const { t, lang } = useI18n()
@@ -28,7 +28,7 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
     if (compact) {
       return (
         <div className="install__compact">
-          <a className="install__compactbtn" href={APK_URL} download>
+          <a className="install__compactbtn" href={APK_URL} download={getApkDownloadFilename()}>
             {t('install.apk.get')}
           </a>
         </div>
@@ -41,7 +41,7 @@ export function InstallCard({ compact = false }: { compact?: boolean }) {
           {t('install.title')}
         </h2>
         <p className="muted">{t('install.apk.desc')}</p>
-        <a className="ei__save" href={APK_URL} download>
+        <a className="ei__save" href={APK_URL} download={getApkDownloadFilename()}>
           {t('install.apk.get')}
         </a>
         <p className="muted install__apkhint">{t('install.apk.hint')}</p>

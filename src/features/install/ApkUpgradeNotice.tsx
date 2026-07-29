@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { isStandalone } from '@/lib/platform'
-import { APK_URL, isAndroidWeb } from '@/features/install/apk'
+import { APK_URL, isAndroidWeb, getApkDownloadFilename } from '@/features/install/apk'
 import { useI18n } from '@/lib/i18n'
 import './ApkUpgradeNotice.css'
 
@@ -30,7 +30,7 @@ export function ApkUpgradeNotice() {
         <span>{t('apk.notice.body')}</span>
       </div>
       <div className="apknotice__actions">
-        <a className="apknotice__get" href={APK_URL} download>
+        <a className="apknotice__get" href={APK_URL} download={getApkDownloadFilename()}>
           {t('install.apk.get')}
         </a>
         <button

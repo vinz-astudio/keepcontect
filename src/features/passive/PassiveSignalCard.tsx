@@ -8,7 +8,7 @@ import {
 import { getPlatform, isTauri } from '@/lib/platform'
 import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
-import { APK_URL } from '@/features/install/apk'
+import { APK_URL, getApkDownloadFilename } from '@/features/install/apk'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
 import {
@@ -145,7 +145,7 @@ export function PassiveSignalCard() {
           </p>
           {android !== 'native' && (
             <div style={{ marginTop: '12px', marginBottom: '12px' }}>
-              <a className="psig__import" href={APK_URL} download>
+              <a className="psig__import" href={APK_URL} download={getApkDownloadFilename()}>
                 {lang === 'zh' ? '下载安卓安装包 (.apk)' : 'Download Android APK'}
               </a>
             </div>
