@@ -37,13 +37,15 @@ const verTsPath = join(root, 'src/lib/version.ts')
 let verTs = readFileSync(verTsPath, 'utf8')
 verTs = verTs.replace(/APP_VERSION\s*=\s*'[^']*'/, `APP_VERSION = '${versionName}'`)
 writeFileSync(verTsPath, verTs)
+const apkFileName = `keep-contact-v${versionName}.apk`
 const verJsonPath = join(root, 'public/version.json')
 const verJson = JSON.parse(readFileSync(verJsonPath, 'utf8'))
 verJson.version = versionName
-releaseApkUrl = verJson.apkUrl ?? ''
+verJson.apkUrl = `https://keep-contact-mauve.vercel.app/${apkFileName}`
+releaseApkUrl = verJson.apkUrl
 releaseExeUrl = verJson.exeUrl ?? ''
 writeFileSync(verJsonPath, JSON.stringify(verJson, null, 2) + '\n')
-console.log(`→ APP_VERSION & version.json = ${versionName}`)
+console.log(`→ APP_VERSION & version.json = ${versionName} (${apkFileName})`)
 
 // 2) 构建 Web 产物并同步进原生工程
 run('npm run build')
@@ -58,14 +60,16 @@ const gradlew =
     : './gradlew'
 run(`${gradlew} assembleRelease --console=plain`, { cwd: join(root, 'android') })
 
-// 4) 复制成稳定文件名 keep-contact.apk (包括复制到 public 文件夹，供 Vercel 静态分发)
+// 4) 复制成带版本号的文件名 keep-contact-v${versionName}.apk (同时保留 keep-contact.apk 静态别名供兼容)
 const built = join(root, 'android/app/build/outputs/apk/release/app-release.apk')
-const asset = join(root, 'android/app/build/outputs/apk/release/keep-contact.apk')
-const publicAsset = join(root, 'public/keep-contact.apk')
+const asset = join(root, `android/app/build/outputs/apk/release/${apkFileName}`)
+const publicVersionedAsset = join(root, `public/${apkFileName}`)
+const publicLegacyAsset = join(root, 'public/keep-contact.apk')
 
 copyFileSync(built, asset)
-copyFileSync(built, publicAsset)
-console.log(`✓ 已成功复制 APK 至: ${publicAsset}`)
+copyFileSync(built, publicVersionedAsset)
+copyFileSync(built, publicLegacyAsset)
+console.log(`✓ 已成功复制 APK 至: ${publicVersionedAsset} 和 ${publicLegacyAsset}`)
 
 console.log('正在同步 released 版本记录...')
 if (releaseApkUrl || releaseExeUrl) {
@@ -80,7 +84,7 @@ try {
   const token = execSync(`gh auth token -u vinz-astudio`, { cwd: root })
     .toString()
     .trim()
-  const notes = `Release-signed Android build. 下载 keep-contact.apk 安装即可。`
+  const notes = `Release-signed Android build (${apkFileName}). 下载安装即可。`
   run(
     `gh release create ${tag} "${asset}" --repo ${REPO} --title "Keep Contact ${tag} — Android" --latest --notes "${notes}"`,
     { env: { ...process.env, GH_TOKEN: token } },

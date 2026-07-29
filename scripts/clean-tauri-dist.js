@@ -18,7 +18,22 @@ const relativeTargets = [
 ];
 
 for (const root of roots) {
+  if (fs.existsSync(root)) {
+    try {
+      const files = fs.readdirSync(root);
+      for (const file of files) {
+        if (file.startsWith('keep-contact') && file.endsWith('.apk')) {
+          const target = path.join(root, file);
+          fs.unlinkSync(target);
+          console.log(`[Installer Clean] Removed ${path.relative(rootDir, target)}`);
+        }
+      }
+    } catch (err) {
+      console.error(`Failed to clean APKs in ${root}:`, err);
+    }
+  }
   for (const rel of relativeTargets) {
+    if (rel.endsWith('.apk')) continue;
     const target = path.join(root, rel);
     if (fs.existsSync(target)) {
       try {
