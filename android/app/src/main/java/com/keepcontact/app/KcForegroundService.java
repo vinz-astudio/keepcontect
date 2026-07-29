@@ -5,18 +5,29 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import java.util.Locale;
 
 public class KcForegroundService extends Service {
     private static final String CHANNEL_ID = "kc_foreground_service";
     private static final int NOTIFICATION_ID = 90210;
+
+    private BroadcastReceiver passiveEventReceiver;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        registerPassiveReceiver();
+    }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -69,6 +80,49 @@ public class KcForegroundService extends Service {
             ? "Keep Contact 紧急安全守护的前台常驻状态" 
             : "Foreground status for Keep Contact safety monitor");
         manager.createNotificationChannel(channel);
+    }
+
+    @Override
+    public void onDestroy() {
+        unregisterPassiveReceiver();
+        super.onDestroy();
+    }
+
+    private void registerPassiveReceiver() {
+        if (passiveEventReceiver != null) return;
+        passiveEventReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent == null) return;
+                String action = intent.getAction();
+                android.util.Log.d("KcForegroundService", "Passive event received in Service: " + action);
+                if (PassivePing.shouldPingForAction(context, action)) {
+                    PassivePing.pingApp(context);
+                }
+            }
+        };
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_USER_PRESENT);
+        filter.addAction(Intent.ACTION_POWER_CONNECTED);
+        filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+
+        try {
+            ContextCompat.registerReceiver(
+                this, passiveEventReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
+        } catch (Exception e) {
+            android.util.Log.e("KcForegroundService", "Failed to register passive event receiver", e);
+        }
+    }
+
+    private void unregisterPassiveReceiver() {
+        if (passiveEventReceiver == null) return;
+        try {
+            unregisterReceiver(passiveEventReceiver);
+        } catch (Exception ignored) {
+            // Already unregistered
+        }
+        passiveEventReceiver = null;
     }
 
     @Nullable

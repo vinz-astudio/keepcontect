@@ -304,16 +304,23 @@ final class PassivePing {
         prefs(context).edit().putLong(KEY_LAST_SHADOW_COVERAGE_LEASE_AT, at).apply();
     }
 
-    // —— Charging Receiver Helpers ——
+    // —— Event Receiver Helpers ——
 
-    static IntentFilter chargingIntentFilter(Context context) {
+    static IntentFilter passiveIntentFilter(Context context) {
         SharedPreferences prefs = prefs(context);
         IntentFilter filter = new IntentFilter();
-        if (isConfigured(context) && prefs.getBoolean(KEY_ALLOW_CHARGING, false)) {
-            filter.addAction(Intent.ACTION_POWER_CONNECTED);
-            filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+        if (isConfigured(context)) {
+            filter.addAction(Intent.ACTION_USER_PRESENT);
+            if (prefs.getBoolean(KEY_ALLOW_CHARGING, false)) {
+                filter.addAction(Intent.ACTION_POWER_CONNECTED);
+                filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+            }
         }
         return filter;
+    }
+
+    static IntentFilter chargingIntentFilter(Context context) {
+        return passiveIntentFilter(context);
     }
 
     static void ping(Context context, long throttleMs) {
