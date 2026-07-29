@@ -2,8 +2,8 @@ import { Capacitor } from '@capacitor/core'
 import { getPlatform } from '@/lib/platform'
 import { APP_VERSION } from '@/lib/version'
 
-// Android APK 的稳定下载地址（Vercel 托管，保证静态 200 OK 资源不会 404）。
-export const APK_URL = 'https://keep-contact-mauve.vercel.app/keep-contact.apk'
+/** 官方带版本号的 Android APK 下载地址（Vercel 静态托管，保证 HTTP 200 OK 且文件名带版本号）。 */
+export const APK_URL = `https://keep-contact-mauve.vercel.app/keep-contact-v${APP_VERSION}.apk`
 
 /** 获取客户端下载时保存的版本化文件名，如 keep-contact-v0.5.21.apk */
 export function getApkDownloadFilename(ver: string = APP_VERSION): string {
