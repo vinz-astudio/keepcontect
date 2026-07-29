@@ -270,13 +270,20 @@ SELECT ok(
   'shadow tables are not published to realtime'
 );
 
-SELECT ok(
-  NOT EXISTS (
-    SELECT 1 FROM cron.job
+SELECT results_eq(
+  $$
+    SELECT jobname, schedule
+    FROM cron.job
     WHERE lower(command) ~ '(adaptive|candidate|shadow|replay)'
        OR lower(jobname) ~ '(adaptive|candidate|shadow|replay)'
-  ),
-  'no adaptive candidate, replay, evaluator, or shadow cron job is scheduled'
+    ORDER BY jobname
+  $$,
+  $$
+    VALUES
+      ('adaptive-alert-shadow-cycle-v1'::text, '*/5 * * * *'::text),
+      ('adaptive-alert-shadow-maintenance-v1'::text, '17 2 * * *'::text)
+  $$,
+  'Phase 2 schedules only the two accepted adaptive-shadow jobs'
 );
 
 CREATE TEMP TABLE shadow_live_snapshot AS
@@ -296,8 +303,8 @@ SELECT
 
 SELECT is(
   (SELECT count(*)::integer FROM public.alert_model_versions),
-  0,
-  'schema migration does not pre-seed an active, replay, or shadow model version'
+  1,
+  'Phase 2 seeds exactly one history-enabled shadow model version'
 );
 
 INSERT INTO public.alert_model_versions (id, name, status, config, config_sha256, evidence_version)

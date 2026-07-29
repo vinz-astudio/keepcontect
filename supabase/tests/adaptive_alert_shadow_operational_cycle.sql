@@ -1,4 +1,4 @@
--- ADR-0028 scheduler-off operational cycle and fail-closed dispatcher.
+-- ADR-0028 Phase-2 operational cycle and fail-closed dispatcher.
 BEGIN;
 SELECT plan(46);
 
@@ -16,7 +16,15 @@ SELECT has_table('private','adaptive_alert_shadow_user_state',
 SELECT has_table('private','adaptive_alert_shadow_cycle_runs',
   'deidentified cycle runs exist');
 
--- 7..8 default dispatcher is a strict no-op.
+-- Isolate the cycle fixture from the activation canary and prove the explicit
+-- runtime kill switch remains a strict no-op.
+UPDATE private.adaptive_alert_shadow_runtime_config
+SET enabled = false,
+    accept_coverage_leases = false;
+DELETE FROM private.adaptive_alert_shadow_cycle_runs;
+DELETE FROM private.adaptive_alert_shadow_user_state;
+
+-- 7..8 disabled dispatcher is a strict no-op.
 SELECT is((SELECT enabled FROM private.adaptive_alert_shadow_runtime_config WHERE singleton),false);
 SELECT lives_ok($$SELECT private.dispatch_adaptive_alert_shadow_cycle()$$);
 
@@ -148,12 +156,22 @@ SELECT ok((SELECT source ~* 'relrowsecurity|has_table_privilege|acl' FROM cycle_
 SELECT ok((SELECT source ~* 'pg_publication_tables' FROM cycle_source));
 SELECT ok((SELECT source ~* 'shadow_detail_budget_exceeded' FROM cycle_source));
 
--- 44..45 base creates no shadow Cron and preserves the live job.
+-- 44..45 Phase 2 creates exactly the two accepted shadow jobs.
 SELECT is((SELECT count(*)::integer FROM cron.job
-  WHERE jobname LIKE 'adaptive-alert-shadow-%'),0);
-SELECT ok(NOT EXISTS(SELECT 1 FROM cron.job
-  WHERE jobname='adaptive-alert-shadow-cycle-v1'
-     OR jobname='adaptive-alert-shadow-maintenance-v1'));
+  WHERE jobname LIKE 'adaptive-alert-shadow-%'),2);
+SELECT results_eq(
+  $$
+    SELECT jobname, schedule
+    FROM cron.job
+    WHERE jobname LIKE 'adaptive-alert-shadow-%'
+    ORDER BY jobname
+  $$,
+  $$
+    VALUES
+      ('adaptive-alert-shadow-cycle-v1'::text, '*/5 * * * *'::text),
+      ('adaptive-alert-shadow-maintenance-v1'::text, '17 2 * * *'::text)
+  $$
+);
 
 -- 46 operational code never invokes live escalation/notification functions.
 SELECT ok((SELECT source !~* '(process_escalations|notify_stage|push-dispatch)'

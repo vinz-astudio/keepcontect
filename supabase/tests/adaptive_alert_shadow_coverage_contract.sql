@@ -1,5 +1,6 @@
 -- ADR-0028 production-shadow coverage lease contract.
--- This remains default-disabled, source-identified, non-notifying, and unscheduled.
+-- Phase 2 enables the bounded runtime, while its explicit kill switch remains
+-- source-identified, non-notifying, and fail-closed.
 
 BEGIN;
 SELECT plan(38);
@@ -75,7 +76,7 @@ SELECT has_function(
   ARRAY['uuid','timestamp with time zone','integer']
 );
 
--- 4: fail-closed singleton defaults.
+-- 4: accepted Phase-2 singleton is enabled but remains bounded.
 SELECT results_eq(
   $$
     SELECT enabled, accept_coverage_leases, max_population,
@@ -84,9 +85,12 @@ SELECT results_eq(
     FROM private.adaptive_alert_shadow_runtime_config
     WHERE singleton
   $$,
-  $$ VALUES (false, false, 10000, 35, 120, 3, 0) $$,
-  'runtime config is disabled and bounded by default'
+  $$ VALUES (true, true, 10000, 35, 120, 3, 0) $$,
+  'Phase-2 runtime is enabled and bounded'
 );
+
+UPDATE private.adaptive_alert_shadow_runtime_config
+SET accept_coverage_leases = false;
 
 SET LOCAL ROLE authenticated;
 SELECT set_config(
@@ -95,14 +99,14 @@ SELECT set_config(
   true
 );
 
--- 5: no lease can enter while disabled.
+-- 5: no lease can enter after the explicit kill switch is closed.
 SELECT is(
   public.record_alert_shadow_coverage_lease(
     'tauri-a','tauri','tauri-idle-v1','operational',
     repeat('a',64),clock_timestamp(),gen_random_uuid()
   ),
   'disabled',
-  'lease acceptance fails closed by default'
+  'lease acceptance fails closed when the kill switch is off'
 );
 RESET ROLE;
 
