@@ -43,6 +43,34 @@ export function PassiveSignalCard() {
   const [usageStatsEnabled, setUsageStatsEnabled] = useState(false)
   const [activityRecognitionEnabled, setActivityRecognitionEnabled] = useState(false)
 
+  const [appActivitySensor, setAppActivitySensor] = useState(() => isSensorEnabled('app_activity'))
+  const [motionSensor, setMotionSensor] = useState(() => isSensorEnabled('motion'))
+  const [chargerSensor, setChargerSensor] = useState(() => isSensorEnabled('phone_charger'))
+
+  const handleToggleAppActivity = async (checked: boolean) => {
+    setAppActivitySensor(checked)
+    await setSensorEnabled('app_activity', checked)
+    if (checked && !usageStatsEnabled) {
+      await openUsageStatsSettings()
+    }
+    void loadData()
+  }
+
+  const handleToggleMotion = async (checked: boolean) => {
+    setMotionSensor(checked)
+    await setSensorEnabled('motion', checked)
+    if (checked && !activityRecognitionEnabled) {
+      await requestActivityRecognitionPermission()
+    }
+    void loadData()
+  }
+
+  const handleToggleCharger = async (checked: boolean) => {
+    setChargerSensor(checked)
+    await setSensorEnabled('phone_charger', checked)
+    void loadData()
+  }
+
 
   // Tauri autostart check
   useEffect(() => {
@@ -125,43 +153,61 @@ export function PassiveSignalCard() {
           {android === 'native' && (
             <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
-              {/* 1. Usage Stats Permission Panel */}
+              {/* 1. App Activity & Screen Unlock Sensor */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>
-                    {lang === 'zh' ? '手机使用情况监测' : 'Usage Stats Monitor'}
-                  </span>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={appActivitySensor}
+                      onChange={(e) => void handleToggleAppActivity(e.target.checked)}
+                    />
+                    <span>{lang === 'zh' ? '屏幕解锁与 App 使用监测' : 'Screen Unlock & App Usage'}</span>
+                  </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <strong style={{ color: usageStatsEnabled ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
-                      {usageStatsEnabled ? (lang === 'zh' ? '已授权' : 'Granted') : (lang === 'zh' ? '未授权' : 'Not Granted')}
+                    <strong style={{ color: (appActivitySensor && usageStatsEnabled) ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
+                      {!appActivitySensor
+                        ? (lang === 'zh' ? '已关闭' : 'Disabled')
+                        : usageStatsEnabled
+                        ? (lang === 'zh' ? '已授权' : 'Granted')
+                        : (lang === 'zh' ? '需系统授权' : 'Permission Required')}
                     </strong>
-                    {!usageStatsEnabled && (
+                    {appActivitySensor && !usageStatsEnabled && (
                       <button className="share" style={{ padding: '2px 8px', fontSize: '0.78rem' }} onClick={() => void openUsageStatsSettings()}>
-                        {lang === 'zh' ? '去开启' : 'Enable'}
+                        {lang === 'zh' ? '去授权 (场景B)' : 'Grant (B)'}
                       </button>
                     )}
                   </div>
                 </div>
                 <p className="muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: '1.3' }}>
                   {lang === 'zh'
-                    ? '应用在后台被动检测手机解锁、使用微信等活跃信号（绝不收集个人隐私或应用内容），离线时自动回溯。'
-                    : 'Passively detects phone unlocks and active app signals in the background (no private content read) to check in.'}
+                    ? '应用在后台被动检测手机解锁、使用手机等活跃信号（绝不收集个人隐私或应用内容）。'
+                    : 'Passively detects phone unlocks and active app usage signs in background (no private content read).'}
                 </p>
               </div>
 
-              {/* 2. Activity Recognition Permission Panel */}
+              {/* 2. Motion Sensing Panel */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>
-                    {lang === 'zh' ? '运动状态活跃监测' : 'Motion Monitoring'}
-                  </span>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={motionSensor}
+                      onChange={(e) => void handleToggleMotion(e.target.checked)}
+                    />
+                    <span>{lang === 'zh' ? '运动状态活跃监测' : 'Motion Monitoring'}</span>
+                  </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <strong style={{ color: activityRecognitionEnabled ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
-                      {activityRecognitionEnabled ? (lang === 'zh' ? '已授权' : 'Granted') : (lang === 'zh' ? '未授权' : 'Not Granted')}
+                    <strong style={{ color: (motionSensor && activityRecognitionEnabled) ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
+                      {!motionSensor
+                        ? (lang === 'zh' ? '已关闭' : 'Disabled')
+                        : activityRecognitionEnabled
+                        ? (lang === 'zh' ? '已授权' : 'Granted')
+                        : (lang === 'zh' ? '需系统授权' : 'Permission Required')}
                     </strong>
-                    {!activityRecognitionEnabled && (
+                    {motionSensor && !activityRecognitionEnabled && (
                       <button className="share" style={{ padding: '2px 8px', fontSize: '0.78rem' }} onClick={() => void requestActivityRecognitionPermission()}>
-                        {lang === 'zh' ? '去开启' : 'Enable'}
+                        {lang === 'zh' ? '去授权 (场景A弹窗)' : 'Grant (A)'}
                       </button>
                     )}
                   </div>
@@ -170,6 +216,28 @@ export function PassiveSignalCard() {
                   {lang === 'zh'
                     ? '在您携手机行走或运动时，通过系统级低能耗加速度与计步状态判定活跃，无需点亮屏幕。'
                     : 'Detects active status using system-level low-power motion sensors when walking or moving around.'}
+                </p>
+              </div>
+
+              {/* 3. Charger Sensing Panel */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={chargerSensor}
+                      onChange={(e) => void handleToggleCharger(e.target.checked)}
+                    />
+                    <span>{lang === 'zh' ? '插拔充电线即时上报' : 'Charger Connect/Disconnect'}</span>
+                  </label>
+                  <strong style={{ color: chargerSensor ? 'var(--ok)' : 'var(--muted)', fontSize: '0.82rem' }}>
+                    {chargerSensor ? (lang === 'zh' ? '已启用' : 'Enabled') : (lang === 'zh' ? '已关闭' : 'Disabled')}
+                  </strong>
+                </div>
+                <p className="muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: '1.3' }}>
+                  {lang === 'zh'
+                    ? '接通或断开充电器电源时，自动触发后台即时心跳上报。'
+                    : 'Plugging in or unplugging the charger automatically triggers a background ping.'}
                 </p>
               </div>
 

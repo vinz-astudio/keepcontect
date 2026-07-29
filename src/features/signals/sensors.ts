@@ -31,10 +31,18 @@ export function getAvailableSensors(): SensorConfig[] {
     },
     {
       key: 'app_activity',
-      labelZh: 'App 使用活跃(后台守护)',
-      labelEn: 'App Activity (background)',
-      descZh: '开启系统「无障碍」权限后，使用任意 App 都会在后台静默上报；即使本 App 被系统关闭也照常守护。只记录"在用手机"，绝不上传用的是哪个 App',
-      descEn: 'After you grant Accessibility access, using any app quietly pings in the background and keeps watching even after Keep Contact is closed. It only records that you are active, never which app',
+      labelZh: '屏幕解锁与 App 使用监测',
+      labelEn: 'Screen Unlock & App Usage',
+      descZh: '离线或使用手机解锁、切换应用时在后台静默上报；只记录"在用手机"，绝不上报具体内容或应用名称',
+      descEn: 'Passively detects screen unlocks and app usage signs in background (records device active time, never private content)',
+      supported: Capacitor.getPlatform() === 'android'
+    },
+    {
+      key: 'motion',
+      labelZh: '运动状态活跃监测',
+      labelEn: 'Motion Monitoring',
+      descZh: '行走、跑步或携带手机移动时，通过系统低能耗感应器自动判定活跃',
+      descEn: 'Detects active status using system-level low-power motion sensors when walking or moving around',
       supported: Capacitor.getPlatform() === 'android'
     },
     {
@@ -50,6 +58,8 @@ export function getAvailableSensors(): SensorConfig[] {
 
 const SENSOR_DEFAULTS: Record<string, boolean> = {
   app_activity: false,
+  motion: true,
+  phone_charger: true,
 }
 
 export function isSensorEnabled(key: string): boolean {

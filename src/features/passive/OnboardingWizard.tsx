@@ -7,6 +7,7 @@ import {
   openUsageStatsSettings,
   isActivityRecognitionEnabled,
   requestActivityRecognitionPermission,
+  requestNativeNotificationPermission,
   openAutostartSettings,
 } from '@/features/passive/native'
 import { getHeartbeatToken, pingUrl, PING_SOURCES, listRecentPings } from '@/features/passive/api'
@@ -39,7 +40,9 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
     onboardingPlatform = 'plain_web'
   }
 
-  const totalSteps = (isGm || onboardingPlatform === 'plain_web') ? 3 : 4
+  const totalSteps = (isGm || onboardingPlatform === 'plain_web')
+    ? 3
+    : (onboardingPlatform === 'android_native' ? 5 : 4)
 
   const [step, setStep] = useState(1)
   const [token, setToken] = useState<string | null>(null)
@@ -47,6 +50,7 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
   // Android specific permissions state
   const [usageStatsOk, setUsageStatsOk] = useState(false)
   const [motionOk, setActivityRecognitionOk] = useState(false)
+  const [notificationOk, setNotificationOk] = useState(true)
   const [autostartAck, setAutostartAck] = useState(false)
 
   // Desktop specific autostart state
@@ -328,42 +332,43 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
         <>
           <div className="onb-header">
             <h1 className="onb-title">
-              {lang === 'zh' ? '配置底座：允许后台静默守护' : 'Base Configuration: Background Guard'}
+              {lang === 'zh' ? '场景 A：应用内直接授权' : 'Scenario A: In-App System Dialogs'}
             </h1>
             <p className="onb-desc">
               {lang === 'zh'
-                ? '为了防止 App 在您锁屏后被系统休眠或误杀，请根据引导完成您的设备授权。'
-                : 'To prevent the system from killing the background monitoring when your screen is locked, please grant permissions:'}
+                ? '点击下方「开启」按钮，将直接在屏幕上弹出 Android 系统授权对话框，点击允许即可完成：'
+                : 'Tap below to trigger system authorization dialogs directly on screen:'}
             </p>
           </div>
           <div className="onb-body">
-            {/* Usage Stats Panel */}
+            {/* Notification Permission Panel (Scenario A) */}
             <div className="onb-panel">
               <div className="onb-panel__header">
                 <span className="onb-panel__title">
-                  1. {lang === 'zh' ? '手机使用情况监测' : 'Usage Stats Access'}
+                  1. {lang === 'zh' ? '常驻守护与紧急通知' : 'Guard Notification Access'}
                 </span>
-                <span className={`onb-panel__status onb-panel__status--${usageStatsOk ? 'active' : 'inactive'}`}>
-                  {usageStatsOk ? (lang === 'zh' ? '已授权' : 'Granted') : (lang === 'zh' ? '待授权' : 'Grant')}
+                <span className={`onb-panel__status onb-panel__status--${notificationOk ? 'active' : 'inactive'}`}>
+                  {notificationOk ? (lang === 'zh' ? '已授权' : 'Granted') : (lang === 'zh' ? '待授权' : 'Grant')}
                 </span>
               </div>
               <p className="onb-panel__desc">
                 {lang === 'zh'
-                  ? '用于检测日常玩手机、亮屏交互和解锁等最被动的平安迹象。'
-                  : 'Checks passive interaction signs such as screen unlocks and daily app usage.'}
+                  ? '允许在前台和通知栏展示常驻守护通知，并在发生危机时推送紧急预警。'
+                  : 'Shows continuous background guard notifications and panic alerts.'}
               </p>
-              {!usageStatsOk && (
-                <button className="onb-panel__btn" onClick={() => void openUsageStatsSettings()}>
-                  {lang === 'zh' ? '去开启' : 'Go to Settings'}
-                </button>
-              )}
+              <button className="onb-panel__btn" onClick={async () => {
+                await requestNativeNotificationPermission()
+                setNotificationOk(true)
+              }}>
+                {lang === 'zh' ? '开启通知权限 (系统弹窗)' : 'Grant Notification'}
+              </button>
             </div>
 
-            {/* Activity Recognition Panel */}
+            {/* Activity Recognition Permission Panel (Scenario A) */}
             <div className="onb-panel">
               <div className="onb-panel__header">
                 <span className="onb-panel__title">
-                  2. {lang === 'zh' ? '运动状态活跃监测' : 'Motion Monitoring'}
+                  2. {lang === 'zh' ? '运动状态活跃监测' : 'Motion Sensor Access'}
                 </span>
                 <span className={`onb-panel__status onb-panel__status--${motionOk ? 'active' : 'inactive'}`}>
                   {motionOk ? (lang === 'zh' ? '已授权' : 'Granted') : (lang === 'zh' ? '待授权' : 'Grant')}
@@ -371,47 +376,17 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
               </div>
               <p className="onb-panel__desc">
                 {lang === 'zh'
-                  ? '用于在您携带手机散步、行走或移动时自动判定活跃。'
-                  : 'Detects active status using system-level low-power motion sensors when walking.'}
+                  ? '用于在您携带手机散步、行走或移动时自动判定活跃（直接弹出系统授权框）。'
+                  : 'Detects active status using system low-power motion sensors when walking.'}
               </p>
               {!motionOk && (
                 <button className="onb-panel__btn" onClick={async () => {
                   await requestActivityRecognitionPermission()
                   await checkAndroidPermissions()
                 }}>
-                  {lang === 'zh' ? '去开启' : 'Go to Settings'}
+                  {lang === 'zh' ? '开启运动权限 (系统弹窗)' : 'Grant Motion Sensor'}
                 </button>
               )}
-            </div>
-
-            {/* Battery / Autostart Panel (Explicit instruction setting with manual ack) */}
-            <div className="onb-panel">
-              <div className="onb-panel__header">
-                <span className="onb-panel__title">
-                  3. {lang === 'zh' ? '开机自启动与电池无限制' : 'Autostart & Battery Saver'}
-                </span>
-                <span className={`onb-panel__status onb-panel__status--${autostartAck ? 'active' : 'inactive'}`}>
-                  {autostartAck ? (lang === 'zh' ? '已确认' : 'Confirmed') : (lang === 'zh' ? '待确认' : 'Pending')}
-                </span>
-              </div>
-              <p className="onb-panel__desc">
-                {lang === 'zh'
-                  ? '防止系统因清理后台把常驻守护强杀。请将电池策略设为「无限制」，并允许自启动。'
-                  : 'Prevents system from killing the guard. Allow Autostart and set Battery to "No Restrictions".'}
-              </p>
-              <button className="onb-panel__btn" onClick={() => void openAutostartSettings()}>
-                {lang === 'zh' ? '打开系统自启动/省电设置' : 'Open Battery Settings'}
-              </button>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '6px' }}>
-                <input
-                  type="checkbox"
-                  checked={autostartAck}
-                  onChange={(e) => setAutostartAck(e.target.checked)}
-                />
-                <span style={{ fontSize: '0.82rem', fontWeight: '600' }}>
-                  {lang === 'zh' ? '我已完成此设置' : 'I did this'}
-                </span>
-              </label>
             </div>
           </div>
         </>
@@ -624,7 +599,78 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
     )
   }
 
-  // Render Step 3 (Verification step - only shown if totalSteps === 4)
+  // Render Step 3 for Android Native (Scenario B System Settings)
+  const renderStep3AndroidNativeScenarioB = () => {
+    return (
+      <>
+        <div className="onb-header">
+          <h1 className="onb-title">
+            {lang === 'zh' ? '场景 B：系统高级设置' : 'Scenario B: System Settings Access'}
+          </h1>
+          <p className="onb-desc">
+            {lang === 'zh'
+              ? '属于 Android 系统底层安全/省电策略。点击按钮后将跳转系统设置界面，请找到 Keep Contact 并开启：'
+              : 'Google & Android require navigating to system settings screens for these permissions:'}
+          </p>
+        </div>
+        <div className="onb-body">
+          {/* Usage Stats Panel (Scenario B) */}
+          <div className="onb-panel">
+            <div className="onb-panel__header">
+              <span className="onb-panel__title">
+                1. {lang === 'zh' ? '手机使用情况监测' : 'Usage Stats Access'}
+              </span>
+              <span className={`onb-panel__status onb-panel__status--${usageStatsOk ? 'active' : 'inactive'}`}>
+                {usageStatsOk ? (lang === 'zh' ? '已授权' : 'Granted') : (lang === 'zh' ? '待授权' : 'Grant')}
+              </span>
+            </div>
+            <p className="onb-panel__desc">
+              {lang === 'zh'
+                ? '用于检测日常玩手机、亮屏交互和解锁等最被动的平安迹象（前往设置开启后，返回自动打勾）。'
+                : 'Checks passive interaction signs such as screen unlocks and daily app usage.'}
+            </p>
+            {!usageStatsOk && (
+              <button className="onb-panel__btn" onClick={() => void openUsageStatsSettings()}>
+                {lang === 'zh' ? '打开系统设置授权' : 'Open System Settings'}
+              </button>
+            )}
+          </div>
+
+          {/* Autostart & Battery Panel (Scenario B) */}
+          <div className="onb-panel">
+            <div className="onb-panel__header">
+              <span className="onb-panel__title">
+                2. {lang === 'zh' ? '开机自启动与电池无限制' : 'Autostart & Battery Saver'}
+              </span>
+              <span className={`onb-panel__status onb-panel__status--${autostartAck ? 'active' : 'inactive'}`}>
+                {autostartAck ? (lang === 'zh' ? '已确认' : 'Confirmed') : (lang === 'zh' ? '待确认' : 'Pending')}
+              </span>
+            </div>
+            <p className="onb-panel__desc">
+              {lang === 'zh'
+                ? '防止系统因清理后台把常驻守护强杀。请将电池策略设为「无限制」，并允许自启动。'
+                : 'Prevents system from killing the guard. Allow Autostart and set Battery to "No Restrictions".'}
+            </p>
+            <button className="onb-panel__btn" onClick={() => void openAutostartSettings()}>
+              {lang === 'zh' ? '打开自启动/省电设置' : 'Open Battery Settings'}
+            </button>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '6px' }}>
+              <input
+                type="checkbox"
+                checked={autostartAck}
+                onChange={(e) => setAutostartAck(e.target.checked)}
+              />
+              <span style={{ fontSize: '0.82rem', fontWeight: '600' }}>
+                {lang === 'zh' ? '我已完成此设置' : 'I completed this setup'}
+              </span>
+            </label>
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // Render Step 3 (Verification step)
   const renderStep3 = () => {
     return (
       <>
@@ -894,8 +940,17 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
         {/* Dynamic Step Content */}
         {step === 1 && renderStep1()}
         {step === 2 && renderStep2()}
-        {step === 3 && (totalSteps === 4 ? renderStep3() : renderFinishStep())}
-        {step === 4 && renderFinishStep()}
+        {step === 3 && (
+          onboardingPlatform === 'android_native'
+            ? renderStep3AndroidNativeScenarioB()
+            : (totalSteps === 4 ? renderStep3() : renderFinishStep())
+        )}
+        {step === 4 && (
+          onboardingPlatform === 'android_native'
+            ? renderStep3()
+            : renderFinishStep()
+        )}
+        {step === 5 && renderFinishStep()}
 
         {/* Footer controls */}
         <div className="onb-footer">

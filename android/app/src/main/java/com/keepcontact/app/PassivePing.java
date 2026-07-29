@@ -105,6 +105,9 @@ final class PassivePing {
         if (Intent.ACTION_POWER_CONNECTED.equals(action) || Intent.ACTION_POWER_DISCONNECTED.equals(action)) {
             return prefs.getBoolean(KEY_ALLOW_CHARGING, false);
         }
+        if (Intent.ACTION_USER_PRESENT.equals(action)) {
+            return true;
+        }
         return false;
     }
 
