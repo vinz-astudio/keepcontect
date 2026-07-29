@@ -94,11 +94,16 @@ WHERE user_id IN (
 INSERT INTO public.groups(id,name,created_by)
 VALUES ('49000000-0000-0000-0000-000000000010','operational-g',
   '49000000-0000-0000-0000-000000000001');
+UPDATE public.group_members
+SET monitored=true, watching=true
+WHERE group_id='49000000-0000-0000-0000-000000000010'
+  AND user_id='49000000-0000-0000-0000-000000000001';
 INSERT INTO public.group_members(group_id,user_id,status,monitored,watching) VALUES
   ('49000000-0000-0000-0000-000000000010','49000000-0000-0000-0000-000000000002','active',true,true),
   ('49000000-0000-0000-0000-000000000010','49000000-0000-0000-0000-000000000003','active',false,true);
 INSERT INTO public.device_state(user_id) VALUES
-  ('49000000-0000-0000-0000-000000000001');
+  ('49000000-0000-0000-0000-000000000001'),
+  ('49000000-0000-0000-0000-000000000003');
 
 CREATE TEMP TABLE op_config AS SELECT '{
   "sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8,"training_horizon_days":35,"intervention_window_minutes":30},
@@ -125,10 +130,10 @@ SELECT private.capture_alert_shadow_subject_contexts(
 ) AS result;
 
 -- 26..31 population and canonical as-of provenance.
-SELECT is((SELECT (result->>'population_count')::integer FROM capture_one), 2);
+SELECT is((SELECT (result->>'population_count')::integer FROM capture_one), 1);
 SELECT ok(EXISTS(SELECT 1 FROM public.alert_judgment_subject_contexts
   WHERE user_id='49000000-0000-0000-0000-000000000001'));
-SELECT ok(EXISTS(SELECT 1 FROM public.alert_judgment_subject_contexts
+SELECT ok(NOT EXISTS(SELECT 1 FROM public.alert_judgment_subject_contexts
   WHERE user_id='49000000-0000-0000-0000-000000000002'));
 SELECT ok(NOT EXISTS(SELECT 1 FROM public.alert_judgment_subject_contexts
   WHERE user_id='49000000-0000-0000-0000-000000000003'));
@@ -157,6 +162,9 @@ SELECT is((SELECT canonical_sensitivity FROM public.alert_judgment_subject_conte
 INSERT INTO public.device_state(user_id) VALUES
   ('49000000-0000-0000-0000-000000000004'),
   ('49000000-0000-0000-0000-000000000005');
+INSERT INTO public.group_members(group_id,user_id,status,monitored,watching) VALUES
+  ('49000000-0000-0000-0000-000000000010','49000000-0000-0000-0000-000000000004','active',true,true),
+  ('49000000-0000-0000-0000-000000000010','49000000-0000-0000-0000-000000000005','active',true,true);
 UPDATE public.user_settings SET timezone='Bad/Zone'
 WHERE user_id='49000000-0000-0000-0000-000000000004';
 UPDATE public.user_settings SET updated_at='2026-07-28 12:00:00+00'
@@ -203,11 +211,11 @@ SET effective_from='2026-06-01 00:00:00+00',
     effective_to='2026-06-02 00:00:00+00',
     settings_updated_at='2026-06-01 00:00:00+00',
     captured_at='2026-06-01 00:00:00+00'
-WHERE user_id='49000000-0000-0000-0000-000000000002';
+WHERE user_id='49000000-0000-0000-0000-000000000001';
 SELECT private.maintain_adaptive_alert_shadow('2026-07-27 12:00:00+00',100);
 -- 41 identifiable detail older than 35 days is removed.
 SELECT ok(NOT EXISTS(SELECT 1 FROM public.alert_judgment_subject_contexts
-  WHERE user_id='49000000-0000-0000-0000-000000000002'
+  WHERE user_id='49000000-0000-0000-0000-000000000001'
     AND effective_to='2026-06-02 00:00:00+00'));
 -- 42 small contributor cells are suppressed and contain no identifying keys.
 SELECT ok(EXISTS(

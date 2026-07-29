@@ -63,9 +63,13 @@ INSERT INTO public.device_state(user_id) VALUES
 INSERT INTO public.groups(id,name,created_by) VALUES(
   '49300000-0000-0000-0000-000000000010','cycle-g',
   '49300000-0000-0000-0000-000000000001');
-INSERT INTO public.group_members(group_id,user_id,status,monitored,watching) VALUES(
-  '49300000-0000-0000-0000-000000000010',
-  '49300000-0000-0000-0000-000000000002','active',true,true);
+UPDATE public.group_members
+SET monitored=true, watching=true
+WHERE group_id='49300000-0000-0000-0000-000000000010'
+  AND user_id='49300000-0000-0000-0000-000000000001';
+INSERT INTO public.group_members(group_id,user_id,status,monitored,watching) VALUES
+  ('49300000-0000-0000-0000-000000000010',
+   '49300000-0000-0000-0000-000000000002','active',true,true);
 
 CREATE TEMP TABLE cycle_config AS SELECT '{
   "sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8,"training_horizon_days":35,"intervention_window_minutes":30},
@@ -104,10 +108,10 @@ CREATE TEMP TABLE cycle_result AS SELECT private.run_adaptive_alert_shadow_cycle
 
 -- 22..32 bounded evaluation and zero live DML.
 SELECT is((SELECT result->>'status' FROM cycle_result),'completed');
-SELECT is((SELECT (result->>'population_count')::integer FROM cycle_result),2);
-SELECT is((SELECT (result->>'evaluated_count')::integer FROM cycle_result),2);
+SELECT is((SELECT (result->>'population_count')::integer FROM cycle_result),1);
+SELECT is((SELECT (result->>'evaluated_count')::integer FROM cycle_result),1);
 SELECT is((SELECT count(*)::integer FROM private.adaptive_alert_shadow_cycle_runs),1);
-SELECT is((SELECT count(*)::integer FROM private.adaptive_alert_shadow_user_state),2);
+SELECT is((SELECT count(*)::integer FROM private.adaptive_alert_shadow_user_state),1);
 SELECT is((SELECT count(*)::integer FROM public.alerts),
   (SELECT alerts::integer FROM live_before));
 SELECT is((SELECT count(*)::integer FROM public.alert_events),

@@ -6,6 +6,7 @@ const files = [
   'supabase/migrations/20260727173500_align_android_coverage_client_platform.sql',
   'supabase/migrations/20260727174000_adaptive_alert_shadow_operational_schema.sql',
   'supabase/migrations/20260727175000_adaptive_alert_shadow_operational_cycle.sql',
+  'supabase/migrations/20260727175500_scope_adaptive_shadow_population.sql',
 ]
 
 describe('ADR-0028 shadow isolation', () => {
