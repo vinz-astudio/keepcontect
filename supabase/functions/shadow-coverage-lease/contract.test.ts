@@ -28,6 +28,32 @@ describe('parseCoverageLeaseRequest', () => {
     }
   })
 
+  it('accepts the paired Tauri idle collector contract', () => {
+    const result = parseCoverageLeaseRequest(JSON.stringify({
+      ...validBody,
+      channel: 'tauri',
+      collector_contract: 'tauri-idle-v1',
+    }))
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.channel).toBe('tauri')
+      expect(result.data.collector_contract).toBe('tauri-idle-v1')
+    }
+  })
+
+  it('rejects a collector contract paired with the wrong channel', () => {
+    const result = parseCoverageLeaseRequest(JSON.stringify({
+      ...validBody,
+      channel: 'tauri',
+      collector_contract: 'android-passive-v1',
+    }))
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.status).toBe(422)
+      expect(result.code).toBe('unsupported_contract')
+    }
+  })
+
   it('rejects malformed JSON with 400', () => {
     const result = parseCoverageLeaseRequest('{invalid json')
     expect(result.ok).toBe(false)

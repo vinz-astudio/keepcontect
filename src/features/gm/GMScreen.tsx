@@ -4,6 +4,8 @@ import {
   gmNudgeUpdate,
   gmSendConcern,
   gmDeleteAccount,
+  gmMuteUser,
+  gmUnmuteUser,
   gmListVersions,
   gmReleaseVersion,
   gmSetCanaryPublic,
@@ -36,6 +38,28 @@ interface UserRow {
   alerted: boolean
   /** 基于 behavior_pings 的统一状态，与 process_escalations 保持一致 */
   status: 'alert' | 'active' | 'quiet' | 'silent' | 'never'
+  /** GM mute: null=未静音, 'indefinite'=无限期, ISO string=到期时间 */
+  muted_until: string | null
+}
+
+type StatusFilter = 'all' | 'active' | 'quiet' | 'silent' | 'alert' | 'never'
+type MuteFilter = 'all' | 'muted' | 'unmuted'
+type VersionFilter = 'all' | 'outdated' | 'current'
+type SortKey = 'name' | 'seen' | 'version' | 'status'
+
+const STATUS_SEVERITY: Record<string, number> = {
+  alert: 0, silent: 1, quiet: 2, never: 3, active: 4,
+}
+
+const STATUS_LABEL: Record<string, Record<string, string>> = {
+  zh: { active: '活跃', quiet: '安静', silent: '沉默', alert: '告警', never: '暂无' },
+  en: { active: 'Active', quiet: 'Quiet', silent: 'Silent', alert: 'Alert', never: 'N/A' },
+}
+
+function isUserMuted(row: UserRow): boolean {
+  if (!row.muted_until) return false
+  if (row.muted_until === 'indefinite') return true
+  return new Date(row.muted_until).getTime() > Date.now()
 }
 
 // 设备在用判定:30 天内有上报才算"目前在用"
@@ -68,50 +92,29 @@ function latestSeen(clients: GmClient[]): number {
 }
 
 /**
- * 折叠"已删除/一次性"的旧设备,得到目前实际在用的设备:
- * - 仅保留 30 天内有上报的(更早的视为已不再使用)。
- * - 网页会话(*-web)清空 localStorage / 隐身 / 换浏览器都会换 id,属一次性会话:
- *   按平台折叠成一条,显示最近一次 + 会话数,不再每次都堆一行。
- * - 已安装客户端(pwa/app/apk)的 id 在该安装内稳定,各自单独列出。
+ * 折叠"已删除/一次性"的旧设备，只展示官方认可的被动监护客户端 (PWA / APK / Tauri Desktop App)：
+ * - 排除普通 Web 网页端 (*-web)。
+ * - 仅保留 30 天内有上报的真实客户端设备。
  */
 function liveDevices(clients: GmClient[]): GmClient[] {
   const now = Date.now()
-  const recent = clients.filter(
+  const recentInstalled = clients.filter(
     (c) =>
-      c.last_seen_at && now - new Date(c.last_seen_at).getTime() < RECENCY_MS,
+      c.last_seen_at &&
+      now - new Date(c.last_seen_at).getTime() < RECENCY_MS &&
+      platKind(c.platform) !== 'web',
   )
   
   const nativeByPlatform = new Map<string, GmClient>()
-  const webByBase = new Map<string, GmClient[]>()
-  
-  for (const c of recent) {
-    const kind = platKind(c.platform)
-    const base = platBase(c.platform)
-    
-    if (kind === 'web') {
-      const arr = webByBase.get(base) ?? []
-      arr.push(c)
-      webByBase.set(base, arr)
-    } else {
-      // Installed app client (apk, app, pwa). 
-      // De-duplicate by keeping only the latest active client ID for this platform.
-      const platKey = c.platform || 'unknown'
-      const existing = nativeByPlatform.get(platKey)
-      if (!existing || new Date(c.last_seen_at!).getTime() > new Date(existing.last_seen_at!).getTime()) {
-        nativeByPlatform.set(platKey, c)
-      }
+  for (const c of recentInstalled) {
+    const platKey = c.platform || 'unknown'
+    const existing = nativeByPlatform.get(platKey)
+    if (!existing || new Date(c.last_seen_at!).getTime() > new Date(existing.last_seen_at!).getTime()) {
+      nativeByPlatform.set(platKey, c)
     }
   }
   
   const out = Array.from(nativeByPlatform.values())
-  for (const [, arr] of webByBase) {
-    const latest = arr.reduce((a, b) =>
-      new Date(a.last_seen_at!).getTime() >= new Date(b.last_seen_at!).getTime()
-        ? a
-        : b,
-    )
-    out.push({ ...latest, web_count: arr.length })
-  }
   out.sort(
     (a, b) =>
       new Date(b.last_seen_at ?? 0).getTime() -
@@ -169,8 +172,10 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
   
   // Search, filter & sort states
   const [search, setSearch] = useState('')
-  const [onlyOutdated, setOnlyOutdated] = useState(false)
-  const [sortBy, setSortBy] = useState<'name' | 'seen' | 'version'>('name')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [muteFilter, setMuteFilter] = useState<MuteFilter>('all')
+  const [versionFilter, setVersionFilter] = useState<VersionFilter>('all')
+  const [sortBy, setSortBy] = useState<SortKey>('name')
   const [bulkNudgeBusy, setBulkNudgeBusy] = useState(false)
   
   const [dbVersions, setDbVersions] = useState<DbVersionInfo[]>([])
@@ -202,6 +207,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
             last_behavior_at: null,
             alerted: false,
             status: 'never' as const,
+            muted_until: null,
           }
         if (c.platform || c.app_version) r.clients.push(c)
 
@@ -222,6 +228,11 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
         // Use server-computed status (based on behavior_pings, matching process_escalations)
         if (c.status) {
           r.status = c.status as UserRow['status']
+        }
+
+        // Track mute status from server
+        if (c.muted_until !== undefined) {
+          r.muted_until = c.muted_until ?? null
         }
 
         map.set(c.user_id, r)
@@ -279,7 +290,8 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
   const canaryPublic = canaryVersion?.public_rollout === true
 
   function isRowOutdatedFor(row: UserRow, version: string): boolean {
-    return row.clients.length === 0 || row.clients.some((client) =>
+    const officialClients = row.clients.filter((c) => platKind(c.platform) !== 'web')
+    return officialClients.length === 0 || officialClients.some((client) =>
       isClientBehindTarget(client.app_version, version),
     )
   }
@@ -321,6 +333,47 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     } finally {
       setBusy(null)
     }
+  }
+
+  async function handleMute(userId: string, name: string) {
+    const choice = window.prompt(
+      lang === 'zh'
+        ? `静音「${name}」多久？输入天数(1/3/7)或留空表示无限期：`
+        : `Mute "${name}" for how many days? Enter 1/3/7 or leave empty for indefinite:`,
+      '7',
+    )
+    if (choice === null) return // cancelled
+
+    const days = parseInt(choice, 10)
+    let until: string | null = null
+    if (!isNaN(days) && days > 0) {
+      const d = new Date()
+      d.setDate(d.getDate() + days)
+      until = d.toISOString()
+    }
+
+    const reason = window.prompt(
+      lang === 'zh' ? '静音原因（可选）：' : 'Reason (optional):',
+      '',
+    ) ?? ''
+
+    await act(
+      userId + 'm',
+      () => gmMuteUser(userId, until, reason),
+      lang === 'zh'
+        ? `已静音「${name}」${until ? `至 ${new Date(until).toLocaleDateString()}` : '(无限期)'}`
+        : `Muted "${name}" ${until ? `until ${new Date(until).toLocaleDateString()}` : '(indefinitely)'}`,
+    )
+    void load()
+  }
+
+  async function handleUnmute(userId: string, name: string) {
+    await act(
+      userId + 'm',
+      () => gmUnmuteUser(userId),
+      lang === 'zh' ? `已解除「${name}」的静音` : `Unmuted "${name}"`,
+    )
+    void load()
   }
 
   async function bulkNudge() {
@@ -426,12 +479,20 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     const matchSearch =
       r.name.toLowerCase().includes(search.toLowerCase()) ||
       r.user_id.toLowerCase().includes(search.toLowerCase())
-    
     if (!matchSearch) return false
 
-    const hasOutdatedClient = isRowOutdated(r)
+    // Status filter
+    if (statusFilter !== 'all' && r.status !== statusFilter) return false
 
-    if (onlyOutdated && !hasOutdatedClient) return false
+    // Mute filter
+    const muted = isUserMuted(r)
+    if (muteFilter === 'muted' && !muted) return false
+    if (muteFilter === 'unmuted' && muted) return false
+
+    // Version filter
+    const outdated = isRowOutdated(r)
+    if (versionFilter === 'outdated' && !outdated) return false
+    if (versionFilter === 'current' && outdated) return false
 
     return true
   })
@@ -442,7 +503,6 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
       return a.name.localeCompare(b.name)
     }
     if (sortBy === 'seen') {
-      // Sort by last real behavior signal (same source as silence detection)
       const at = (r: UserRow) =>
         r.last_behavior_at
           ? new Date(r.last_behavior_at).getTime()
@@ -453,6 +513,9 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
       const aOutdated = isRowOutdated(a)
       const bOutdated = isRowOutdated(b)
       return (bOutdated ? 1 : 0) - (aOutdated ? 1 : 0)
+    }
+    if (sortBy === 'status') {
+      return (STATUS_SEVERITY[a.status] ?? 5) - (STATUS_SEVERITY[b.status] ?? 5)
     }
     return 0
   })
@@ -619,27 +682,62 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+        </div>
+
+        <div className="gm__filter-bar">
           <select
-            className="gm__sort"
+            className="gm__filter-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            aria-label={lang === 'zh' ? '状态筛选' : 'Filter by status'}
+          >
+            <option value="all">{lang === 'zh' ? '全部状态' : 'All Status'}</option>
+            <option value="active">{lang === 'zh' ? '🟢 活跃' : '🟢 Active'}</option>
+            <option value="quiet">{lang === 'zh' ? '🟡 安静' : '🟡 Quiet'}</option>
+            <option value="silent">{lang === 'zh' ? '🔴 沉默' : '🔴 Silent'}</option>
+            <option value="alert">{lang === 'zh' ? '🔴 告警' : '🔴 Alert'}</option>
+            <option value="never">{lang === 'zh' ? '⚫ 暂无' : '⚫ N/A'}</option>
+          </select>
+
+          <select
+            className="gm__filter-select"
+            value={muteFilter}
+            onChange={(e) => setMuteFilter(e.target.value as MuteFilter)}
+            aria-label={lang === 'zh' ? '静音筛选' : 'Filter by mute'}
+          >
+            <option value="all">{lang === 'zh' ? '全部静音' : 'All Mute'}</option>
+            <option value="muted">{lang === 'zh' ? '🔇 已静音' : '🔇 Muted'}</option>
+            <option value="unmuted">{lang === 'zh' ? '🔔 未静音' : '🔔 Unmuted'}</option>
+          </select>
+
+          <select
+            className="gm__filter-select"
+            value={versionFilter}
+            onChange={(e) => setVersionFilter(e.target.value as VersionFilter)}
+            aria-label={lang === 'zh' ? '版本筛选' : 'Filter by version'}
+          >
+            <option value="all">{lang === 'zh' ? '全部版本' : 'All Versions'}</option>
+            <option value="outdated">{lang === 'zh' ? '未升级' : 'Outdated'}</option>
+            <option value="current">{lang === 'zh' ? '已升级' : 'Current'}</option>
+          </select>
+
+          <select
+            className="gm__filter-select"
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as SortKey)}
             aria-label={lang === 'zh' ? '排序方式' : 'Sort by'}
           >
-            <option value="name">{lang === 'zh' ? '按名称排序' : 'Sort by Name'}</option>
-            <option value="seen">{lang === 'zh' ? '最近活跃优先' : 'Sort by Activity'}</option>
-            <option value="version">{lang === 'zh' ? '未升级用户优先' : 'Sort by Outdated'}</option>
+            <option value="name">{lang === 'zh' ? '按名称' : 'By Name'}</option>
+            <option value="seen">{lang === 'zh' ? '按活跃' : 'By Activity'}</option>
+            <option value="version">{lang === 'zh' ? '按版本' : 'By Version'}</option>
+            <option value="status">{lang === 'zh' ? '按严重度' : 'By Severity'}</option>
           </select>
         </div>
         
         <div className="gm__actions-row">
-          <label className="gm__filter-label">
-            <input
-              type="checkbox"
-              checked={onlyOutdated}
-              onChange={(e) => setOnlyOutdated(e.target.checked)}
-            />
-            <span>{lang === 'zh' ? '仅显示未升级用户' : 'Outdated version only'}</span>
-          </label>
+          <span className="gm__filter-count">
+            {lang === 'zh' ? `${sorted.length} / ${rows.length} 用户` : `${sorted.length} / ${rows.length} users`}
+          </span>
           
           <button
             className="gm__bulk-nudge"
@@ -658,7 +756,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
         <table className="gm__table">
           <thead>
             <tr>
-              <th style={{ width: '60px', textAlign: 'center' }}>{lang === 'zh' ? '状态' : 'Status'}</th>
+              <th style={{ width: '110px', textAlign: 'center' }}>{lang === 'zh' ? '状态' : 'Status'}</th>
               <th style={{ width: '100px' }}>ID</th>
               <th>{lang === 'zh' ? '名字' : 'Name'}</th>
               <th style={{ width: '150px' }}>{lang === 'zh' ? '最新行为' : 'Last behavior'}</th>
@@ -677,31 +775,41 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
               sorted.map((r) => {
                 const status = r.status
                 const isOutdated = isRowOutdated(r)
+                const muted = isUserMuted(r)
                 const behaviorTime = formatBehaviorTime(r.last_behavior_at, Date.now(), lang)
+                const statusLabel = (STATUS_LABEL[lang] ?? STATUS_LABEL.en)[status] ?? status
+                const rowClass = [
+                  isOutdated ? 'is-outdated-row' : '',
+                  muted ? 'is-muted-row' : '',
+                ].filter(Boolean).join(' ')
                 return (
-                  <tr key={r.user_id} className={isOutdated ? 'is-outdated-row' : ''}>
+                  <tr key={r.user_id} className={rowClass}>
                     <td style={{ textAlign: 'center' }}>
-                      <span
-                        className={`gm__status-dot is-${status}`}
-                        title={(() => {
-                          const lastBehavior = r.last_behavior_at
-                            ? (() => {
-                                const s = Math.floor((Date.now() - new Date(r.last_behavior_at).getTime()) / 1000)
-                                if (s < 60) return lang === 'zh' ? '行为信号: 刚刚' : 'Signal: just now'
-                                if (s < 3600) return lang === 'zh' ? `行为信号: ${Math.floor(s/60)}分钟前` : `Signal: ${Math.floor(s/60)}m ago`
-                                if (s < 86400) return lang === 'zh' ? `行为信号: ${Math.floor(s/3600)}小时前` : `Signal: ${Math.floor(s/3600)}h ago`
-                                return lang === 'zh' ? `行为信号: ${Math.floor(s/86400)}天前` : `Signal: ${Math.floor(s/86400)}d ago`
-                              })()
-                            : (lang === 'zh' ? '暂无行为信号' : 'No signal yet')
-                          const base =
-                            status === 'alert' ? (lang === 'zh' ? '异常告警 · 需关注' : 'Alert · needs attention') :
-                            status === 'active' ? (lang === 'zh' ? '近期活跃 (<6h)' : 'Active (<6h)') :
-                            status === 'quiet' ? (lang === 'zh' ? '安静 (<24h)' : 'Quiet (<24h)') :
-                            status === 'silent' ? (lang === 'zh' ? '长时间无行为信号 (>24h)' : 'No activity signal (>24h)') :
-                            (lang === 'zh' ? '暂无数据' : 'No data')
-                          return `${base} · ${lastBehavior}`
-                        })()}
-                      />
+                      <div className="gm__status-cell">
+                        <span
+                          className={`gm__status-dot is-${status}`}
+                          title={(() => {
+                            const lastBehavior = r.last_behavior_at
+                              ? (() => {
+                                  const s = Math.floor((Date.now() - new Date(r.last_behavior_at).getTime()) / 1000)
+                                  if (s < 60) return lang === 'zh' ? '行为信号: 刚刚' : 'Signal: just now'
+                                  if (s < 3600) return lang === 'zh' ? `行为信号: ${Math.floor(s/60)}分钟前` : `Signal: ${Math.floor(s/60)}m ago`
+                                  if (s < 86400) return lang === 'zh' ? `行为信号: ${Math.floor(s/3600)}小时前` : `Signal: ${Math.floor(s/3600)}h ago`
+                                  return lang === 'zh' ? `行为信号: ${Math.floor(s/86400)}天前` : `Signal: ${Math.floor(s/86400)}d ago`
+                                })()
+                              : (lang === 'zh' ? '暂无行为信号' : 'No signal yet')
+                            const base =
+                              status === 'alert' ? (lang === 'zh' ? '异常告警 · 需关注' : 'Alert · needs attention') :
+                              status === 'active' ? (lang === 'zh' ? '近期活跃 (<6h)' : 'Active (<6h)') :
+                              status === 'quiet' ? (lang === 'zh' ? '安静 (<24h)' : 'Quiet (<24h)') :
+                              status === 'silent' ? (lang === 'zh' ? '长时间无行为信号 (>24h)' : 'No activity signal (>24h)') :
+                              (lang === 'zh' ? '暂无数据' : 'No data')
+                            return `${base} · ${lastBehavior}`
+                          })()}
+                        />
+                        <span className={`gm__status-label is-${status}`}>{statusLabel}</span>
+                        {muted && <span className="gm__mute-badge" title={r.muted_until === 'indefinite' ? (lang === 'zh' ? '无限期静音' : 'Muted indefinitely') : `${lang === 'zh' ? '静音至' : 'Muted until'} ${new Date(r.muted_until!).toLocaleDateString()}`}>🔇</span>}
+                      </div>
                     </td>
                     <td>
                       <span className="gm__short-id" title={r.user_id}>
@@ -722,6 +830,25 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
                     </td>
                     <td>
                       <div className="gm__table-actions">
+                        {muted ? (
+                          <button
+                            className="gm__row-btn mute is-muted"
+                            disabled={busy != null}
+                            onClick={() => void handleUnmute(r.user_id, r.name)}
+                            title={lang === 'zh' ? '解除静音' : 'Unmute'}
+                          >
+                            Unmute
+                          </button>
+                        ) : (
+                          <button
+                            className="gm__row-btn mute"
+                            disabled={busy != null}
+                            onClick={() => void handleMute(r.user_id, r.name)}
+                            title={lang === 'zh' ? '暂时静音告警' : 'Mute alerts temporarily'}
+                          >
+                            Mute
+                          </button>
+                        )}
                         <button
                           className="gm__row-btn nudge"
                           disabled={busy != null}

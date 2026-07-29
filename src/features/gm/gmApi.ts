@@ -17,6 +17,7 @@ export interface GmClient {
   alerted?: boolean
   web_count?: number
   status?: string | null
+  muted_until?: string | null
 }
 
 export async function amIGm(): Promise<boolean> {
@@ -43,6 +44,24 @@ export async function gmSendConcern(target: string): Promise<void> {
 
 export async function gmDeleteAccount(target: string): Promise<void> {
   const { error } = await supabase.rpc('gm_delete_user', { _target: target })
+  if (error) throw error
+}
+
+export async function gmMuteUser(
+  target: string,
+  until?: string | null,
+  reason?: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('gm_mute_user', {
+    _target: target,
+    _reason: reason ?? '',
+    ...(until ? { _until: until } : {}),
+  })
+  if (error) throw error
+}
+
+export async function gmUnmuteUser(target: string): Promise<void> {
+  const { error } = await supabase.rpc('gm_unmute_user', { _target: target })
   if (error) throw error
 }
 

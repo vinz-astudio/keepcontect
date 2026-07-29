@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -45,6 +45,497 @@ export type Database = {
             columns: ["alert_id"]
             isOneToOne: false
             referencedRelation: "alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_gap_profiles: {
+        Row: {
+          computed_at: string
+          confidence: number
+          config_sha256: string | null
+          context_key: string
+          distinct_support_dates: number
+          evidence_version: string | null
+          input_sha256: string
+          latest_evidence_at: string
+          neutral_p95_minutes: number
+          profile_sha256: string
+          quality_state: string
+          sample_count: number
+          support_ended_on: string
+          support_started_on: string
+          through_date: string
+          user_id: string
+          version_id: string
+        }
+        Insert: {
+          computed_at?: string
+          confidence: number
+          config_sha256?: string | null
+          context_key: string
+          distinct_support_dates: number
+          evidence_version?: string | null
+          input_sha256?: string
+          latest_evidence_at: string
+          neutral_p95_minutes: number
+          profile_sha256: string
+          quality_state: string
+          sample_count: number
+          support_ended_on: string
+          support_started_on: string
+          through_date: string
+          user_id: string
+          version_id: string
+        }
+        Update: {
+          computed_at?: string
+          confidence?: number
+          config_sha256?: string | null
+          context_key?: string
+          distinct_support_dates?: number
+          evidence_version?: string | null
+          input_sha256?: string
+          latest_evidence_at?: string
+          neutral_p95_minutes?: number
+          profile_sha256?: string
+          quality_state?: string
+          sample_count?: number
+          support_ended_on?: string
+          support_started_on?: string
+          through_date?: string
+          user_id?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_gap_profiles_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "alert_model_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_intervention_events: {
+        Row: {
+          captured_at: string
+          evidence_version: string
+          id: string
+          kind: string
+          occurred_at: string
+          provenance_sha256: string
+          source_id: string
+          source_kind: string
+          user_id: string
+          version_id: string
+        }
+        Insert: {
+          captured_at: string
+          evidence_version: string
+          id?: string
+          kind: string
+          occurred_at: string
+          provenance_sha256: string
+          source_id?: string
+          source_kind?: string
+          user_id: string
+          version_id: string
+        }
+        Update: {
+          captured_at?: string
+          evidence_version?: string
+          id?: string
+          kind?: string
+          occurred_at?: string
+          provenance_sha256?: string
+          source_id?: string
+          source_kind?: string
+          user_id?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_intervention_events_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "alert_model_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_judgment_evaluations: {
+        Row: {
+          created_at: string
+          evaluated_from: string
+          evaluated_to: string
+          evaluation_kind: string
+          evaluator_version: string
+          input_sha256: string
+          metrics: Json
+          output_sha256: string
+          promotion_eligible: boolean
+          version_id: string
+        }
+        Insert: {
+          created_at?: string
+          evaluated_from: string
+          evaluated_to: string
+          evaluation_kind: string
+          evaluator_version: string
+          input_sha256: string
+          metrics: Json
+          output_sha256: string
+          promotion_eligible?: boolean
+          version_id: string
+        }
+        Update: {
+          created_at?: string
+          evaluated_from?: string
+          evaluated_to?: string
+          evaluation_kind?: string
+          evaluator_version?: string
+          input_sha256?: string
+          metrics?: Json
+          output_sha256?: string
+          promotion_eligible?: boolean
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_judgment_evaluations_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "alert_model_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_judgment_shadow_decisions: {
+        Row: {
+          basis: string
+          candidate_cap_reason: string
+          candidate_ceiling_minutes: number
+          candidate_deadline: string
+          candidate_floor_minutes: number
+          candidate_threshold_minutes: number
+          confidence: number
+          context_key: string
+          created_at: string
+          deadline_basis: string
+          decision_provenance: Json
+          decision_sha256: string
+          effective_silence_minutes: number
+          evaluated_at: string
+          evaluated_minute: string | null
+          evaluator_version: string
+          evidence_cutoff: string
+          fallback_path: string[]
+          guardian_used_as_activity: boolean
+          id: string
+          neutral_threshold_minutes: number
+          provenance_sha256: string
+          quality_state: string
+          selected_source_sha256: string | null
+          sensitivity_buffer_minutes: number
+          sleep_interval_provenance: Json
+          subject_context_sha256: string
+          unclamped_candidate_threshold_minutes: number
+          user_id: string
+          version_id: string
+          would_alert: boolean
+        }
+        Insert: {
+          basis: string
+          candidate_cap_reason: string
+          candidate_ceiling_minutes: number
+          candidate_deadline: string
+          candidate_floor_minutes: number
+          candidate_threshold_minutes: number
+          confidence: number
+          context_key: string
+          created_at?: string
+          deadline_basis: string
+          decision_provenance: Json
+          decision_sha256: string
+          effective_silence_minutes: number
+          evaluated_at: string
+          evaluated_minute?: string | null
+          evaluator_version: string
+          evidence_cutoff: string
+          fallback_path: string[]
+          guardian_used_as_activity?: boolean
+          id?: string
+          neutral_threshold_minutes: number
+          provenance_sha256: string
+          quality_state: string
+          selected_source_sha256?: string | null
+          sensitivity_buffer_minutes: number
+          sleep_interval_provenance?: Json
+          subject_context_sha256: string
+          unclamped_candidate_threshold_minutes: number
+          user_id: string
+          version_id: string
+          would_alert: boolean
+        }
+        Update: {
+          basis?: string
+          candidate_cap_reason?: string
+          candidate_ceiling_minutes?: number
+          candidate_deadline?: string
+          candidate_floor_minutes?: number
+          candidate_threshold_minutes?: number
+          confidence?: number
+          context_key?: string
+          created_at?: string
+          deadline_basis?: string
+          decision_provenance?: Json
+          decision_sha256?: string
+          effective_silence_minutes?: number
+          evaluated_at?: string
+          evaluated_minute?: string | null
+          evaluator_version?: string
+          evidence_cutoff?: string
+          fallback_path?: string[]
+          guardian_used_as_activity?: boolean
+          id?: string
+          neutral_threshold_minutes?: number
+          provenance_sha256?: string
+          quality_state?: string
+          selected_source_sha256?: string | null
+          sensitivity_buffer_minutes?: number
+          sleep_interval_provenance?: Json
+          subject_context_sha256?: string
+          unclamped_candidate_threshold_minutes?: number
+          user_id?: string
+          version_id?: string
+          would_alert?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_judgment_shadow_decisions_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "alert_model_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_judgment_subject_contexts: {
+        Row: {
+          canonical_sensitivity: string
+          captured_at: string
+          config_sha256: string
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          evidence_version: string
+          id: string
+          raw_sensitivity: string | null
+          routine_mode: string
+          settings_provenance: Json
+          settings_updated_at: string
+          subject_context_sha256: string
+          timezone: string
+          user_id: string
+          utc_offset_minutes: number
+          version_id: string
+        }
+        Insert: {
+          canonical_sensitivity: string
+          captured_at: string
+          config_sha256: string
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          evidence_version: string
+          id?: string
+          raw_sensitivity?: string | null
+          routine_mode: string
+          settings_provenance: Json
+          settings_updated_at: string
+          subject_context_sha256: string
+          timezone: string
+          user_id: string
+          utc_offset_minutes: number
+          version_id: string
+        }
+        Update: {
+          canonical_sensitivity?: string
+          captured_at?: string
+          config_sha256?: string
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          evidence_version?: string
+          id?: string
+          raw_sensitivity?: string | null
+          routine_mode?: string
+          settings_provenance?: Json
+          settings_updated_at?: string
+          subject_context_sha256?: string
+          timezone?: string
+          user_id?: string
+          utc_offset_minutes?: number
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_judgment_subject_contexts_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "alert_model_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_model_versions: {
+        Row: {
+          config: Json
+          config_sha256: string
+          created_at: string
+          evidence_version: string
+          id: string
+          name: string
+          shadow_enabled_at: string | null
+          status: string
+        }
+        Insert: {
+          config: Json
+          config_sha256: string
+          created_at?: string
+          evidence_version: string
+          id?: string
+          name: string
+          shadow_enabled_at?: string | null
+          status: string
+        }
+        Update: {
+          config?: Json
+          config_sha256?: string
+          created_at?: string
+          evidence_version?: string
+          id?: string
+          name?: string
+          shadow_enabled_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      alert_observation_coverage_intervals: {
+        Row: {
+          activity_coverage_state: string
+          captured_at: string
+          ends_at: string
+          evidence_version: string
+          finalized_at: string | null
+          id: string
+          intervention_coverage_state: string
+          provenance_sha256: string
+          sleep_context_state: string
+          starts_at: string
+          timezone: string
+          user_id: string
+          utc_offset_minutes: number
+          version_id: string
+        }
+        Insert: {
+          activity_coverage_state: string
+          captured_at: string
+          ends_at: string
+          evidence_version: string
+          finalized_at?: string | null
+          id?: string
+          intervention_coverage_state: string
+          provenance_sha256: string
+          sleep_context_state: string
+          starts_at: string
+          timezone: string
+          user_id: string
+          utc_offset_minutes: number
+          version_id: string
+        }
+        Update: {
+          activity_coverage_state?: string
+          captured_at?: string
+          ends_at?: string
+          evidence_version?: string
+          finalized_at?: string | null
+          id?: string
+          intervention_coverage_state?: string
+          provenance_sha256?: string
+          sleep_context_state?: string
+          starts_at?: string
+          timezone?: string
+          user_id?: string
+          utc_offset_minutes?: number
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_observation_coverage_intervals_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "alert_model_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_sleep_night_contexts: {
+        Row: {
+          anchor_date: string
+          anchor_ends_at: string
+          anchor_starts_at: string
+          captured_at: string
+          coverage_state: string
+          evidence_version: string
+          finalized_at: string | null
+          provenance_sha256: string
+          sleep_end_local: string
+          sleep_start_local: string
+          timezone: string
+          user_id: string
+          utc_offset_minutes: number
+          version_id: string
+        }
+        Insert: {
+          anchor_date: string
+          anchor_ends_at: string
+          anchor_starts_at: string
+          captured_at: string
+          coverage_state: string
+          evidence_version: string
+          finalized_at?: string | null
+          provenance_sha256: string
+          sleep_end_local: string
+          sleep_start_local: string
+          timezone: string
+          user_id: string
+          utc_offset_minutes: number
+          version_id: string
+        }
+        Update: {
+          anchor_date?: string
+          anchor_ends_at?: string
+          anchor_starts_at?: string
+          captured_at?: string
+          coverage_state?: string
+          evidence_version?: string
+          finalized_at?: string | null
+          provenance_sha256?: string
+          sleep_end_local?: string
+          sleep_start_local?: string
+          timezone?: string
+          user_id?: string
+          utc_offset_minutes?: number
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_sleep_night_contexts_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "alert_model_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -115,36 +606,63 @@ export type Database = {
         }
         Relationships: []
       }
+      app_versions: {
+        Row: {
+          apk_url: string | null
+          created_at: string
+          exe_url: string | null
+          public_rollout: boolean
+          status: string
+          version: string
+        }
+        Insert: {
+          apk_url?: string | null
+          created_at?: string
+          exe_url?: string | null
+          public_rollout?: boolean
+          status?: string
+          version: string
+        }
+        Update: {
+          apk_url?: string | null
+          created_at?: string
+          exe_url?: string | null
+          public_rollout?: boolean
+          status?: string
+          version?: string
+        }
+        Relationships: []
+      }
       behavior_pings: {
         Row: {
           at: string
+          event_id: string | null
           id: number
+          ingest_version: number
           kind: string
+          received_at: string
           source: string | null
           user_id: string
-          received_at: string
-          ingest_version: number
-          event_id: string | null
         }
         Insert: {
           at?: string
+          event_id?: string | null
           id?: never
+          ingest_version?: number
           kind?: string
+          received_at?: string
           source?: string | null
           user_id: string
-          received_at?: string | null
-          ingest_version?: number
-          event_id?: string | null
         }
         Update: {
           at?: string
+          event_id?: string | null
           id?: never
+          ingest_version?: number
           kind?: string
+          received_at?: string
           source?: string | null
           user_id?: string
-          received_at?: string | null
-          ingest_version?: number
-          event_id?: string | null
         }
         Relationships: []
       }
@@ -366,6 +884,30 @@ export type Database = {
         }
         Relationships: []
       }
+      gm_mutes: {
+        Row: {
+          muted_at: string
+          muted_by: string
+          muted_until: string | null
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          muted_at?: string
+          muted_by: string
+          muted_until?: string | null
+          reason?: string
+          user_id: string
+        }
+        Update: {
+          muted_at?: string
+          muted_by?: string
+          muted_until?: string | null
+          reason?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       group_members: {
         Row: {
           group_id: string
@@ -489,6 +1031,9 @@ export type Database = {
           alert_id: string | null
           body: string
           created_at: string
+          delivery_attempts: number
+          delivery_lease_expiry: string | null
+          delivery_outcome: string | null
           id: string
           kind: string
           params: Json
@@ -500,6 +1045,9 @@ export type Database = {
           alert_id?: string | null
           body: string
           created_at?: string
+          delivery_attempts?: number
+          delivery_lease_expiry?: string | null
+          delivery_outcome?: string | null
           id?: string
           kind: string
           params?: Json
@@ -511,6 +1059,9 @@ export type Database = {
           alert_id?: string | null
           body?: string
           created_at?: string
+          delivery_attempts?: number
+          delivery_lease_expiry?: string | null
+          delivery_outcome?: string | null
           id?: string
           kind?: string
           params?: Json
@@ -603,6 +1154,128 @@ export type Database = {
         }
         Relationships: []
       }
+      routine_mode_cohort_generations: {
+        Row: {
+          generation: number
+          routine_mode: string
+          updated_at: string
+        }
+        Insert: {
+          generation?: number
+          routine_mode: string
+          updated_at?: string
+        }
+        Update: {
+          generation?: number
+          routine_mode?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      routine_mode_cohort_invalidations: {
+        Row: {
+          generation: number
+          invalidated_at: string
+          routine_mode: string
+        }
+        Insert: {
+          generation?: number
+          invalidated_at: string
+          routine_mode: string
+        }
+        Update: {
+          generation?: number
+          invalidated_at?: string
+          routine_mode?: string
+        }
+        Relationships: []
+      }
+      routine_mode_cohort_priors: {
+        Row: {
+          algorithm: string
+          confidence: number
+          config_sha256: string
+          conservative_span_days: number | null
+          context_key: string
+          contributor_count: number
+          distinct_support_dates: number
+          evidence_version: string
+          input_sha256: string
+          latest_evidence_at: string
+          minimum_profile_confidence: number | null
+          neutral_p95_minutes: number
+          oldest_evidence_at: string | null
+          prior_sha256: string
+          published_at: string
+          quality_state: string
+          routine_mode: string
+          source_generation: number
+          support_ended_on: string
+          support_started_on: string
+          through_date: string
+          valid_until: string | null
+          version_id: string
+        }
+        Insert: {
+          algorithm: string
+          confidence: number
+          config_sha256: string
+          conservative_span_days?: number | null
+          context_key: string
+          contributor_count: number
+          distinct_support_dates: number
+          evidence_version: string
+          input_sha256: string
+          latest_evidence_at: string
+          minimum_profile_confidence?: number | null
+          neutral_p95_minutes: number
+          oldest_evidence_at?: string | null
+          prior_sha256: string
+          published_at?: string
+          quality_state: string
+          routine_mode: string
+          source_generation?: number
+          support_ended_on: string
+          support_started_on: string
+          through_date: string
+          valid_until?: string | null
+          version_id: string
+        }
+        Update: {
+          algorithm?: string
+          confidence?: number
+          config_sha256?: string
+          conservative_span_days?: number | null
+          context_key?: string
+          contributor_count?: number
+          distinct_support_dates?: number
+          evidence_version?: string
+          input_sha256?: string
+          latest_evidence_at?: string
+          minimum_profile_confidence?: number | null
+          neutral_p95_minutes?: number
+          oldest_evidence_at?: string | null
+          prior_sha256?: string
+          published_at?: string
+          quality_state?: string
+          routine_mode?: string
+          source_generation?: number
+          support_ended_on?: string
+          support_started_on?: string
+          through_date?: string
+          valid_until?: string | null
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_mode_cohort_priors_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "alert_model_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_activity_profiles: {
         Row: {
           gap_stats: Json | null
@@ -689,6 +1362,19 @@ export type Database = {
       }
       am_i_gm: { Args: never; Returns: boolean }
       become_guardian_by_code: { Args: { _code: string }; Returns: string }
+      claim_unpushed_notifications: {
+        Args: { p_batch_size: number; p_lease_duration: string }
+        Returns: {
+          alert_id: string
+          body: string
+          delivery_attempts: number
+          id: string
+          kind: string
+          params: Json
+          recipient_id: string
+        }[]
+      }
+      clear_finished_notifications: { Args: never; Returns: undefined }
       create_checkin_task: {
         Args: {
           _due_time_local?: string
@@ -702,6 +1388,10 @@ export type Database = {
         }
         Returns: string
       }
+      finalize_notification_delivery: {
+        Args: { p_notification_id: string; p_outcome: string }
+        Returns: undefined
+      }
       get_app_config: { Args: never; Returns: Json }
       get_group_activity: { Args: { _group: string }; Returns: Json }
       get_group_activity_view: {
@@ -710,36 +1400,16 @@ export type Database = {
       }
       gm_delete_user: { Args: { _target: string }; Returns: undefined }
       gm_list_clients: { Args: never; Returns: Json }
+      gm_mute_user: {
+        Args: { _reason?: string; _target: string; _until?: string }
+        Returns: undefined
+      }
       gm_nudge_update: { Args: { _target: string }; Returns: undefined }
       gm_send_concern: { Args: { _target: string }; Returns: undefined }
+      gm_unmute_user: { Args: { _target: string }; Returns: undefined }
       initialize_user_routine_data: {
         Args: { _user_id: string }
         Returns: undefined
-      }
-      record_behavior_ping: {
-        Args: {
-          event_id: string
-          observed_at: string
-          source: string
-          kind: string
-        }
-        Returns: 'inserted' | 'duplicate' | 'coalesced' | 'invalid'
-      }
-      record_behavior_pings: {
-        Args: {
-          events: Json
-        }
-        Returns: Array<{ status: 'inserted' | 'duplicate' | 'coalesced' | 'invalid' }>
-      }
-      record_behavior_ping_for_user: {
-        Args: {
-          _user_id: string
-          _event_id: string
-          _observed_at: string
-          _source: string
-          _kind: string
-        }
-        Returns: 'inserted' | 'duplicate' | 'coalesced' | 'invalid'
       }
       join_community_by_code: { Args: { _code: string }; Returns: string }
       join_group_by_code: { Args: { _code: string }; Returns: string }
@@ -750,11 +1420,57 @@ export type Database = {
       raise_sos:
         | { Args: never; Returns: string }
         | { Args: { _lat?: number; _lng?: number }; Returns: string }
-      update_sos_location: {
-        Args: { _lat: number; _lng: number }
-        Returns: boolean
-      }
       raise_test_alert: { Args: never; Returns: undefined }
+      record_alert_shadow_coverage_lease: {
+        Args: {
+          _capability_sha256: string
+          _channel: string
+          _client_id: string
+          _collector_contract: string
+          _collector_state: string
+          _event_id: string
+          _observed_at: string
+        }
+        Returns: string
+      }
+      record_alert_shadow_coverage_lease_for_user: {
+        Args: {
+          _capability_sha256: string
+          _channel: string
+          _client_id: string
+          _collector_contract: string
+          _collector_state: string
+          _event_id: string
+          _observed_at: string
+          _user_id: string
+        }
+        Returns: string
+      }
+      record_behavior_ping: {
+        Args: {
+          event_id: string
+          kind: string
+          observed_at: string
+          source: string
+        }
+        Returns: string
+      }
+      record_behavior_ping_for_user: {
+        Args: {
+          _event_id: string
+          _kind: string
+          _observed_at: string
+          _source: string
+          _user_id: string
+        }
+        Returns: string
+      }
+      record_behavior_pings: {
+        Args: { events: Json }
+        Returns: {
+          status: string
+        }[]
+      }
       register_fcm_token: {
         Args: { _platform?: string; _token: string }
         Returns: undefined
@@ -814,6 +1530,10 @@ export type Database = {
           _task: string
         }
         Returns: undefined
+      }
+      update_sos_location: {
+        Args: { _lat: number; _lng: number }
+        Returns: boolean
       }
     }
     Enums: {

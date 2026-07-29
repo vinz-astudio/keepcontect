@@ -11,7 +11,11 @@ import {
   openAutostartSettings,
 } from '@/features/passive/native'
 import { getHeartbeatToken, pingUrl, PING_SOURCES, listRecentPings } from '@/features/passive/api'
-import { getReadinessState, type OnboardingPlatform } from './onboardingState'
+import {
+  getReadinessState,
+  getVerificationStep,
+  type OnboardingPlatform,
+} from './onboardingState'
 import './OnboardingWizard.css'
 
 interface OnboardingWizardProps {
@@ -143,7 +147,7 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
 
   // Verification step polling and countdown
   useEffect(() => {
-    if (step === 3 && !isGm && onboardingPlatform !== 'plain_web') {
+    if (step === getVerificationStep(onboardingPlatform) && !isGm) {
       setPingOk(false)
       setVerifySecondsLeft(60)
       setPingTimeout(false)

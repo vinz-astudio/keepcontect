@@ -2,7 +2,10 @@ import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLivenessContext } from '@/features/baseline/LivenessProvider'
 import { buildBaseline } from '@/features/baseline/engine'
 import { applySensitivityToThreshold } from '@/features/baseline/usualModel'
-import { getInstalledAt } from '@/features/baseline/configStore'
+import {
+  deriveLearningState,
+  type EvidenceQualityState,
+} from '@/features/baseline/learningState'
 import { localizeQuietWindowReason } from '@/features/baseline/routineDisplay'
 import { getAllSignals } from '@/features/signals/store'
 import {
@@ -10,7 +13,6 @@ import {
   type SignalEvent,
 } from '@/features/baseline/types'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
-import { useAuth } from '@/features/auth/AuthProvider'
 import { supabase } from '@/lib/supabase'
 import './LivenessCard.css'
 
@@ -87,27 +89,25 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
   }, [])
 
   // 服务端真实状态:silence_threshold(当前时段真正触发告警的阈值)+ 最后行为时间
-  const [serverStatus, setServerStatus] = useState<{
+  // + ADR-0029 P5 的真实学习证据(evidence_*),不再用"注册后过了几天"冒充进度。
+  type ServerRoutineStatus = {
     threshold_seconds: number
     last_behavior_at: string | null
     sleep_start?: string | null
     sleep_end?: string | null
     in_sleep_window?: boolean
-  } | null>(null)
+    learning_active?: boolean
+    evidence_sample_count?: number | null
+    evidence_support_days?: number | null
+    evidence_min_support_days?: number | null
+    evidence_quality_state?: EvidenceQualityState
+    evidence_confidence?: number | null
+  }
+  const [serverStatus, setServerStatus] = useState<ServerRoutineStatus | null>(null)
   useEffect(() => {
     let on = true
     void supabase.rpc('my_routine_status').then(({ data }) => {
-      if (on && data) {
-        setServerStatus(
-          data as {
-            threshold_seconds: number
-            last_behavior_at: string | null
-            sleep_start?: string | null
-            sleep_end?: string | null
-            in_sleep_window?: boolean
-          },
-        )
-      }
+      if (on && data) setServerStatus(data as ServerRoutineStatus)
     })
     return () => {
       on = false
@@ -168,20 +168,22 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
   }, [dayStarts, grid])
 
   const model = useMemo(() => buildBaseline(events), [events])
-  const auth = useAuth()
-  const user = auth?.user
-  const installedAt = useMemo(() => {
-    return user?.created_at
-      ? new Date(user.created_at).getTime()
-      : getInstalledAt()
-  }, [user?.created_at])
-  const effectiveInstalledAt = useMemo(() => {
-    return events.length > 0
-      ? Math.max(installedAt, Math.min(...events.map((e) => e.t)))
-      : installedAt
-  }, [installedAt, events])
-  const learnedDays = Math.max(0, Math.floor((Date.now() - effectiveInstalledAt) / DAY))
-  const inLearning = learnedDays < config.learningDays
+
+  // ADR-0029 P5: learning progress comes from the adaptive pipeline's own support
+  // counters. It is never inferred from elapsed calendar time, and 「已建立基线」
+  // is claimed only on a 'valid' quality_state.
+  const learning = useMemo(
+    () =>
+      deriveLearningState({
+        learningActive: serverStatus?.learning_active ?? false,
+        sampleCount: serverStatus?.evidence_sample_count ?? null,
+        supportDays: serverStatus?.evidence_support_days ?? null,
+        minSupportDays: serverStatus?.evidence_min_support_days ?? null,
+        qualityState: serverStatus?.evidence_quality_state ?? null,
+        confidence: serverStatus?.evidence_confidence ?? null,
+      }),
+    [serverStatus],
+  )
 
   const nowHour = new Date().getHours()
   const baselineMs =
@@ -362,19 +364,27 @@ export function useRoutineInsights(refreshKey = 0): RoutineInsightNodes {
 
       <div className="rhythm__progress" style={{ marginTop: '0.8rem' }}>
         <div className="rhythm__bar">
-          <span
-            style={{
-              width: `${Math.min(100, (learnedDays / config.learningDays) * 100)}%`,
-            }}
-          />
+          <span style={{ width: `${Math.round(learning.progress * 100)}%` }} />
         </div>
         <p className="muted" style={{ margin: '0.25rem 0 0' }}>
-          {inLearning
-            ? t('routine.learn.progress', {
-                n: learnedDays,
-                total: config.learningDays,
+          {learning.kind === 'established'
+            ? t('routine.learn.established', {
+                days: learning.supportDays,
+                n: learning.sampleCount,
               })
-            : t('routine.learn.done', { total: config.learningDays })}
+            : learning.kind === 'low_support'
+              ? t('routine.learn.low', {
+                  days: learning.supportDays,
+                  total: learning.minSupportDays,
+                })
+              : learning.kind === 'stale'
+                ? t('routine.learn.stale')
+                : learning.kind === 'collecting'
+                  ? t('routine.learn.collecting', {
+                      days: learning.supportDays,
+                      n: learning.sampleCount,
+                    })
+                  : t('routine.learn.inactive')}
         </p>
       </div>
     </div>
