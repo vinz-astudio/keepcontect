@@ -12,6 +12,11 @@
   animation: onb-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.light-theme .onb-overlay,
+html.light-theme .onb-overlay {
+  background: rgba(44, 40, 32, 0.45);
+}
+
 .onb-card {
   width: 100%;
   max-width: 480px;

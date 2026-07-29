@@ -70,16 +70,14 @@ body,
   overscroll-behavior: none;
 }
 
-/* iOS PWA 从通知拉起等场景会让视觉视口短暂大于布局视口,底部露出"画布"
-   (html 的背景)。把画布染成与底部导航栏同色,残影就与导航栏融为一体,
-  background: var(--bg-soft);
+html {
+  background: var(--bg);
 }
 
 body {
   background: var(--bg);
   color: var(--fg);
   line-height: 1.6;
-  /* 极轻的暖光晕，给纯色底一点氛围而非死板平涂 */
   background-image: radial-gradient(
     120% 80% at 50% -10%,
     rgba(224, 133, 95, 0.06),
@@ -88,10 +86,21 @@ body {
   background-attachment: fixed;
 }
 
+.light-theme body,
+html.light-theme body {
+  background: var(--bg);
+  background-image: radial-gradient(
+    120% 80% at 50% -10%,
+    rgba(203, 111, 73, 0.08),
+    transparent 60%
+  );
+}
+
 #root {
   display: flex;
   flex-direction: column;
 }
+
 
 /* 移动端：用动态视口高度，让底部 sticky 栏始终贴合可见区域最底部，
    不被地址栏占位推到屏幕外（100% 取的是大视口，地址栏出现时会溢出）。 */

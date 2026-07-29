@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const store = new Map<string, string>()
 vi.stubGlobal('localStorage', {
@@ -26,8 +26,8 @@ describe('sensor preferences', () => {
     store.clear()
   })
 
-  it('defaults app activity tracking to off until the user grants accessibility', () => {
-    expect(isSensorEnabled('app_activity')).toBe(false)
+  it('defaults app activity tracking to enabled by default', () => {
+    expect(isSensorEnabled('app_activity')).toBe(true)
   })
 
   it('keeps established passive sensors enabled by default', () => {

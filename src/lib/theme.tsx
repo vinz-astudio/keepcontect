@@ -20,22 +20,28 @@ export function getInitialTheme(): Theme {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getInitialTheme())
 
-  const setTheme = (next: Theme) => {
-    setThemeState(next)
-    localStorage.setItem('kc.theme', next)
-    if (next === 'light') {
+  const applyTheme = (t: Theme) => {
+    if (t === 'light') {
       document.documentElement.classList.add('light-theme')
+      document.body.classList.add('light-theme')
     } else {
       document.documentElement.classList.remove('light-theme')
+      document.body.classList.remove('light-theme')
+    }
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) {
+      meta.setAttribute('content', t === 'light' ? '#fcfbf8' : '#15130e')
     }
   }
 
+  const setTheme = (next: Theme) => {
+    setThemeState(next)
+    localStorage.setItem('kc.theme', next)
+    applyTheme(next)
+  }
+
   useEffect(() => {
-    if (theme === 'light') {
-      document.documentElement.classList.add('light-theme')
-    } else {
-      document.documentElement.classList.remove('light-theme')
-    }
+    applyTheme(theme)
   }, [theme])
 
   return (
