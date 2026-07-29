@@ -107,7 +107,7 @@ final class PassivePing {
             return prefs.getBoolean(KEY_ALLOW_CHARGING, false);
         }
         if (Intent.ACTION_USER_PRESENT.equals(action) || Intent.ACTION_SCREEN_ON.equals(action)) {
-            return true;
+            return prefs.getBoolean(KEY_ALLOW_USAGE_STATS, false);
         }
         return false;
     }
@@ -326,8 +326,10 @@ final class PassivePing {
         SharedPreferences prefs = prefs(context);
         IntentFilter filter = new IntentFilter();
         if (isConfigured(context)) {
-            filter.addAction(Intent.ACTION_USER_PRESENT);
-            filter.addAction(Intent.ACTION_SCREEN_ON);
+            if (prefs.getBoolean(KEY_ALLOW_USAGE_STATS, false)) {
+                filter.addAction(Intent.ACTION_USER_PRESENT);
+                filter.addAction(Intent.ACTION_SCREEN_ON);
+            }
             if (prefs.getBoolean(KEY_ALLOW_CHARGING, false)) {
                 filter.addAction(Intent.ACTION_POWER_CONNECTED);
                 filter.addAction(Intent.ACTION_POWER_DISCONNECTED);

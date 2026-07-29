@@ -418,21 +418,7 @@ export function PassiveSignalCard() {
 
   const syncAppActivityPermission = useCallback(async () => {
     if (Capacitor.getPlatform() !== 'android') return
-    const usageOk = await isUsageStatsEnabled()
-    const motionOk = await isActivityRecognitionEnabled()
-    const current = isSensorEnabled('app_activity')
-    const pending = localStorage.getItem('kc.sensor.app_activity.pendingPermissions') === 'true'
-
-    if ((usageOk || motionOk) && pending) {
-      localStorage.removeItem('kc.sensor.app_activity.pendingPermissions')
-      await setSensorEnabled('app_activity', true)
-      setSensorRefresh(v => v + 1)
-      return
-    }
-    if (!usageOk && !motionOk && current) {
-      await setSensorEnabled('app_activity', false)
-      setSensorRefresh(v => v + 1)
-    }
+    setSensorRefresh(v => v + 1)
   }, [])
 
   useEffect(() => {
@@ -499,32 +485,22 @@ export function PassiveSignalCard() {
                   style={{ marginTop: '3px' }}
                   onChange={async (e) => {
                     const checked = e.target.checked
+                    await setSensorEnabled(sensor.key, checked)
+                    setSensorRefresh(v => v + 1)
+
                     if (sensor.key === 'app_activity' && checked) {
                       const usageOk = await isUsageStatsEnabled()
-                      const motionOk = await isActivityRecognitionEnabled()
-                      if (!usageOk && !motionOk) {
+                      if (!usageOk) {
                         const ok = window.confirm(
                           lang === 'zh'
-                            ? '启用日常活跃监测需要授权系统使用情况或运动感知权限。确认后将引导您开启权限；授权后返回 App，开关会自动变为启用。'
-                            : 'Enabling activity tracking requires Usage Stats or Motion sensors permission. Continue to settings, authorize them, then return to the app and this switch will turn on automatically.',
+                            ? '启用“屏幕解锁与 App 使用监测”需要系统使用情况权限。点击确认将引导您开启系统授权。'
+                            : 'Enabling Screen Unlock & App Usage requires Usage Access permission. Tap OK to open settings.',
                         )
-                        await setSensorEnabled(sensor.key, false)
                         if (ok) {
-                          localStorage.setItem('kc.sensor.app_activity.pendingPermissions', 'true')
-                          await requestActivityRecognitionPermission()
                           await openUsageStatsSettings()
                         }
-                        setSensorRefresh(v => v + 1)
-                        return
                       }
                     }
-                    // Note: setSensorEnabled saves purely to localStorage and configures native hooks,
-                    // so it is offline-first and doesn't hit server DB/RLS (KCA-18 transparent save exempt).
-                    await setSensorEnabled(sensor.key, checked)
-                    if (sensor.key === 'app_activity' && !checked) {
-                      localStorage.removeItem('kc.sensor.app_activity.pendingPermissions')
-                    }
-                    setSensorRefresh(v => v + 1)
                   }}
                 />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>

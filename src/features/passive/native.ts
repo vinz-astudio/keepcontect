@@ -52,11 +52,8 @@ export async function configureNativePassivePing(
       return
     }
     const allowCharging = isSensorEnabled('phone_charger')
-    const hasAppActivitySensor = isSensorEnabled('app_activity')
-    const hasMotionSensor = isSensorEnabled('motion')
-
-    const allowUsageStats = hasAppActivitySensor && (await isUsageStatsEnabled())
-    const allowActivityRecognition = hasMotionSensor && (await isActivityRecognitionEnabled())
+    const allowUsageStats = isSensorEnabled('app_activity')
+    const allowActivityRecognition = isSensorEnabled('motion')
 
     await PassivePing.configure({
       supabaseUrl: SUPABASE_URL,
