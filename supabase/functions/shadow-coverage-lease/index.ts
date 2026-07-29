@@ -4,6 +4,13 @@ import {
   parseCoverageLeaseRequest,
 } from './contract.ts'
 
+// DEPLOY NOTE: deploy this function with verify_jwt=false. It authenticates via the
+// heartbeat_tokens lookup on the request body's `token`, NOT a Supabase JWT. With
+// verify_jwt=true the gateway 401s every Android coverage lease before this code runs,
+// which is exactly what happened between 2026-07-27 and 2026-07-29 (zero function
+// invocations, zero rows in private.alert_shadow_coverage_leases). Same failure mode
+// already documented in supabase/functions/update-routine-profile/index.ts.
+
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
