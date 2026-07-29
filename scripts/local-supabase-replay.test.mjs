@@ -26,6 +26,11 @@ const BOM_FILENAMES = [
   '20260625174615_sync_activity_truth.sql',
   '20260626072619_scoped_group_activity_views.sql',
 ];
+const PINNED_FILENAMES = [
+  '20260623090000_gm_admin_console.sql',
+  '20260624140000_adaptive_routine_impl.sql',
+  ...BOM_FILENAMES,
+];
 const DISPOSABLE_PROJECT_ROOT = join(
   REAL_REPO_ROOT,
   'supabase/.temp/replay-compat/project',
@@ -48,6 +53,14 @@ async function copyReplayInputsToTemp() {
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
+}
+
+async function rewritePinnedLineEndings(repoRoot, newline) {
+  for (const filename of PINNED_FILENAMES) {
+    const path = join(repoRoot, 'supabase/migrations', filename);
+    const source = await readFile(path, 'utf8');
+    await writeFile(path, source.replace(/\r?\n/g, newline), 'utf8');
+  }
 }
 
 describe('local Supabase replay compatibility harness', () => {
@@ -111,6 +124,22 @@ describe('local Supabase replay compatibility harness', () => {
         removedBytes: 3,
         resultingHash: sha256(expected),
       });
+    }
+  });
+
+  it('accepts identical pinned SQL checked out with LF or CRLF line endings', async () => {
+    const lfRepo = await copyReplayInputsToTemp();
+    const crlfRepo = await copyReplayInputsToTemp();
+
+    try {
+      await rewritePinnedLineEndings(lfRepo, '\n');
+      await rewritePinnedLineEndings(crlfRepo, '\r\n');
+
+      await expect(prepareReplayProject({ repoRoot: lfRepo })).resolves.toBeTruthy();
+      await expect(prepareReplayProject({ repoRoot: crlfRepo })).resolves.toBeTruthy();
+    } finally {
+      await rm(lfRepo, { recursive: true, force: true });
+      await rm(crlfRepo, { recursive: true, force: true });
     }
   });
 

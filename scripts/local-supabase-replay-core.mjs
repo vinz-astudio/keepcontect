@@ -1,18 +1,17 @@
 import { createHash } from 'node:crypto';
-import { createReadStream } from 'node:fs';
 import { cp, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 
 export const PINNED_INPUTS = Object.freeze({
   '20260623090000_gm_admin_console.sql':
-    'cf9f5912586c08fe7368d51c1cd7a4fb4aef53723298d7a4a92500f71837c271',
+    '12961556d0263a5bc223ef932ade1330df5a1af6b37736b5148cb0412b3ac81c',
   '20260624140000_adaptive_routine_impl.sql':
-    '55572dac4d31de589ee7e91a04b2e74ce822c2784beb53389c5b295382956e84',
+    'bbe422d95d4d63c31df2e56ceccacfd543e10fc4b37109983e1d0c045e1dd0f0',
   '20260625174615_sync_activity_truth.sql':
-    '0c92784730710fe1b487c01f8199115f1fc7053238e4607c52428e2cb45a2090',
+    '1be091ef6e5978d368d086b023da473806e0568b31016e0f838b785acfee9466',
   '20260626072619_scoped_group_activity_views.sql':
-    'bca5cd87009bba29e5906487322af56ca99c30db1d9717113886f347dbec85ff',
+    '61f04d62a69fff24f05f76b381b7c92befb272d269ce802968991f90690b93af',
 });
 
 export const FIXTURE_FILENAME =
@@ -49,13 +48,14 @@ const BOM_FILENAMES = Object.freeze([
 const BOM_FILENAME_SET = new Set(BOM_FILENAMES);
 
 async function hashFile(filePath) {
-  const hash = createHash('sha256');
+  const source = await readFile(filePath);
+  return createHash('sha256').update(source).digest('hex');
+}
 
-  for await (const chunk of createReadStream(filePath)) {
-    hash.update(chunk);
-  }
-
-  return hash.digest('hex');
+async function hashPinnedFile(filePath) {
+  const source = await readFile(filePath);
+  const canonical = Buffer.from(source.toString('utf8').replace(/\r\n/g, '\n'));
+  return createHash('sha256').update(canonical).digest('hex');
 }
 
 function resolveDisposableProjectRoot(repoRoot, disposableProjectRoot) {
@@ -132,7 +132,7 @@ async function verifyPinnedInputs(migrationsRoot) {
   const verifiedInputs = {};
 
   for (const [filename, expectedHash] of Object.entries(PINNED_INPUTS)) {
-    const actualHash = await hashFile(join(migrationsRoot, filename));
+    const actualHash = await hashPinnedFile(join(migrationsRoot, filename));
 
     if (actualHash.toLowerCase() !== expectedHash.toLowerCase()) {
       throw new Error(`Pinned source hash mismatch: ${filename}.`);
