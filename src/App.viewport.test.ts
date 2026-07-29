@@ -68,4 +68,13 @@ describe('iOS installed-PWA full-height regression', () => {
     expect(indexCss).not.toMatch(/kc-ios-pwa-viewport-gap/)
     expect(indexCss).not.toMatch(/--kc-ios-pwa-screen-height/)
   })
+
+  it('separates web vs PWA scrolling and allows AuthScreen to scroll vertically', () => {
+    const authCss = readFileSync('src/features/auth/AuthScreen.css', 'utf8')
+    expect(authCss).toMatch(/\.auth\s*\{[\s\S]*overflow-y:\s*auto;/)
+    expect(authCss).toMatch(/\.auth\s*\{[\s\S]*min-height:\s*100%;/)
+    expect(authCss).toMatch(/\.auth__card\s*\{[\s\S]*margin:\s*auto 0;/)
+    expect(indexCss).toMatch(/html,\s*body,\s*#root\s*\{[\s\S]*min-height:\s*100%;/)
+    expect(ruleBlock(indexCss, 'html,\nbody,\n#root')).not.toMatch(/overflow:\s*hidden;/)
+  })
 })

@@ -1,9 +1,14 @@
 .auth {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   padding: 1.25rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 .install__compact {
@@ -40,6 +45,7 @@
   flex-direction: column;
   align-items: center;
   position: relative;
+  margin: auto 0;
 }
 
 .auth__lang {
