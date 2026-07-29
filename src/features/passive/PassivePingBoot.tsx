@@ -38,7 +38,6 @@ export function PassivePingBoot() {
       cancelled = true
       stopShadowCoverage()
       tokenRef.current = null
-      void configureNativePassivePing(null)
     }
   }, [])
 

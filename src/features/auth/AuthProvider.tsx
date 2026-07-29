@@ -164,6 +164,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // KCA-04：先清本机安全状态（手势哈希/openAlert），保证即使网络登出挂起
         // 也不会把上一个账户的凭据留给下一个登录者。
         purgeLocalSafetyState()
+        try {
+          const { configureNativePassivePing } = await import('@/features/passive/native')
+          await configureNativePassivePing(null)
+        } catch {
+          /* ignore */
+        }
         await supabase.auth.signOut()
       },
       bootstrapError,
