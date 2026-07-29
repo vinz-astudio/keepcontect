@@ -3,6 +3,7 @@ package com.keepcontact.app;
 import android.app.AppOpsManager;
 import android.app.PendingIntent;
 import android.app.usage.UsageEvents;
+import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.Intent;
@@ -124,10 +125,27 @@ final class PassivePing {
     static boolean isUsageAccessGranted(Context context) {
         try {
             AppOpsManager appOps = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
-            if (appOps == null) return false;
-            int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
-                android.os.Process.myUid(), context.getPackageName());
-            return mode == AppOpsManager.MODE_ALLOWED;
+            if (appOps != null) {
+                int mode;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    mode = appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        android.os.Process.myUid(), context.getPackageName());
+                } else {
+                    mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        android.os.Process.myUid(), context.getPackageName());
+                }
+                if (mode == AppOpsManager.MODE_ALLOWED) {
+                    return true;
+                }
+            }
+            // Fallback check for OEM ROMs (MIUI/HyperOS/ColorOS/OriginOS/OneUI)
+            long now = System.currentTimeMillis();
+            UsageStatsManager usm = (UsageStatsManager) context.getSystemService(Context.USAGE_STATS_SERVICE);
+            if (usm != null) {
+                List<UsageStats> stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 1000 * 60 * 60, now);
+                return stats != null && !stats.isEmpty();
+            }
+            return false;
         } catch (Exception e) {
             return false;
         }

@@ -57,7 +57,7 @@ export function getAvailableSensors(): SensorConfig[] {
 }
 
 const SENSOR_DEFAULTS: Record<string, boolean> = {
-  app_activity: false,
+  app_activity: true,
   motion: true,
   phone_charger: true,
 }
