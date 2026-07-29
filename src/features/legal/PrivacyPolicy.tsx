@@ -1,4 +1,3 @@
-import React from 'react'
 import './Legal.css'
 
 export function PrivacyPolicy() {
