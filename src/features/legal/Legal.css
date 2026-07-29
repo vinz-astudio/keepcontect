@@ -1,0 +1,120 @@
+.legal-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  color: var(--fg);
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  line-height: 1.65;
+}
+
+.legal-header {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.legal-brand {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0 0 0.5rem;
+}
+
+.legal-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+}
+
+.legal-date {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.legal-section {
+  margin-bottom: 2rem;
+}
+
+.legal-section h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 0.75rem;
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 0.4rem;
+}
+
+.legal-section p,
+.legal-section ul {
+  font-size: 0.92rem;
+  color: var(--fg-muted);
+  margin: 0 0 0.85rem;
+}
+
+.legal-section ul {
+  padding-left: 1.4rem;
+}
+
+.legal-section li {
+  margin-bottom: 0.4rem;
+}
+
+.legal-box {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+}
+
+.legal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--bg);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  text-decoration: none;
+  transition: filter 0.2s ease;
+}
+
+.legal-btn:hover {
+  filter: brightness(1.1);
+}
+
+.legal-btn--danger {
+  background: var(--danger);
+}
+
+.legal-footer {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.legal-nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.legal-nav a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.legal-nav a:hover {
+  text-decoration: underline;
+}

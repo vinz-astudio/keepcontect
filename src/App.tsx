@@ -21,7 +21,18 @@ if (urlInvite) {
   clearInviteFromUrl()
 }
 
+import { PrivacyPolicy } from '@/features/legal/PrivacyPolicy'
+import { AccountDeletion } from '@/features/legal/AccountDeletion'
+
 function Gate() {
+  const path = typeof window !== 'undefined' ? window.location.pathname : ''
+  if (path === '/privacy' || path.startsWith('/privacy/')) {
+    return <PrivacyPolicy />
+  }
+  if (path === '/delete-account' || path.startsWith('/delete-account/')) {
+    return <AccountDeletion />
+  }
+
   const { session, loading, hasStoredAuth, bootstrapError, bootstrapTimedOut, retryBootstrap } = useAuth()
   const { t } = useI18n()
 
