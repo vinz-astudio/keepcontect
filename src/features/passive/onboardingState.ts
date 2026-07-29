@@ -14,6 +14,12 @@ export interface OnboardingData {
   completedAt: number
 }
 
+/** Returns the step that performs live ping verification for each supported client. */
+export function getVerificationStep(platform: OnboardingPlatform): number | null {
+  if (platform === 'plain_web') return null
+  return platform === 'android_native' ? 4 : 3
+}
+
 /** Determines readiness class based on target platform and permissions/verification status */
 export function getReadinessState(inputs: GatingInputs): ReadinessState {
   if (inputs.platform === 'plain_web') {

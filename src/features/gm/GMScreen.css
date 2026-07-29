@@ -432,3 +432,95 @@
   border-color: var(--line-strong);
   background: var(--surface-2);
 }
+
+/* 多维度筛选栏 */
+.gm__filter-bar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.gm__filter-select {
+  padding: 0.45rem 0.65rem;
+  font-size: 0.84rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  outline: none;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.gm__filter-select:focus {
+  border-color: var(--accent);
+}
+
+.gm__filter-count {
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+
+/* 状态列：圆点+文字+mute badge */
+.gm__status-cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: center;
+  flex-wrap: nowrap;
+}
+
+.gm__status-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.gm__status-label.is-active { color: var(--ok); }
+.gm__status-label.is-quiet { color: var(--warn); }
+.gm__status-label.is-silent { color: var(--danger); }
+.gm__status-label.is-alert { color: var(--danger); }
+.gm__status-label.is-never { color: var(--fg-muted); opacity: 0.6; }
+
+.gm__mute-badge {
+  font-size: 0.78rem;
+  cursor: help;
+}
+
+/* 已静音行降调样式 */
+.gm__table tbody tr.is-muted-row {
+  opacity: 0.55;
+}
+
+.gm__table tbody tr.is-muted-row:hover {
+  opacity: 0.75;
+  background: rgba(120, 120, 120, 0.04);
+}
+
+/* Mute 按钮 */
+.gm__row-btn.mute {
+  border-color: var(--line);
+  color: var(--fg-muted);
+}
+
+.gm__row-btn.mute:hover {
+  background: rgba(255, 193, 7, 0.08);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.gm__row-btn.mute.is-muted {
+  background: rgba(255, 193, 7, 0.08);
+  border-color: var(--warn);
+  color: var(--warn);
+  font-weight: 700;
+}
+
+.gm__row-btn.mute.is-muted:hover {
+  background: rgba(92, 201, 154, 0.08);
+  border-color: var(--ok);
+  color: var(--ok);
+}

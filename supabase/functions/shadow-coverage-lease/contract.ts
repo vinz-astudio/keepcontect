@@ -1,8 +1,8 @@
 export interface CoverageLeaseRequest {
   token: string
   client_id: string
-  channel: 'android-apk'
-  collector_contract: 'android-passive-v1'
+  channel: 'android-apk' | 'tauri'
+  collector_contract: 'android-passive-v1' | 'tauri-idle-v1'
   collector_state: 'operational'
   capability_sha256: string
   observed_at: string
@@ -74,10 +74,12 @@ export function parseCoverageLeaseRequest(
   ) {
     return fail(400, 'invalid_request')
   }
-  if (body.channel !== 'android-apk') {
+  if (body.channel !== 'android-apk' && body.channel !== 'tauri') {
     return fail(422, 'unsupported_channel')
   }
-  if (body.collector_contract !== 'android-passive-v1') {
+  const expectedContract =
+    body.channel === 'android-apk' ? 'android-passive-v1' : 'tauri-idle-v1'
+  if (body.collector_contract !== expectedContract) {
     return fail(422, 'unsupported_contract')
   }
   if (body.collector_state !== 'operational') {
@@ -111,8 +113,8 @@ export function parseCoverageLeaseRequest(
     data: {
       token: body.token,
       client_id: body.client_id.trim(),
-      channel: 'android-apk',
-      collector_contract: 'android-passive-v1',
+      channel: body.channel,
+      collector_contract: expectedContract,
       collector_state: 'operational',
       capability_sha256: body.capability_sha256.toLowerCase(),
       observed_at: new Date(observedMs).toISOString(),

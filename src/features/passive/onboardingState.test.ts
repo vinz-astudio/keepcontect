@@ -5,6 +5,7 @@ import {
   checkAndMigrateOnboarding,
   saveOnboardingCompleted,
   clearOnboardingCompleted,
+  getVerificationStep,
 } from './onboardingState'
 
 const storeMap = new Map<string, string>()
@@ -43,6 +44,16 @@ describe('Onboarding State Gating & Scoping Helpers', () => {
 
       expect(getReadinessState({ platform: 'desktop_tauri', pingOk: false })).toBe('partial')
       expect(getReadinessState({ platform: 'desktop_tauri', pingOk: true })).toBe('ready')
+    })
+  })
+
+  describe('getVerificationStep', () => {
+    it('maps Android native verification to step 4 and other supported clients to step 3', () => {
+      expect(getVerificationStep('android_native')).toBe(4)
+      expect(getVerificationStep('ios')).toBe(3)
+      expect(getVerificationStep('android_pwa')).toBe(3)
+      expect(getVerificationStep('desktop_tauri')).toBe(3)
+      expect(getVerificationStep('plain_web')).toBeNull()
     })
   })
 
