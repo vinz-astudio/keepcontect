@@ -106,7 +106,7 @@ final class PassivePing {
         if (Intent.ACTION_POWER_CONNECTED.equals(action) || Intent.ACTION_POWER_DISCONNECTED.equals(action)) {
             return prefs.getBoolean(KEY_ALLOW_CHARGING, false);
         }
-        if (Intent.ACTION_USER_PRESENT.equals(action)) {
+        if (Intent.ACTION_USER_PRESENT.equals(action) || Intent.ACTION_SCREEN_ON.equals(action)) {
             return true;
         }
         return false;
@@ -196,12 +196,10 @@ final class PassivePing {
 
     static void updateBackgroundServices(Context context) {
         boolean configured = isConfigured(context);
-        boolean needsService = false;
+        boolean needsService = configured;
 
         if (configured) {
-            boolean usageStatsActive = isUsageStatsAllowed(context) && isUsageAccessGranted(context);
             boolean activityRecognitionActive = isActivityRecognitionAllowed(context) && isActivityRecognitionGranted(context);
-            needsService = usageStatsActive || activityRecognitionActive;
 
             // Update GMS Activity Recognition transitions
             try {
@@ -329,6 +327,7 @@ final class PassivePing {
         IntentFilter filter = new IntentFilter();
         if (isConfigured(context)) {
             filter.addAction(Intent.ACTION_USER_PRESENT);
+            filter.addAction(Intent.ACTION_SCREEN_ON);
             if (prefs.getBoolean(KEY_ALLOW_CHARGING, false)) {
                 filter.addAction(Intent.ACTION_POWER_CONNECTED);
                 filter.addAction(Intent.ACTION_POWER_DISCONNECTED);

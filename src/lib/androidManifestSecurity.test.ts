@@ -23,7 +23,7 @@ describe('AndroidManifest.xml — ActivityTransitionReceiver exposure', () => {
     expect(receiverBlock('ActivityTransitionReceiver')).not.toMatch(/<intent-filter>/);
   });
 
-  test('PassivePingReceiver stays non-exported (regression guard, no collateral change)', () => {
-    expect(receiverBlock('PassivePingReceiver')).toMatch(/android:exported\s*=\s*"false"/);
+  test('PassivePingReceiver is exported to receive system BOOT_COMPLETED and broadcast events', () => {
+    expect(receiverBlock('PassivePingReceiver')).toMatch(/android:exported\s*=\s*"true"/);
   });
 });

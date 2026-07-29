@@ -189,8 +189,11 @@ public class PassivePingPlugin extends Plugin {
         IntentFilter chargingFilter = PassivePing.chargingIntentFilter(context);
         if (chargingFilter.countActions() > 0) {
             chargingReceiver = buildReceiver();
-            ContextCompat.registerReceiver(
-                context, chargingReceiver, chargingFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                context.registerReceiver(chargingReceiver, chargingFilter, Context.RECEIVER_EXPORTED);
+            } else {
+                context.registerReceiver(chargingReceiver, chargingFilter);
+            }
         }
     }
 

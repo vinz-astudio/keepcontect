@@ -104,12 +104,16 @@ public class KcForegroundService extends Service {
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_USER_PRESENT);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_POWER_CONNECTED);
         filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
 
         try {
-            ContextCompat.registerReceiver(
-                this, passiveEventReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(passiveEventReceiver, filter, Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(passiveEventReceiver, filter);
+            }
         } catch (Exception e) {
             android.util.Log.e("KcForegroundService", "Failed to register passive event receiver", e);
         }

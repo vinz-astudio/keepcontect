@@ -9,10 +9,22 @@ public class PassivePingReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (intent == null || intent.getAction() == null) return;
         String action = intent.getAction();
+
+        if (Intent.ACTION_BOOT_COMPLETED.equals(action) ||
+            "android.intent.action.MY_PACKAGE_REPLACED".equals(action)) {
+            PassivePing.updateBackgroundServices(context);
+            return;
+        }
+
+        if (PassivePing.isConfigured(context)) {
+            KcForegroundService.start(context);
+        }
+
         if (
             Intent.ACTION_POWER_CONNECTED.equals(action) ||
             Intent.ACTION_POWER_DISCONNECTED.equals(action) ||
-            Intent.ACTION_USER_PRESENT.equals(action)
+            Intent.ACTION_USER_PRESENT.equals(action) ||
+            Intent.ACTION_SCREEN_ON.equals(action)
         ) {
             if (PassivePing.shouldPingForAction(context, action)) {
                 PassivePing.pingApp(context);
