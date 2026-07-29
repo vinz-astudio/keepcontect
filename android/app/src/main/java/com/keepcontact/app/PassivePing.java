@@ -37,12 +37,27 @@ final class PassivePing {
     private static final String KEY_ALLOW_USAGE_STATS = "allow_usage_stats";
     private static final String KEY_ALLOW_ACTIVITY_RECOGNITION = "allow_activity_recognition";
     private static final String KEY_ALLOW_CHARGING = "allow_charging";
+    private static final String KEY_CLIENT_ID = "client_id";
+    private static final String KEY_APP_VERSION = "app_version";
+    private static final String KEY_COLLECTOR_CONTRACT = "collector_contract";
+    private static final String KEY_LAST_SHADOW_COVERAGE_LEASE_AT =
+        "last_shadow_coverage_lease_at";
     private static final long APP_THROTTLE_MS = 5 * 60 * 1000;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
 
     private PassivePing() {}
 
-    static void configure(Context context, String supabaseUrl, String token, boolean allowCharging, boolean allowUsageStats, boolean allowActivityRecognition) {
+    static void configure(
+        Context context,
+        String supabaseUrl,
+        String token,
+        boolean allowCharging,
+        boolean allowUsageStats,
+        boolean allowActivityRecognition,
+        String clientId,
+        String appVersion,
+        String collectorContract
+    ) {
         prefs(context)
             .edit()
             .putString(KEY_SUPABASE_URL, trimSlash(supabaseUrl))
@@ -50,6 +65,9 @@ final class PassivePing {
             .putBoolean(KEY_ALLOW_CHARGING, allowCharging)
             .putBoolean(KEY_ALLOW_USAGE_STATS, allowUsageStats)
             .putBoolean(KEY_ALLOW_ACTIVITY_RECOGNITION, allowActivityRecognition)
+            .putString(KEY_CLIENT_ID, clientId)
+            .putString(KEY_APP_VERSION, appVersion)
+            .putString(KEY_COLLECTOR_CONTRACT, collectorContract)
             .apply();
 
         updateBackgroundServices(context);
@@ -253,6 +271,34 @@ final class PassivePing {
 
     static long lastPingAt(Context context) {
         return prefs(context).getLong(KEY_LAST_PING, 0);
+    }
+
+    static String supabaseUrl(Context context) {
+        return prefs(context).getString(KEY_SUPABASE_URL, null);
+    }
+
+    static String token(Context context) {
+        return prefs(context).getString(KEY_TOKEN, null);
+    }
+
+    static String clientId(Context context) {
+        return prefs(context).getString(KEY_CLIENT_ID, null);
+    }
+
+    static String appVersion(Context context) {
+        return prefs(context).getString(KEY_APP_VERSION, null);
+    }
+
+    static String collectorContract(Context context) {
+        return prefs(context).getString(KEY_COLLECTOR_CONTRACT, null);
+    }
+
+    static long lastShadowCoverageLeaseAt(Context context) {
+        return prefs(context).getLong(KEY_LAST_SHADOW_COVERAGE_LEASE_AT, 0);
+    }
+
+    static void markShadowCoverageLeaseSuccess(Context context, long at) {
+        prefs(context).edit().putLong(KEY_LAST_SHADOW_COVERAGE_LEASE_AT, at).apply();
     }
 
     // —— Charging Receiver Helpers ——

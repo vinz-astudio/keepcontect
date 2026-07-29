@@ -1,6 +1,8 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { SUPABASE_URL } from '@/lib/config'
 import { isSensorEnabled } from '@/features/signals/sensors'
+import { getClientId } from '@/lib/clientReport'
+import { APP_VERSION } from '@/lib/version'
 
 export interface GuardStatus {
   enabled: boolean
@@ -18,6 +20,9 @@ interface PassivePingPlugin {
     allowCharging?: boolean
     allowUsageStats?: boolean
     allowActivityRecognition?: boolean
+    clientId: string
+    appVersion: string
+    collectorContract: 'android-passive-v1'
   }): Promise<void>
   clear(): Promise<void>
   pingApp(): Promise<void>
@@ -58,6 +63,9 @@ export async function configureNativePassivePing(
       allowCharging,
       allowUsageStats,
       allowActivityRecognition,
+      clientId: getClientId(),
+      appVersion: APP_VERSION,
+      collectorContract: 'android-passive-v1',
     })
     await PassivePing.pingApp()
   } catch {

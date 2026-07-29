@@ -20,6 +20,9 @@ public class PassivePingPlugin extends Plugin {
     public void configure(PluginCall call) {
         String supabaseUrl = call.getString("supabaseUrl");
         String token = call.getString("token");
+        String clientId = call.getString("clientId");
+        String appVersion = call.getString("appVersion");
+        String collectorContract = call.getString("collectorContract");
         Boolean allowChargingValue = call.getBoolean("allowCharging");
         Boolean allowUsageStatsValue = call.getBoolean("allowUsageStats");
         Boolean allowActivityRecognitionValue = call.getBoolean("allowActivityRecognition");
@@ -33,7 +36,9 @@ public class PassivePingPlugin extends Plugin {
             return;
         }
 
-        PassivePing.configure(getContext(), supabaseUrl, token, allowCharging, allowUsageStats, allowActivityRecognition);
+        PassivePing.configure(
+            getContext(), supabaseUrl, token, allowCharging, allowUsageStats,
+            allowActivityRecognition, clientId, appVersion, collectorContract);
         refreshEventReceiver();
 
         // Logged in + configured -> keep the background notification poll alive.

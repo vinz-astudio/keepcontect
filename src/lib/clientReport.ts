@@ -9,7 +9,7 @@ const AT_KEY = 'kc.client.reportedAt'
 const THROTTLE_MS = 6 * 3_600_000
 
 /** 每个浏览器/安装一个稳定 id(localStorage) */
-function clientId(): string {
+export function getClientId(): string {
   try {
     let id = localStorage.getItem(CLIENT_ID_KEY)
     if (!id) {
@@ -45,7 +45,7 @@ export async function reportClient(): Promise<void> {
     const lastAt = Number(localStorage.getItem(AT_KEY)) || 0
     if (sig === lastSig && Date.now() - lastAt < THROTTLE_MS) return
     const { error } = await supabase.rpc('report_client', {
-      _client_id: clientId(),
+      _client_id: getClientId(),
       _platform: clientChannel(),
       _version: APP_VERSION,
     })

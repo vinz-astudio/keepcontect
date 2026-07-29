@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { normalizeRoutineMode } from '@/features/baseline/routineMode'
 
 /**
  * 设置本人显示名：同步更新 profiles.display_name（别人看到的名字）
@@ -27,7 +28,10 @@ export async function getRoutineProfile(): Promise<RoutineProfile> {
     .eq('id', user.id)
     .single() as any)
   if (error) throw error
-  return data as RoutineProfile
+  return {
+    ...(data as RoutineProfile),
+    routine_pattern: normalizeRoutineMode(data?.routine_pattern),
+  }
 }
 
 export async function updateRoutineProfile(updates: Partial<RoutineProfile>): Promise<void> {

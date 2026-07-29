@@ -91,6 +91,8 @@ public class NotifyWorker extends Worker {
             }
         }
 
+        AlertShadowCoverageReporter.reportIfOperational(context);
+
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             return Result.success();
         }

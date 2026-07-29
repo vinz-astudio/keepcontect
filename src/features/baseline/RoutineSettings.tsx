@@ -17,6 +17,7 @@ import { useI18n } from '@/lib/i18n'
 import type { Sensitivity } from '@/features/baseline/types'
 import { getRoutineProfile } from '@/features/profile/profileApi'
 import { getRoutineModeOptions, getRoutineModeSummary } from '@/features/baseline/routineModeCopy'
+import { normalizeRoutineMode, type RoutineMode } from '@/features/baseline/routineMode'
 import { toast } from '@/lib/toast'
 import './LivenessCard.css'
 
@@ -32,7 +33,7 @@ export function RoutineSettings() {
   const [sleepEnd, setSleepEnd] = useState('07:00')
   const [sleepOn, setSleepOn] = useState(false)
   const [sleepBusy, setSleepBusy] = useState(false)
-  const [routinePattern, setRoutinePattern] = useState('regular_9to5')
+  const [routinePattern, setRoutinePattern] = useState<RoutineMode>('regular_9to5')
   const [consentDataSharing, setConsentDataSharing] = useState(false)
   const [statusKey, setStatusKey] = useState(0)
 
@@ -42,7 +43,7 @@ export function RoutineSettings() {
 
   const [serverSleepWindow, setServerSleepWindow] = useState<{ start: string; end: string } | null>(null)
 
-  const [serverRoutinePattern, setServerRoutinePattern] = useState<string>('regular_9to5')
+  const [serverRoutinePattern, setServerRoutinePattern] = useState<RoutineMode>('regular_9to5')
   const [isSavingRoutinePattern, setIsSavingRoutinePattern] = useState(false)
 
   const [serverConsentDataSharing, setServerConsentDataSharing] = useState<boolean>(false)
@@ -74,9 +75,10 @@ export function RoutineSettings() {
 
     void getRoutineProfile()
       .then((p) => {
-        setRoutinePattern(p.routine_pattern)
+        const normalizedPattern = normalizeRoutineMode(p.routine_pattern)
+        setRoutinePattern(normalizedPattern)
         setConsentDataSharing(p.consent_data_sharing)
-        setServerRoutinePattern(p.routine_pattern)
+        setServerRoutinePattern(normalizedPattern)
         setServerConsentDataSharing(p.consent_data_sharing)
       })
       .catch(() => {})

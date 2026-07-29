@@ -12,12 +12,14 @@
     "preview": "vite preview",
     "local:gate": "node scripts/local-gate.mjs",
     "local:gate:static": "node scripts/local-gate.mjs --static-only",
+    "db:replay:compat": "node scripts/local-supabase-replay.mjs",
     "cap:sync": "cap sync",
     "release:canary": "node scripts/release-canary.mjs",
     "release:promote": "node scripts/promote-release.mjs",
     "release:android": "node scripts/release-android.mjs",
     "release": "node scripts/release.mjs",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "adaptive:source:check": "node scripts/adaptive-shadow-source-manifest.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.6",
