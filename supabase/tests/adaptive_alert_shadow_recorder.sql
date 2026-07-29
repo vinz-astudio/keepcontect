@@ -341,8 +341,8 @@ SELECT results_eq(
     ORDER BY fn
   $$,
   $$ VALUES
-    ('process_escalations'::text, 'cd2b178993c93029f729aa399e18c18568459bfc5297df27675fe83ff65bef30'::text),
-    ('silence_threshold'::text, '686116ef8f2df1d78f6d0d48ded8019555f283b098eeb5d354cfa1c14ebbcdca'::text)
+    ('process_escalations'::text, 'fde0f2ec750cec9b3e55e04c95f14f93fecea39843a661abd2d37b8a2f6108c5'::text),
+    ('silence_threshold'::text, '6be4ed54feff52428cf1d86210126bd9362953201fc5ac8b9e885abd586092ce'::text)
   $$,
   'Task 8 leaves ADR-0022 live threshold and Guardian 30-minute state machine definitions unchanged'
 );

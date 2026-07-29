@@ -67,8 +67,8 @@ SELECT is(
     ),
     'hex'
   ),
-  '686116ef8f2df1d78f6d0d48ded8019555f283b098eeb5d354cfa1c14ebbcdca',
-  'ADR-0022 normalized live threshold definition is unchanged'
+  '6be4ed54feff52428cf1d86210126bd9362953201fc5ac8b9e885abd586092ce',
+  'normalized live threshold matches the authorized history-seeded definition'
 );
 
 SELECT * FROM finish();

@@ -246,8 +246,8 @@ SELECT is(
     ),
     'hex'
   ),
-  '686116ef8f2df1d78f6d0d48ded8019555f283b098eeb5d354cfa1c14ebbcdca',
-  'GM mute does not alter the ADR-0022 silence threshold'
+  '6be4ed54feff52428cf1d86210126bd9362953201fc5ac8b9e885abd586092ce',
+  'GM mute keeps the authorized history-seeded silence threshold'
 );
 
 SELECT * FROM finish();

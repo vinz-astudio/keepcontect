@@ -218,8 +218,8 @@ SELECT is(
     ),
     'hex'
   ),
-  '686116ef8f2df1d78f6d0d48ded8019555f283b098eeb5d354cfa1c14ebbcdca',
-  'fixture reproduces the production LF function-definition hash'
+  '6be4ed54feff52428cf1d86210126bd9362953201fc5ac8b9e885abd586092ce',
+  'fixture reproduces the authorized history-seeded live definition hash'
 );
 
 CREATE TEMP TABLE activation_live_before AS

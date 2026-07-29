@@ -1773,19 +1773,20 @@ SELECT is(
   'cohort source-generation mismatch falls to deterministic emergency'
 );
 
--- Definition pin and pure emergency aliases match the existing live helper.
-SELECT is(
-  (
-    SELECT config #>> '{emergency,expected_live_definition_sha256}'
-    FROM public.alert_model_versions
-    WHERE id = '46000000-0000-0000-0000-000000000010'
-  ),
-  (
-    SELECT encode(extensions.digest(pg_get_functiondef(
+-- The immutable pre-promotion pin recognizes only its explicitly authorized
+-- history-seeded successor definition.
+SELECT ok(
+  private.shadow_live_definition_matches(
+    (
+      SELECT config #>> '{emergency,expected_live_definition_sha256}'
+      FROM public.alert_model_versions
+      WHERE id = '46000000-0000-0000-0000-000000000010'
+    ),
+    pg_get_functiondef(
       'private.silence_threshold(uuid)'::regprocedure
-    ), 'sha256'), 'hex')
+    )
   ),
-  'configured ADR-0022 definition pin matches the installed live helper'
+  'configured pre-promotion pin recognizes the authorized live successor'
 );
 SELECT results_eq(
   $$
@@ -2008,8 +2009,8 @@ SELECT results_eq(
     ORDER BY fn
   $$,
   $$ VALUES
-    ('process_escalations'::text, 'cd2b178993c93029f729aa399e18c18568459bfc5297df27675fe83ff65bef30'::text),
-    ('silence_threshold'::text, '686116ef8f2df1d78f6d0d48ded8019555f283b098eeb5d354cfa1c14ebbcdca'::text)
+    ('process_escalations'::text, 'fde0f2ec750cec9b3e55e04c95f14f93fecea39843a661abd2d37b8a2f6108c5'::text),
+    ('silence_threshold'::text, '6be4ed54feff52428cf1d86210126bd9362953201fc5ac8b9e885abd586092ce'::text)
   $$,
   'Task 6 leaves ADR-0022 live threshold and Guardian 30-minute state machine definitions unchanged'
 );
