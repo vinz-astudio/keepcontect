@@ -14,10 +14,22 @@ concurrency:
 
 jobs:
   testflight:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+
+      # App Store Connect rejects anything built with an SDK older than iOS 26,
+      # and the runner image can ship several Xcodes with an older one selected
+      # by default. Pick the newest present rather than pinning a path that
+      # rots with the image.
+      - name: Select newest Xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          LATEST=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$LATEST/Contents/Developer"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i "iphoneos" || true
 
       - uses: actions/setup-node@v4
         with:
