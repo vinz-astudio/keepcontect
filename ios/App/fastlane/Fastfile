@@ -1,14 +1,19 @@
 # TestFlight pipeline for the iOS passive-unlock spike (KC-IOS-UNLOCK-SPIKE-001).
 #
-# Signing is delegated to Xcode's own automatic provisioning, driven by the
-# App Store Connect API key (-allowProvisioningUpdates). fastlane's
-# get_certificates/get_provisioning_profile were tried first and failed on the
-# runner with "Could not find the newly generated certificate installed": they
-# create the certificate through the API but then have to import it into a
-# temporary keychain, and that import is the fragile part on CI. Letting
-# xcodebuild own the whole identity lifecycle removes that step entirely.
-
-require "tmpdir"
+# Signing is explicit and distribution-only, for a reason worth writing down.
+#
+# Xcode's automatic signing cannot work on this runner: `xcodebuild archive`
+# signs the archive with a *development* identity and only re-signs with the
+# distribution identity at export time, so automatic provisioning goes looking
+# for an iOS App Development profile — which Apple will not issue to a team
+# with no registered devices. A CI machine is never a registered device.
+#
+# So the archive is signed directly with the App Store profile instead, which
+# never involves a development profile at all. The one trap here is that
+# `get_certificates` installs into the login keychain by default, and on CI
+# that keychain is locked — that is what produced "Could not find the newly
+# generated certificate installed" on the first attempt. It has to be pointed
+# at the temporary keychain `setup_ci` creates and unlocks.
 
 default_platform(:ios)
 
@@ -24,13 +29,7 @@ platform :ios do
       in_house: false
     )
 
-    # Creates and unlocks a temporary keychain, which is where Xcode will put
-    # the signing identity it provisions.
     setup_ci(force: true)
-
-    # xcodebuild wants the key as a file on disk, not as an env string.
-    key_path = File.join(Dir.tmpdir, "asc_api_key.p8")
-    File.write(key_path, ENV.fetch("APP_STORE_CONNECT_API_KEY_P8"))
 
     increment_version_number(
       version_number: options[:marketing_version],
@@ -41,29 +40,46 @@ platform :ios do
       xcodeproj: "App.xcodeproj"
     )
 
+    # The keychain setup_ci just created and unlocked. Without this the
+    # certificate lands somewhere xcodebuild cannot read.
+    keychain_path = lane_context[SharedValues::KEYCHAIN_PATH] ||
+                    File.expand_path("~/Library/Keychains/fastlane_tmp_keychain")
+
+    get_certificates(
+      api_key: api_key,
+      keychain_path: keychain_path,
+      keychain_password: ""
+    )
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      force: true
+    )
+    profile_name = lane_context[SharedValues::SIGH_NAME]
+
     update_code_signing_settings(
       path: "App.xcodeproj",
-      use_automatic_signing: true,
+      use_automatic_signing: false,
       team_id: ENV.fetch("APPLE_TEAM_ID"),
-      targets: ["App"]
+      targets: ["App"],
+      build_configurations: ["Release"],
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile_name
     )
-
-    provisioning_args = [
-      "-allowProvisioningUpdates",
-      "-authenticationKeyPath #{key_path}",
-      "-authenticationKeyID #{ENV.fetch('APP_STORE_CONNECT_KEY_ID')}",
-      "-authenticationKeyIssuerID #{ENV.fetch('APP_STORE_CONNECT_ISSUER_ID')}"
-    ].join(" ")
 
     build_app(
       workspace: "App.xcworkspace",
       scheme: "App",
+      # No shared scheme is committed, so xcodebuild autocreates one; naming the
+      # configuration explicitly keeps the archive off Debug either way.
+      configuration: "Release",
       export_method: "app-store",
-      xcargs: provisioning_args,
-      export_xcargs: provisioning_args,
       export_options: {
-        signingStyle: "automatic",
-        teamID: ENV.fetch("APPLE_TEAM_ID")
+        signingStyle: "manual",
+        teamID: ENV.fetch("APPLE_TEAM_ID"),
+        provisioningProfiles: {
+          APP_IDENTIFIER => profile_name
+        }
       }
     )
 
