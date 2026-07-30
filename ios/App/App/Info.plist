@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+        <string>Keep Contact</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	<!-- Native auth deep link. Mirrors the Android manifest's
+	     com.keepcontact.app://auth intent filter; without it the Supabase
+	     callback cannot return into the app and sign-in never completes. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.keepcontact.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.keepcontact.app</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Passive unlock evidence (KC-IOS-UNLOCK-SPIKE-001).
+	     iOS only delivers protectedDataDidBecomeAvailable to a process that is
+	     actually executing, so the guard needs one background mode to stay alive.
+	     Location is the power source, never the evidence: the delegate discards
+	     every CLLocation without reading, storing, or transmitting it. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Keep Contact keeps its guardian running in the background so it can notice that you unlocked your phone and let your circle know you are fine. Your location itself is never read, stored, or sent.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Keep Contact keeps its guardian running in the background so it can notice that you unlocked your phone and let your circle know you are fine. Your location itself is never read, stored, or sent.</string>
+	<!-- No custom cryptography; keeps TestFlight builds from stalling on the
+	     export-compliance question at every upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+</dict>
+</plist>

@@ -31,6 +31,7 @@
     "@supabase/supabase-js": "^2.108.1",
     "@types/qrcode": "^1.5.6",
     "jsqr": "^1.4.0",
+    "kc-passive-ping": "file:ios-passive-ping",
     "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

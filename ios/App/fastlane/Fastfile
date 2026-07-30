@@ -1,0 +1,70 @@
+# TestFlight pipeline for the iOS passive-unlock spike (KC-IOS-UNLOCK-SPIKE-001).
+#
+# Signing uses the App Store Connect API key only — no Apple ID, no 2FA, no
+# separate certificates repo. `get_certificates` / `get_provisioning_profile`
+# create the distribution certificate and profile on first run and reuse them
+# afterwards, which is why the CI key needs Admin access.
+
+default_platform(:ios)
+
+APP_IDENTIFIER = "com.keepcontact.app"
+
+platform :ios do
+  desc "Build and upload a build to TestFlight"
+  lane :beta do |options|
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+      issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+      key_content: ENV.fetch("APP_STORE_CONNECT_API_KEY_P8"),
+      in_house: false
+    )
+
+    # Creates a throwaway keychain so the imported signing identity does not
+    # need an interactive unlock on the runner.
+    setup_ci(force: true)
+
+    increment_version_number(
+      version_number: options[:marketing_version],
+      xcodeproj: "App.xcodeproj"
+    )
+    increment_build_number(
+      build_number: options[:build_number],
+      xcodeproj: "App.xcodeproj"
+    )
+
+    get_certificates(api_key: api_key)
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      force: true
+    )
+
+    update_code_signing_settings(
+      path: "App.xcodeproj",
+      use_automatic_signing: false,
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      targets: ["App"],
+      code_sign_identity: "Apple Distribution",
+      profile_name: lane_context[SharedValues::SIGH_NAME]
+    )
+
+    build_app(
+      workspace: "App.xcworkspace",
+      scheme: "App",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          APP_IDENTIFIER => lane_context[SharedValues::SIGH_NAME]
+        }
+      }
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      # Internal testers get the build as soon as processing finishes; waiting
+      # here would just burn runner minutes.
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+  end
+end

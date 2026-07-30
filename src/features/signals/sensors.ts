@@ -35,7 +35,9 @@ export function getAvailableSensors(): SensorConfig[] {
       labelEn: 'Screen Unlock & App Usage',
       descZh: '离线或使用手机解锁、切换应用时在后台静默上报；只记录"在用手机"，绝不上报具体内容或应用名称',
       descEn: 'Passively detects screen unlocks and app usage signs in background (records device active time, never private content)',
-      supported: Capacitor.getPlatform() === 'android'
+      // iOS reports unlocks only — it has no app-usage equivalent — but it is
+      // the same "am I using my phone" evidence, so it shares the toggle.
+      supported: Capacitor.getPlatform() === 'android' || Capacitor.getPlatform() === 'ios'
     },
     {
       key: 'motion',

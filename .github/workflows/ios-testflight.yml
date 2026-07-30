@@ -1,0 +1,80 @@
+name: iOS TestFlight
+
+# Never runs on pull_request: this repository is public, and a fork PR must not
+# be able to reach the Apple signing secrets even accidentally.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'ios-v*'
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Sync Capacitor iOS project
+        run: npx cap sync ios
+
+      # The app's own version string is the single source of truth; the build
+      # number just has to be unique and monotonic, which the run number is.
+      - name: Resolve version
+        id: version
+        run: |
+          MARKETING_VERSION=$(grep -oE "APP_VERSION = '[^']+'" src/lib/version.ts \
+            | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+          if [ -z "$MARKETING_VERSION" ]; then
+            echo "Could not read APP_VERSION from src/lib/version.ts" >&2
+            exit 1
+          fi
+          echo "marketing=$MARKETING_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Marketing version: $MARKETING_VERSION, build: ${{ github.run_number }}"
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: false
+
+      - name: Install fastlane
+        run: gem install fastlane --no-document
+
+      - name: Build and upload to TestFlight
+        working-directory: ios/App
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_HIDE_CHANGELOG: '1'
+        run: |
+          fastlane beta \
+            marketing_version:"${{ steps.version.outputs.marketing }}" \
+            build_number:"${{ github.run_number }}"
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            ~/Library/Logs/gym
+            ios/App/fastlane/report.xml
+          if-no-files-found: ignore

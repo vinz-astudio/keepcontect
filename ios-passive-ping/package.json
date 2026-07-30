@@ -1,0 +1,17 @@
+{
+  "name": "kc-passive-ping",
+  "version": "0.1.0",
+  "description": "Keep Contact iOS passive unlock evidence collector (local Capacitor plugin)",
+  "license": "UNLICENSED",
+  "private": true,
+  "author": "Keep Contact",
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  },
+  "files": [
+    "ios/",
+    "KcPassivePing.podspec"
+  ]
+}

@@ -22,7 +22,7 @@ interface PassivePingPlugin {
     allowActivityRecognition?: boolean
     clientId: string
     appVersion: string
-    collectorContract: 'android-passive-v1'
+    collectorContract: 'android-passive-v1' | 'ios-passive-v1'
   }): Promise<void>
   clear(): Promise<void>
   pingApp(): Promise<void>
@@ -45,12 +45,34 @@ const PassivePing = registerPlugin<PassivePingPlugin>('PassivePing')
 export async function configureNativePassivePing(
   token: string | null,
 ): Promise<void> {
-  if (Capacitor.getPlatform() !== 'android') return
+  const platform = Capacitor.getPlatform()
+  if (platform !== 'android' && platform !== 'ios') return
   try {
     if (!token) {
       await PassivePing.clear()
       return
     }
+    // iOS has no UsageStats/charger/activity equivalents; its guard is the
+    // unlock watcher alone, so it only needs credentials. The extra Android
+    // toggles are omitted rather than sent and ignored.
+    if (platform === 'ios') {
+      // The unlock watcher is the whole iOS guard, so the same toggle that
+      // labels it has to be able to switch it off.
+      if (!isSensorEnabled('app_activity')) {
+        await PassivePing.clear()
+        return
+      }
+      await PassivePing.configure({
+        supabaseUrl: SUPABASE_URL,
+        token,
+        clientId: getClientId(),
+        appVersion: APP_VERSION,
+        collectorContract: 'ios-passive-v1',
+      })
+      await PassivePing.pingApp()
+      return
+    }
+
     const allowCharging = isSensorEnabled('phone_charger')
     const allowUsageStats = isSensorEnabled('app_activity')
     const allowActivityRecognition = isSensorEnabled('motion')
