@@ -42,8 +42,15 @@ platform :ios do
 
     # The keychain setup_ci just created and unlocked. Without this the
     # certificate lands somewhere xcodebuild cannot read.
-    keychain_path = lane_context[SharedValues::KEYCHAIN_PATH] ||
-                    File.expand_path("~/Library/Keychains/fastlane_tmp_keychain")
+    #
+    # The lane context reports the keychain by name, but the file on disk
+    # carries the "-db" suffix, and get_certificates validates the literal
+    # path — so resolve to whichever actually exists rather than guessing.
+    keychain_path = [
+      File.expand_path("~/Library/Keychains/fastlane_tmp_keychain-db"),
+      File.expand_path("~/Library/Keychains/fastlane_tmp_keychain")
+    ].find { |candidate| File.exist?(candidate) }
+    UI.user_error!("setup_ci did not leave a keychain behind") if keychain_path.nil?
 
     get_certificates(
       api_key: api_key,
