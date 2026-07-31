@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import KcPassivePing
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -9,6 +10,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         return true
+    }
+
+    /// Silent pushes are how the server asks a suspended — or system-terminated
+    /// — app whether its user is still active. iOS launches the app into the
+    /// background to run this, which is why the guard needs no keepalive.
+    ///
+    /// The completion handler must report whether anything arrived: iOS uses it
+    /// to decide how generous the app's future wake budget should be, so
+    /// claiming `.newData` every time would waste the budget we depend on.
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        KcPassiveBridge.handleSilentPush { recorded in
+            completionHandler(recorded ? .newData : .noData)
+        }
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
