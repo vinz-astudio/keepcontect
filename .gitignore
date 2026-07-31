@@ -44,8 +44,8 @@ supabase/.temp/
 
 *firebase-adminsdk*.json
 
-# installer binaries — built locally, must not enter repo/CI
-public/*.apk
-public/*.aab
-public/*.exe
-public/*.msi
+# installer binaries — tracked in public/ for Vercel static CDN hosting (supports private repos)
+# public/*.apk
+# public/*.aab
+# public/*.exe
+# public/*.msi
