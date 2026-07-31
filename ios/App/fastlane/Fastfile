@@ -98,7 +98,9 @@ platform :ios do
     # ships no entitlements file. Wiring it here rather than hand-editing
     # project.pbxproj keeps the change reviewable and scoped to the App target —
     # a global xcargs override would also hit every Pods target.
-    Xcodeproj::Project.open("App.xcodeproj").tap do |project|
+    # Raw Ruby resolves relative paths against the Fastfile's own directory,
+    # not the Xcode project directory that fastlane actions use.
+    Xcodeproj::Project.open(File.expand_path("../App.xcodeproj", __dir__)).tap do |project|
       app_target = project.targets.find { |t| t.name == "App" }
       UI.user_error!("App target not found in App.xcodeproj") if app_target.nil?
       app_target.build_configurations.each do |config|
