@@ -39,8 +39,8 @@ export async function getPushStatus(): Promise<PushStatus> {
 }
 
 async function saveSubscription(sub: PushSubscription): Promise<void> {
-  const { data: u } = await supabase.auth.getUser()
-  const uid = u.user?.id
+  const { data: { session } } = await supabase.auth.getSession()
+  const uid = session?.user?.id
   if (!uid) throw new Error('未登录')
   const json = sub.toJSON()
   const { error } = await supabase.from('push_subscriptions').upsert(

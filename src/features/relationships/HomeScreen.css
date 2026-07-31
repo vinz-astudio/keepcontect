@@ -621,15 +621,24 @@
   }
 }
 
-/* iPad / Tablet 视口 (768px ~ 1024px) 空间与排版微调 */
+/* iPad / Tablet 视口 (768px ~ 1024px) 空间与排版微调
+   侧边栏固定 250px，内容区仅 ~518–774px，双列 grid 太挤，
+   auto-fit + minmax 让列数自适应：窄时单列、宽时双列 */
 @media (min-width: 768px) and (max-width: 1024px) {
-  .circles-grid {
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  .dashboard-grid,
+  .routine-grid,
+  .circles-grid,
+  .profile-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.25rem;
   }
-  .circles-grid .card {
-    padding: 1.2rem 1.3rem;
+  .dashboard-grid .card,
+  .routine-grid .card,
+  .circles-grid .card,
+  .profile-grid .card {
+    padding: 1.1rem 1.2rem;
+  }
+  .home__page {
+    padding: 1rem 1.5rem 2rem;
   }
 }
-
-

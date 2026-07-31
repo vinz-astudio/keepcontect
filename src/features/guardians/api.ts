@@ -9,8 +9,8 @@ export interface GuardianLink {
 }
 
 async function requireUid(): Promise<string> {
-  const { data } = await supabase.auth.getUser()
-  const uid = data.user?.id
+  const { data: { session } } = await supabase.auth.getSession()
+  const uid = session?.user?.id
   if (!uid) throw new Error('未登录')
   return uid
 }
