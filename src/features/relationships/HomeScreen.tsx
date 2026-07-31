@@ -375,10 +375,8 @@ export function HomeScreen() {
   }, [])
 
   useEffect(() => {
-    if (tab === 'circles' && user?.id) {
-      void refresh()
-    }
-  }, [refresh, tab, user?.id])
+    if (tab === 'circles') void refresh()
+  }, [refresh, tab])
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined

@@ -20,20 +20,15 @@ export interface GroupMemberView {
   display_name: string | null
 }
 
-async function getOptionalUid(): Promise<string | null> {
-  const { data } = await supabase.auth.getUser()
-  return data.user?.id ?? null
-}
-
 async function requireUid(): Promise<string> {
-  const uid = await getOptionalUid()
+  const { data } = await supabase.auth.getUser()
+  const uid = data.user?.id
   if (!uid) throw new Error('未登录')
   return uid
 }
 
 export async function listMyGroups(): Promise<MyGroup[]> {
-  const uid = await getOptionalUid()
-  if (!uid) return []
+  const uid = await requireUid()
   const { data, error } = await supabase
     .from('group_members')
     .select('role, monitored, watching, groups(*)')
@@ -50,8 +45,7 @@ export async function listMyGroups(): Promise<MyGroup[]> {
 }
 
 export async function listMyCommunities(): Promise<Community[]> {
-  const uid = await getOptionalUid()
-  if (!uid) return []
+  const uid = await requireUid()
   const { data, error } = await supabase
     .from('community_members')
     .select('communities(*)')
