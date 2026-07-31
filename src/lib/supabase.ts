@@ -45,10 +45,48 @@ export const initialHadAuthTokens: boolean = initialAuthKind !== null
 const url = SUPABASE_URL
 const anonKey = SUPABASE_ANON_KEY
 
-// createBrowserClient（@supabase/ssr）：认证状态存 cookie 而非 localStorage。
-// iOS 主屏 PWA 点 OAuth 时授权在内嵌浏览器层完成，该层与 PWA 不共享
-// localStorage（PKCE code verifier 找不到、会话也带不回来），但共享 cookie——
-// 用 cookie 存储后 verifier/会话双向可见，配合 AuthProvider 的 focus 重查闭环。
+// 混合存储引擎：iOS PWA 需要 cookie 传递 OAuth 会话，而 iOS Native (Capacitor/TestFlight)
+// 在 WKWebView 进程重启时会清理无 max-age 的 cookie。
+// 混合引擎同时写入 document.cookie (带 1年 max-age) 和 localStorage；
+// 当 WKWebView 丢失 cookie 时，自动从 localStorage 恢复会话，实现持久化保持登录。
+const hybridStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      const escapedKey = key.replace(/[-[\]{}()*+?.:=\\^$|#\s]/g, '\\$&')
+      const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${escapedKey}=([^;]*)`))
+      if (match && match[1]) {
+        return decodeURIComponent(match[1])
+      }
+    } catch {}
+    try {
+      const lsVal = localStorage.getItem(key)
+      if (lsVal) {
+        try {
+          document.cookie = `${key}=${encodeURIComponent(lsVal)}; path=/; max-age=31536000; SameSite=Lax`
+        } catch {}
+        return lsVal
+      }
+    } catch {}
+    return null
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`
+    } catch {}
+    try {
+      localStorage.setItem(key, value)
+    } catch {}
+  },
+  removeItem: (key: string): void => {
+    try {
+      document.cookie = `${key}=; path=/; max-age=0; SameSite=Lax`
+    } catch {}
+    try {
+      localStorage.removeItem(key)
+    } catch {}
+  },
+}
+
 export const supabase = createBrowserClient<Database>(url, anonKey, {
   global: {
     // iOS 主屏 PWA 的 fetch 可能全局失败(TypeError)，自动降级 XHR
@@ -59,5 +97,6 @@ export const supabase = createBrowserClient<Database>(url, anonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
+    storage: hybridStorage,
   },
 })
