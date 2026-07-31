@@ -52,10 +52,26 @@ platform :ios do
     ].find { |candidate| File.exist?(candidate) }
     UI.user_error!("setup_ci did not leave a keychain behind") if keychain_path.nil?
 
+    # Auto-prune oldest distribution certificate if Apple Developer Portal's
+    # limit (2 or 3 active certs) is reached on headless CI runners.
+    begin
+      certs = Spaceship::ConnectAPI::Certificate.all(filter: { certificateType: "DISTRIBUTION" })
+      if certs && certs.count >= 2
+        oldest = certs.sort_by { |c| c.expiration_date || "" }.first
+        if oldest
+          UI.important("Pruning oldest distribution cert (#{oldest.id}) to make room for new CI build cert")
+          oldest.delete!
+        end
+      end
+    rescue => e
+      UI.error("Certificate pruning notice: #{e.message}")
+    end
+
     get_certificates(
       api_key: api_key,
       keychain_path: keychain_path,
-      keychain_password: ""
+      keychain_password: "",
+      force: true
     )
     get_provisioning_profile(
       api_key: api_key,
