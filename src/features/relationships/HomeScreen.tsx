@@ -512,32 +512,6 @@ export function HomeScreen() {
             <div className="dashboard-grid__col2">
               <StatusBoard />
               <CheckinTasksCard />
-            </div>
-          </div>
-
-          <div className={tab !== 'routine' ? 'home__tab-content--hidden' : ''}>
-            <RoutineSettings />
-          </div>
-
-          {isGm && (
-            <div className={tab !== 'gm' ? 'home__tab-content--hidden' : ''}>
-              <GMScreen active={tab === 'gm'} onBack={() => setTab('circles')} />
-            </div>
-          )}
-
-          <div className={`profile-grid ${tab !== 'profile' ? 'home__tab-content--hidden' : ''}`}>
-            <div className="profile-grid__col1">
-              <ProfileSection setIsScanning={setIsScanning} signOut={signOut} />
-              <EmergencyInfoCard />
-            </div>
-            <div className="profile-grid__col2">
-              <UpdatesCard isGm={isGm} />
-              <PassiveSignalCard />
-            </div>
-          </div>
-
-          <div className={`circles-grid ${tab !== 'circles' ? 'home__tab-content--hidden' : ''}`}>
-            <div className="circles-grid__col1">
               {isGm && (
                 <section className="card" style={{ border: '1px solid var(--accent-line)', background: 'var(--accent-soft)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
@@ -565,6 +539,32 @@ export function HomeScreen() {
                   </div>
                 </section>
               )}
+            </div>
+          </div>
+
+          <div className={tab !== 'routine' ? 'home__tab-content--hidden' : ''}>
+            <RoutineSettings />
+          </div>
+
+          {isGm && (
+            <div className={tab !== 'gm' ? 'home__tab-content--hidden' : ''}>
+              <GMScreen active={tab === 'gm'} onBack={() => setTab('home')} />
+            </div>
+          )}
+
+          <div className={`profile-grid ${tab !== 'profile' ? 'home__tab-content--hidden' : ''}`}>
+            <div className="profile-grid__col1">
+              <ProfileSection setIsScanning={setIsScanning} signOut={signOut} />
+              <EmergencyInfoCard />
+            </div>
+            <div className="profile-grid__col2">
+              <UpdatesCard isGm={isGm} />
+              <PassiveSignalCard />
+            </div>
+          </div>
+
+          <div className={`circles-grid ${tab !== 'circles' ? 'home__tab-content--hidden' : ''}`}>
+            <div className="circles-grid__col1">
               {/* 加入：扫码加入 */}
               <section className="card">
                 <h2 className="card__title">
