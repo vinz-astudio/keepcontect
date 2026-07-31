@@ -52,6 +52,10 @@ const anonKey = SUPABASE_ANON_KEY
 const hybridStorage = {
   getItem: (key: string): string | null => {
     try {
+      const lsVal = localStorage.getItem(key)
+      if (lsVal) return lsVal
+    } catch {}
+    try {
       const escapedKey = key.replace(/[-[\]{}()*+?.:=\\^$|#\s]/g, '\\$&')
       const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${escapedKey}=([^;]*)`))
       if (match && match[1]) {
@@ -60,31 +64,22 @@ const hybridStorage = {
         return decoded
       }
     } catch {}
-    try {
-      const lsVal = localStorage.getItem(key)
-      if (lsVal) {
-        try {
-          document.cookie = `${key}=${encodeURIComponent(lsVal)}; path=/; max-age=31536000; SameSite=Lax`
-        } catch {}
-        return lsVal
-      }
-    } catch {}
     return null
   },
   setItem: (key: string, value: string): void => {
     try {
-      document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`
+      localStorage.setItem(key, value)
     } catch {}
     try {
-      localStorage.setItem(key, value)
+      document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`
     } catch {}
   },
   removeItem: (key: string): void => {
     try {
-      document.cookie = `${key}=; path=/; max-age=0; SameSite=Lax`
+      localStorage.removeItem(key)
     } catch {}
     try {
-      localStorage.removeItem(key)
+      document.cookie = `${key}=; path=/; max-age=0; SameSite=Lax`
     } catch {}
   },
 }

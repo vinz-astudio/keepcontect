@@ -621,3 +621,15 @@
   }
 }
 
+/* iPad / Tablet 视口 (768px ~ 1024px) 空间与排版微调 */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .circles-grid {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.25rem;
+  }
+  .circles-grid .card {
+    padding: 1.2rem 1.3rem;
+  }
+}
+
+
