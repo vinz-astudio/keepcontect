@@ -55,11 +55,13 @@ platform :ios do
     # Auto-prune oldest distribution certificate if Apple Developer Portal's
     # limit (2 or 3 active certs) is reached on headless CI runners.
     begin
-      certs = Spaceship::ConnectAPI::Certificate.all(filter: { certificateType: "DISTRIBUTION" })
-      if certs && certs.count >= 2
-        oldest = certs.sort_by { |c| c.expiration_date || "" }.first
+      all_certs = Spaceship::ConnectAPI::Certificate.all
+      dist_certs = (all_certs || []).select { |c| c.certificate_type.to_s.upcase.include?("DIST") }
+      UI.message("Found #{dist_certs.count} active distribution certificates on Apple Developer Portal")
+      if dist_certs.count >= 2
+        oldest = dist_certs.sort_by { |c| c.expiration_date || "" }.first
         if oldest
-          UI.important("Pruning oldest distribution cert (#{oldest.id}) to make room for new CI build cert")
+          UI.important("Pruning oldest distribution cert #{oldest.id} (#{oldest.name}) to stay under Apple 3-cert limit")
           oldest.delete!
         end
       end
