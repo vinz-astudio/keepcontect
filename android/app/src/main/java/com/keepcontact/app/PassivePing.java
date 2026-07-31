@@ -90,7 +90,7 @@ final class PassivePing {
     }
 
     static void pingApp(Context context) {
-        ping(context, APP_THROTTLE_MS);
+        ping(context, 0);
     }
 
     static boolean isConfigured(Context context) {
@@ -100,8 +100,21 @@ final class PassivePing {
         return base != null && token != null && token.length() > 0;
     }
 
+    static boolean isKeyguardLocked(Context context) {
+        try {
+            android.app.KeyguardManager km = (android.app.KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
+            return km != null && km.isKeyguardLocked();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     static boolean shouldPingForAction(Context context, String action) {
         if (!isConfigured(context) || action == null) return false;
+        // Never allow passive ping action when the keyguard is still locked (e.g. pulling down quick settings)
+        if (isKeyguardLocked(context)) {
+            return false;
+        }
         SharedPreferences prefs = prefs(context);
         if (Intent.ACTION_POWER_CONNECTED.equals(action) || Intent.ACTION_POWER_DISCONNECTED.equals(action)) {
             return prefs.getBoolean(KEY_ALLOW_CHARGING, false);

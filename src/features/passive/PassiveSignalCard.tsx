@@ -158,16 +158,16 @@ export function PassiveSignalCard() {
 
               {/* 1. App Activity & Screen Unlock Sensor */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', flex: '1 1 180px', minWidth: 0 }}>
                     <input
                       type="checkbox"
                       checked={appActivitySensor}
                       onChange={(e) => void handleToggleAppActivity(e.target.checked)}
                     />
-                    <span>{lang === 'zh' ? '屏幕解锁与 App 使用监测' : 'Screen Unlock & App Usage'}</span>
+                    <span style={{ overflowWrap: 'anywhere' }}>{lang === 'zh' ? '屏幕解锁与 App 使用监测' : 'Screen Unlock & App Usage'}</span>
                   </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginLeft: 'auto', flexShrink: 0 }}>
                     <strong style={{ color: (appActivitySensor && usageStatsEnabled) ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
                       {!appActivitySensor
                         ? (lang === 'zh' ? '已关闭' : 'Disabled')
@@ -191,16 +191,16 @@ export function PassiveSignalCard() {
 
               {/* 2. Motion Sensing Panel */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', flex: '1 1 180px', minWidth: 0 }}>
                     <input
                       type="checkbox"
                       checked={motionSensor}
                       onChange={(e) => void handleToggleMotion(e.target.checked)}
                     />
-                    <span>{lang === 'zh' ? '运动状态活跃监测' : 'Motion Monitoring'}</span>
+                    <span style={{ overflowWrap: 'anywhere' }}>{lang === 'zh' ? '运动状态活跃监测' : 'Motion Monitoring'}</span>
                   </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginLeft: 'auto', flexShrink: 0 }}>
                     <strong style={{ color: (motionSensor && activityRecognitionEnabled) ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
                       {!motionSensor
                         ? (lang === 'zh' ? '已关闭' : 'Disabled')
@@ -224,16 +224,16 @@ export function PassiveSignalCard() {
 
               {/* 3. Charger Sensing Panel */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', flex: '1 1 180px', minWidth: 0 }}>
                     <input
                       type="checkbox"
                       checked={chargerSensor}
                       onChange={(e) => void handleToggleCharger(e.target.checked)}
                     />
-                    <span>{lang === 'zh' ? '插拔充电线即时上报' : 'Charger Connect/Disconnect'}</span>
+                    <span style={{ overflowWrap: 'anywhere' }}>{lang === 'zh' ? '插拔充电线即时上报' : 'Charger Connect/Disconnect'}</span>
                   </label>
-                  <strong style={{ color: chargerSensor ? 'var(--ok)' : 'var(--muted)', fontSize: '0.82rem' }}>
+                  <strong style={{ color: chargerSensor ? 'var(--ok)' : 'var(--muted)', fontSize: '0.82rem', marginLeft: 'auto', flexShrink: 0 }}>
                     {chargerSensor ? (lang === 'zh' ? '已启用' : 'Enabled') : (lang === 'zh' ? '已关闭' : 'Disabled')}
                   </strong>
                 </div>
@@ -245,11 +245,11 @@ export function PassiveSignalCard() {
               </div>
 
               {/* 3. Foreground Service Status */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', fontSize: '0.82rem' }}>
-                <span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', padding: '8px 10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', fontSize: '0.82rem' }}>
+                <span style={{ fontWeight: '600' }}>
                   {lang === 'zh' ? '后台守护服务状态' : 'Background Guard Service'}
                 </span>
-                <strong style={{ color: guard?.enabled ? 'var(--ok)' : 'var(--danger)' }}>
+                <strong style={{ color: guard?.enabled ? 'var(--ok)' : 'var(--danger)', marginLeft: 'auto', textAlign: 'right' }}>
                   {guard?.enabled
                     ? (lang === 'zh' ? '运行中 (前台通知常驻)' : 'Running (Foreground active)')
                     : (lang === 'zh' ? '未启动 (需授权上方权限)' : 'Not started (Grant permissions)')}

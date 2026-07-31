@@ -18,6 +18,7 @@
     "release:promote": "node scripts/promote-release.mjs",
     "release:android": "node scripts/release-android.mjs",
     "release": "node scripts/release.mjs",
+    "build:aab": "cd android && gradlew.bat bundleRelease",
     "tauri": "tauri",
     "adaptive:source:check": "node scripts/adaptive-shadow-source-manifest.mjs"
   },

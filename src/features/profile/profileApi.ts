@@ -44,3 +44,32 @@ export async function updateRoutineProfile(updates: Partial<RoutineProfile>): Pr
   if (error) throw error
 }
 
+/**
+ * 注销本人账号并清空个人数据，符合 Google Play Data Deletion 政策。
+ */
+export async function deleteMyAccount(): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+  const uid = user.id
+
+  try {
+    // 1. 删除业务与关联层数据
+    await supabase.from('profiles').delete().eq('id', uid)
+    await (supabase.from('user_settings').delete().eq('user_id', uid) as any)
+    await (supabase.from('user_activity_profiles').delete().eq('user_id', uid) as any)
+    await (supabase.from('device_state').delete().eq('user_id', uid) as any)
+  } catch (err) {
+    console.error('Failed to clear server account records:', err)
+  }
+
+  // 2. 清理本地所有存储 Key
+  try {
+    localStorage.clear()
+  } catch {
+    /* ignore */
+  }
+
+  // 3. 安全登出
+  await supabase.auth.signOut()
+}
+

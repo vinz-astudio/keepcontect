@@ -59,19 +59,23 @@
 			</array>
 		</dict>
 	</array>
-	<!-- Passive unlock evidence (KC-IOS-UNLOCK-SPIKE-001).
-	     iOS only delivers protectedDataDidBecomeAvailable to a process that is
-	     actually executing, so the guard needs one background mode to stay alive.
-	     Location is the power source, never the evidence: the delegate discards
-	     every CLLocation without reading, storing, or transmitting it. -->
+	<!-- Passive liveness evidence (KC-IOS-UNLOCK-SPIKE-001).
+	     remote-notification is the primary path: the server wakes the app with a
+	     silent push and the app answers with the current lock state. There is no
+	     longer a continuous location session — that is what previously put an
+	     indicator in the status bar and drew a battery baseline.
+	     location remains declared only because significant-change monitoring is
+	     the sole documented way to relaunch the app after a user force-quit; no
+	     coordinate is ever read, stored, or transmitted. -->
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>remote-notification</string>
 		<string>location</string>
 	</array>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Keep Contact keeps its guardian running in the background so it can notice that you unlocked your phone and let your circle know you are fine. Your location itself is never read, stored, or sent.</string>
+	<string>Keep Contact uses this only to restart its guardian if the app gets closed, so your circle can still tell you are fine. It never reads, stores, or sends your location, and it does not track your movements.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Keep Contact keeps its guardian running in the background so it can notice that you unlocked your phone and let your circle know you are fine. Your location itself is never read, stored, or sent.</string>
+	<string>Keep Contact uses this only to restart its guardian if the app gets closed, so your circle can still tell you are fine. It never reads, stores, or sends your location, and it does not track your movements.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Keep Contact 需要使用摄像头扫描二维码，以加入守护圈或同步登录凭据。</string>
 	<!-- No custom cryptography; keeps TestFlight builds from stalling on the

@@ -10,14 +10,20 @@ import UIKit
 ///
 /// iOS only delivers `protectedDataDidBecomeAvailable` to a process that is
 /// actually executing — a suspended app never sees it and gets no replay on
-/// resume. So the guard needs a background mode to stay alive, and location is
-/// the only one that both survives termination (via significant-location
-/// relaunch) and does not require faking an unrelated feature.
+/// resume. iOS also exposes no readable history of unlocks, so there is nothing
+/// to reconstruct after the fact. Exact unlock events are therefore a bonus we
+/// take whenever the process happens to be running, never something to depend
+/// on.
 ///
-/// Location is the power source, never the evidence. `didUpdateLocations`
-/// discards every fix without reading, storing, or transmitting a coordinate,
-/// and no location value ever reaches the network layer below. The only thing
-/// that produces a ping is the unlock notification itself.
+/// The dependable path is the other way round: the server wakes the device with
+/// a silent push, and the device answers with the one thing it can always
+/// establish at that instant — whether it is currently unlocked. That is
+/// sampled evidence rather than an event stream, which is enough because the
+/// alert model sessionises activity at thirty minutes and never sees finer
+/// detail anyway.
+///
+/// Location appears here only as significant-change monitoring, purely to
+/// recover a force-quit app. No coordinate is ever read, stored, or sent.
 final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     static let shared = PassiveGuard()
 
@@ -102,8 +108,9 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         guard !armed else { return }
         armed = true
 
-        // The unlock signal itself. Only fires while this process is executing,
-        // which is exactly what the location keepalive below buys us.
+        // Exact unlock signal. Only fires while this process happens to be
+        // executing, so it is opportunistic precision, not the mechanism KC
+        // relies on.
         observers.append(
             NotificationCenter.default.addObserver(
                 forName: UIApplication.protectedDataDidBecomeAvailableNotification,
@@ -126,34 +133,58 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             }
         )
 
-        startKeepAlive()
+        armRecoveryWake()
     }
 
     private func disarm() {
         armed = false
         observers.forEach(NotificationCenter.default.removeObserver)
         observers.removeAll()
-        locationManager.stopUpdatingLocation()
         locationManager.stopMonitoringSignificantLocationChanges()
-        locationManager.allowsBackgroundLocationUpdates = false
     }
 
-    /// Keeps the process executing so unlock notifications keep arriving.
-    /// Tuned to be as cheap and as blind as possible: three-kilometre accuracy
-    /// never wakes GPS, and an infinite distance filter means iOS has no reason
-    /// to deliver updates at all.
-    private func startKeepAlive() {
+    /// Registers the one location service that survives a user force-quit.
+    ///
+    /// This is deliberately NOT a keepalive. An earlier version held a
+    /// continuous location session so the in-process unlock notification would
+    /// keep arriving; that session is what put a location indicator in the
+    /// status bar and drew a battery baseline, and it has been removed.
+    ///
+    /// Significant-change monitoring is register-and-forget: nothing runs until
+    /// the device actually moves between cell towers, at which point iOS
+    /// relaunches the app — the only documented mechanism that still works
+    /// after the user swipes KC away. Silent push is the primary wake path;
+    /// this exists purely so a force-quit device is not lost forever.
+    private func armRecoveryWake() {
         locationManager.requestAlwaysAuthorization()
         locationManager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
-        locationManager.distanceFilter = CLLocationDistanceMax
-        locationManager.pausesLocationUpdatesAutomatically = false
-        locationManager.showsBackgroundLocationIndicator = false
-        // Requires the `location` UIBackgroundModes entry; iOS throws without it.
-        locationManager.allowsBackgroundLocationUpdates = true
-        locationManager.startUpdatingLocation()
-        // Survives termination: iOS relaunches the app on a significant change,
-        // and `resumeIfConfigured()` re-arms the watcher.
+        // No startUpdatingLocation, no allowsBackgroundLocationUpdates: those
+        // are what a persistent session needs, and we do not want one.
         locationManager.startMonitoringSignificantLocationChanges()
+    }
+
+    /// Called when a silent push wakes the process. The push proves the device
+    /// is reachable, which is not the same as the user being active, so the
+    /// evidence comes from the lock state instead: protected data is available
+    /// only after the user has unlocked the device and while it stays unlocked.
+    ///
+    /// A locked device deliberately reports nothing. Treating mere
+    /// reachability as liveness would let a phone sitting on a table refresh
+    /// the heartbeat forever, which is the one failure mode that would make KC
+    /// worse than having no monitoring at all.
+    func handleWake(completion: @escaping (Bool) -> Void) {
+        guard credentials() != nil else {
+            completion(false)
+            return
+        }
+        arm()
+        flushQueue()
+
+        let unlocked = UIApplication.shared.isProtectedDataAvailable
+        if unlocked {
+            recordEvent(reason: "wake-sample")
+        }
+        completion(unlocked)
     }
 
     // MARK: - CLLocationManagerDelegate
@@ -173,7 +204,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         guard credentials() != nil else { return }
         switch manager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
-            startKeepAlive()
+            armRecoveryWake()
         default:
             break
         }
@@ -273,4 +304,13 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter
     }()
+}
+
+/// Entry point for the app target, which cannot see internal types in this pod.
+public enum KcPassiveBridge {
+    /// Forwarded from the AppDelegate's silent-push handler.
+    /// `true` means the device was unlocked and a ping was recorded.
+    public static func handleSilentPush(completion: @escaping (Bool) -> Void) {
+        PassiveGuard.shared.handleWake(completion: completion)
+    }
 }

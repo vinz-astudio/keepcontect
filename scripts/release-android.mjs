@@ -52,13 +52,12 @@ run('npm run build')
 run('node scripts/clean-tauri-dist.js')
 run('npx cap sync android')
 
-// 3) 构建发布签名 APK(Windows 用 gradlew.bat 绝对路径,避免 shell 找不到;
-//    签名密钥来自 gitignore 的 keystore.properties)
+// 3) 构建发布签名 APK 及 Google Play App Bundle (.aab)
 const gradlew =
   process.platform === 'win32'
     ? `"${join(root, 'android', 'gradlew.bat')}"`
     : './gradlew'
-run(`${gradlew} assembleRelease --console=plain`, { cwd: join(root, 'android') })
+run(`${gradlew} assembleRelease bundleRelease --console=plain`, { cwd: join(root, 'android') })
 
 // 4) 复制成带版本号的文件名 keep-contact-v${versionName}.apk (同时保留 keep-contact.apk 静态别名供兼容)
 const built = join(root, 'android/app/build/outputs/apk/release/app-release.apk')
@@ -70,6 +69,17 @@ copyFileSync(built, asset)
 copyFileSync(built, publicVersionedAsset)
 copyFileSync(built, publicLegacyAsset)
 console.log(`✓ 已成功复制 APK 至: ${publicVersionedAsset} 和 ${publicLegacyAsset}`)
+
+// 4b) 复制 Google Play 上架专用产物 .aab
+const builtAab = join(root, 'android/app/build/outputs/bundle/release/app-release.aab')
+if (existsSync(builtAab)) {
+  const aabFileName = `keep-contact-v${versionName}.aab`
+  const publicAab = join(root, `public/${aabFileName}`)
+  const publicLegacyAab = join(root, 'public/keep-contact.aab')
+  copyFileSync(builtAab, publicAab)
+  copyFileSync(builtAab, publicLegacyAab)
+  console.log(`✓ 已成功导出 Google Play 上架包 (.aab) 至: ${publicAab}`)
+}
 
 console.log('正在同步 released 版本记录...')
 if (releaseApkUrl || releaseExeUrl) {

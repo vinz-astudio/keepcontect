@@ -25,8 +25,12 @@ public class ActivityTransitionReceiver extends BroadcastReceiver {
                     hasTransitions = true;
                 }
                 if (hasTransitions) {
-                    Log.d(TAG, "User activity transition observed. Triggering passive ping.");
-                    PassivePing.ping(context);
+                    if (!PassivePing.isKeyguardLocked(context)) {
+                        Log.d(TAG, "User activity transition observed while unlocked. Triggering passive ping.");
+                        PassivePing.ping(context);
+                    } else {
+                        Log.d(TAG, "User activity transition observed while keyguard locked; skipping ping.");
+                    }
                 }
             }
         }

@@ -49,7 +49,7 @@ import { QRModal } from '@/features/relationships/QRModal'
 import { ApkUpgradeNotice } from '@/features/install/ApkUpgradeNotice'
 import { EditableName } from '@/features/common/EditableName'
 import { Icon } from '@/features/common/Icon'
-import { setDisplayName } from '@/features/profile/profileApi'
+import { deleteMyAccount, setDisplayName } from '@/features/profile/profileApi'
 
 import { becomeGuardianByCode } from '@/features/guardians/api'
 import {
@@ -179,9 +179,24 @@ function ProfileSection({ setIsScanning, signOut }: ProfileSectionProps) {
         </div>
       </div>
 
-      <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem' }}>
+      <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <button className="profile__danger-action" onClick={() => void signOut()}>
           {t('header.signout')}
+        </button>
+
+        <button
+          className="profile__danger-action"
+          style={{ background: 'transparent', color: 'var(--danger)', border: '1px solid var(--danger)', fontSize: '0.82rem' }}
+          onClick={async () => {
+            const confirmMsg = lang === 'zh'
+              ? '⚠️ 确定要注销账号并删除所有个人数据吗？\n\n此操作将彻底清空您在本应用中的个人档案、被动监测记录及紧急联系人关联，且不可恢复！'
+              : '⚠️ Are you sure you want to delete your account and all personal data?\n\nThis action will permanently erase your profile, signal records, and emergency contact relationships. This cannot be undone!'
+            if (window.confirm(confirmMsg)) {
+              await deleteMyAccount()
+            }
+          }}
+        >
+          {lang === 'zh' ? '注销账号并清空全部数据' : 'Delete Account & All Data'}
         </button>
       </div>
     </section>
