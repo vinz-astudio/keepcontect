@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 import { resilientFetch } from '@/lib/resilientFetch'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/config'
 import type { Database } from '@/lib/database.types'
@@ -45,14 +45,12 @@ export const initialHadAuthTokens: boolean = initialAuthKind !== null
 const url = SUPABASE_URL
 const anonKey = SUPABASE_ANON_KEY
 
-// 存储引擎：优先使用 localStorage 保证在 iOS Native (Capacitor/TestFlight) 及各端 100% 永久保持登录，
-// 同时也镜像写入 document.cookie (带 1年 max-age) 满足 PWA 模式下 OAuth 跨层传参需求。
-const cookieAndLocalStorage = {
+// 混合存储引擎：iOS PWA 独立主屏进程需要 cookie 传递与继承 OAuth 会话，而 iOS Native (Capacitor/TestFlight)
+// 在 WKWebView 进程重启时会清理无 max-age 的 cookie。
+// 混合引擎同时写入 document.cookie (带 1年 max-age) 和 localStorage；
+// 当 WKWebView/PWA 丢失单侧存储时，自动交叉恢复会话，实现 100% 持久保持登录。
+const hybridStorage = {
   getItem: (key: string): string | null => {
-    try {
-      const lsVal = localStorage.getItem(key)
-      if (lsVal) return lsVal
-    } catch {}
     try {
       const escapedKey = key.replace(/[-[\]{}()*+?.:=\\^$|#\s]/g, '\\$&')
       const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${escapedKey}=([^;]*)`))
@@ -62,27 +60,36 @@ const cookieAndLocalStorage = {
         return decoded
       }
     } catch {}
+    try {
+      const lsVal = localStorage.getItem(key)
+      if (lsVal) {
+        try {
+          document.cookie = `${key}=${encodeURIComponent(lsVal)}; path=/; max-age=31536000; SameSite=Lax`
+        } catch {}
+        return lsVal
+      }
+    } catch {}
     return null
   },
   setItem: (key: string, value: string): void => {
     try {
-      localStorage.setItem(key, value)
+      document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`
     } catch {}
     try {
-      document.cookie = `${key}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`
+      localStorage.setItem(key, value)
     } catch {}
   },
   removeItem: (key: string): void => {
     try {
-      localStorage.removeItem(key)
+      document.cookie = `${key}=; path=/; max-age=0; SameSite=Lax`
     } catch {}
     try {
-      document.cookie = `${key}=; path=/; max-age=0; SameSite=Lax`
+      localStorage.removeItem(key)
     } catch {}
   },
 }
 
-export const supabase = createClient<Database>(url, anonKey, {
+export const supabase = createBrowserClient<Database>(url, anonKey, {
   global: {
     // iOS 主屏 PWA 的 fetch 可能全局失败(TypeError)，自动降级 XHR
     fetch: resilientFetch,
@@ -92,6 +99,6 @@ export const supabase = createClient<Database>(url, anonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    storage: cookieAndLocalStorage,
+    storage: hybridStorage,
   },
 })

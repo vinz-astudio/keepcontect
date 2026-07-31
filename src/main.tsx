@@ -19,11 +19,11 @@ recordViewportTrace('main-after-render')
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').then(() => recordViewportTrace('service-worker-registered')).catch(() => {})
 
-  // 监听 controllerchange 事件：当后台发现新版本 Service Worker 并激活（skipWaiting）后，
-  // 页面自动重载刷新，实现完全无缝、免人工点击的“热更新”。
+  // 监听 controllerchange 事件：在浏览器模式下热更新刷新，但在 iOS PWA Standalone 模式下静默更新，避免 iOS 主屏快捷方式无限重载崩溃。
   let refreshing = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!refreshing) {
+    const isStandalone = (window.navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches
+    if (!refreshing && !isStandalone) {
       refreshing = true
       recordViewportTrace('service-worker-controllerchange')
       window.location.reload()
