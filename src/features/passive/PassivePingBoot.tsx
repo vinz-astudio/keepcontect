@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { getHeartbeatToken } from '@/features/passive/api'
 import {
   configureNativePassivePing,
@@ -27,7 +28,12 @@ export function PassivePingBoot() {
           const fcm = await getNativeFcmToken()
           if (fcm) {
             void supabase
-              .rpc('register_fcm_token', { _token: fcm })
+              .rpc('register_fcm_token', {
+                _token: fcm,
+                // The RPC defaults to 'android', so an iOS token would be
+                // mislabelled and never selected by a platform-targeted send.
+                _platform: Capacitor.getPlatform(),
+              })
               .then(() => {})
           }
         }

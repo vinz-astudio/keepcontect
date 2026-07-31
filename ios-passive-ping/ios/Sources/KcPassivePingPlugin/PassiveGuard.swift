@@ -31,13 +31,14 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     /// same `source` value, so the backend needs no change to accept iOS.
     private static let pingSource = "capacitor"
     /// Real unlocks are minutes apart; this only collapses lock/unlock fidgeting.
-    private static let minPingInterval: TimeInterval = 30
-    private static let maxQueuedPings = 200
+    private static let minRecordInterval: TimeInterval = 30
+    private static let maxRecordEntries = 500
 
     private enum Key {
         static let supabaseUrl = "kc.passive.supabaseUrl"
         static let token = "kc.passive.token"
-        static let queue = "kc.passive.queue"
+        static let record = "kc.passive.record"
+        static let lastRecordedAt = "kc.passive.lastRecordedAt"
         static let lastPingAt = "kc.passive.lastPingAt"
         static let lastEventAt = "kc.passive.lastEventAt"
         static let connectedAt = "kc.passive.connectedAt"
@@ -66,7 +67,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     func resumeIfConfigured() {
         guard credentials() != nil else { return }
         arm()
-        flushQueue()
+        flushRecord()
     }
 
     func configure(supabaseUrl: String, token: String) {
@@ -76,12 +77,12 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             defaults.set(Date().timeIntervalSince1970, forKey: Key.connectedAt)
         }
         arm()
-        flushQueue()
+        flushRecord()
     }
 
     func clear() {
         disarm()
-        for key in [Key.supabaseUrl, Key.token, Key.queue, Key.lastPingAt, Key.lastEventAt, Key.connectedAt] {
+        for key in [Key.supabaseUrl, Key.token, Key.record, Key.lastPingAt, Key.lastEventAt, Key.lastRecordedAt, Key.connectedAt] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -98,7 +99,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             "lastEventAt": defaults.double(forKey: Key.lastEventAt) * 1000,
             "lastPingAt": defaults.double(forKey: Key.lastPingAt) * 1000,
             "keepAliveGranted": authorized,
-            "queuedPings": queuedPings().count
+            "pendingRecords": recordSize()
         ]
     }
 
@@ -178,7 +179,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             return
         }
         arm()
-        flushQueue()
+        flushRecord()
 
         let unlocked = UIApplication.shared.isProtectedDataAvailable
         if unlocked {
@@ -192,8 +193,9 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         // Deliberately empty. Coordinates are never read, stored, or sent —
         // the fix exists only to prove to iOS that this process is doing work.
-        // Any change here turns a keepalive into location collection.
-        flushQueue()
+        // Any change here turns location into collection.
+        // A relaunch by significant change is also a chance to hand over the record.
+        flushRecord()
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
@@ -210,21 +212,77 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    // MARK: - Evidence
+    // MARK: - Local record
 
+    /// Every observation lands here first — nothing is reported the instant it
+    /// happens. The device keeps its own record and hands it over when it can
+    /// (on a wake, on a foreground, or opportunistically), which is the whole
+    /// point of the design: the server asks, the device answers with what it
+    /// accumulated, instead of the device chattering per event.
+    ///
+    /// It also collapses what used to be two separate ideas — an "offline
+    /// queue" and a "local record" — into one. A ping that failed to send and
+    /// an observation that has not been asked for yet are the same thing.
     func recordEvent(reason: String) {
         let now = Date()
         defaults.set(now.timeIntervalSince1970, forKey: Key.lastEventAt)
 
-        let last = defaults.double(forKey: Key.lastPingAt)
-        if last > 0, now.timeIntervalSince1970 - last < Self.minPingInterval {
+        let last = defaults.double(forKey: Key.lastRecordedAt)
+        if last > 0, now.timeIntervalSince1970 - last < Self.minRecordInterval {
             return
         }
-        send(eventId: UUID().uuidString, observedAt: now, isRetry: false)
-        _ = reason
+        defaults.set(now.timeIntervalSince1970, forKey: Key.lastRecordedAt)
+
+        append(entry: [
+            "event_id": UUID().uuidString,
+            "observed_at": now.timeIntervalSince1970,
+            "reason": reason
+        ])
+        flushRecord()
     }
 
-    private func send(eventId: String, observedAt: Date, isRetry: Bool) {
+    private func append(entry: [String: Any]) {
+        var record = localRecord()
+        record.append(entry)
+        // The oldest entries are the least useful: anything past the server's
+        // ±5-minute window is already analysis-only evidence.
+        if record.count > Self.maxRecordEntries {
+            record.removeFirst(record.count - Self.maxRecordEntries)
+        }
+        defaults.set(record, forKey: Key.record)
+    }
+
+    private func localRecord() -> [[String: Any]] {
+        defaults.array(forKey: Key.record) as? [[String: Any]] ?? []
+    }
+
+    func recordSize() -> Int { localRecord().count }
+
+    /// Hands the accumulated record to the server, one entry per request
+    /// because that is the contract `/functions/v1/ping` already speaks — no
+    /// backend change is needed to adopt this model.
+    ///
+    /// Entries that arrive outside the server's ±5-minute window are stored as
+    /// analysis evidence and deliberately do not refresh live safety. A
+    /// replayed unlock must never resolve an alert after the fact.
+    private func flushRecord() {
+        let record = localRecord()
+        guard !record.isEmpty, credentials() != nil else { return }
+        // Cleared up front so a slow flush cannot double-send; anything that
+        // fails is put back by `send`.
+        defaults.removeObject(forKey: Key.record)
+        for entry in record {
+            guard let eventId = entry["event_id"] as? String,
+                  let observedAt = entry["observed_at"] as? TimeInterval else { continue }
+            send(
+                eventId: eventId,
+                observedAt: Date(timeIntervalSince1970: observedAt),
+                reason: entry["reason"] as? String ?? "unknown"
+            )
+        }
+    }
+
+    private func send(eventId: String, observedAt: Date, reason: String) {
         guard let (baseUrl, token) = credentials(),
               let url = URL(string: baseUrl + "/functions/v1/ping") else { return }
 
@@ -248,43 +306,15 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
                 self.defaults.set(Date().timeIntervalSince1970, forKey: Key.lastPingAt)
                 return
             }
-            // A 4xx other than a transport failure means the server rejected the
-            // ping on its merits; retrying cannot fix it.
+            // A 4xx is the server rejecting this entry on its merits; keeping it
+            // would just retry the same rejection forever.
             if error == nil, status >= 400, status < 500 { return }
-            if !isRetry {
-                self.enqueue(eventId: eventId, observedAt: observedAt)
-            }
+            self.append(entry: [
+                "event_id": eventId,
+                "observed_at": observedAt.timeIntervalSince1970,
+                "reason": reason
+            ])
         }.resume()
-    }
-
-    // MARK: - Offline queue
-
-    /// Pings that miss their window still get recorded, but the server's
-    /// ±5-minute rule means a late one lands as analysis evidence rather than
-    /// refreshing live safety. That asymmetry is intentional: a replayed unlock
-    /// must never resolve an alert after the fact.
-    private func enqueue(eventId: String, observedAt: Date) {
-        var queue = queuedPings()
-        queue.append(["event_id": eventId, "observed_at": observedAt.timeIntervalSince1970])
-        if queue.count > Self.maxQueuedPings {
-            queue.removeFirst(queue.count - Self.maxQueuedPings)
-        }
-        defaults.set(queue, forKey: Key.queue)
-    }
-
-    private func queuedPings() -> [[String: Any]] {
-        defaults.array(forKey: Key.queue) as? [[String: Any]] ?? []
-    }
-
-    private func flushQueue() {
-        let queue = queuedPings()
-        guard !queue.isEmpty, credentials() != nil else { return }
-        defaults.removeObject(forKey: Key.queue)
-        for entry in queue {
-            guard let eventId = entry["event_id"] as? String,
-                  let observedAt = entry["observed_at"] as? TimeInterval else { continue }
-            send(eventId: eventId, observedAt: Date(timeIntervalSince1970: observedAt), isRetry: true)
-        }
     }
 
     // MARK: - Helpers
