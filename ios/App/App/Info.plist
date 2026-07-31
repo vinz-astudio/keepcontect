@@ -72,6 +72,8 @@
 	<string>Keep Contact keeps its guardian running in the background so it can notice that you unlocked your phone and let your circle know you are fine. Your location itself is never read, stored, or sent.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Keep Contact keeps its guardian running in the background so it can notice that you unlocked your phone and let your circle know you are fine. Your location itself is never read, stored, or sent.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Keep Contact 需要使用摄像头扫描二维码，以加入守护圈或同步登录凭据。</string>
 	<!-- No custom cryptography; keeps TestFlight builds from stalling on the
 	     export-compliance question at every upload. -->
 	<key>ITSAppUsesNonExemptEncryption</key>

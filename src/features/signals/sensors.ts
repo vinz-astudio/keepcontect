@@ -79,8 +79,9 @@ export async function setSensorEnabled(key: string, enabled: boolean): Promise<v
   try {
     localStorage.setItem(`kc.sensor.${key}`, enabled ? 'true' : 'false')
     
-    // If we're on Android native app and changing native sensors, re-configure
-    if (Capacitor.getPlatform() === 'android') {
+    // If we're on Android or iOS native app and changing native sensors, re-configure
+    const platform = Capacitor.getPlatform()
+    if (platform === 'android' || platform === 'ios') {
       const token = localStorage.getItem('kc.passiveToken')
       if (token) {
         await configureNativePassivePing(token)

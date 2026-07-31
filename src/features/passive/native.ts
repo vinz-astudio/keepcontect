@@ -166,7 +166,8 @@ export async function getNativeFcmToken(): Promise<string | null> {
 }
 
 export async function getGuardStatus(): Promise<GuardStatus | null> {
-  if (Capacitor.getPlatform() !== 'android') return null
+  const platform = Capacitor.getPlatform()
+  if (platform !== 'android' && platform !== 'ios') return null
   try {
     return await PassivePing.getGuardStatus()
   } catch {

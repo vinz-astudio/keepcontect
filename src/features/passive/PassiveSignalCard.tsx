@@ -117,11 +117,14 @@ export function PassiveSignalCard() {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
-    if (Capacitor.getPlatform() === 'android') {
+    const capPlatform = Capacitor.getPlatform()
+    if (capPlatform === 'android' || capPlatform === 'ios') {
       const g = await getGuardStatus()
       setGuard(g)
-      setUsageStatsEnabled(await isUsageStatsEnabled())
-      setActivityRecognitionEnabled(await isActivityRecognitionEnabled())
+      if (capPlatform === 'android') {
+        setUsageStatsEnabled(await isUsageStatsEnabled())
+        setActivityRecognitionEnabled(await isActivityRecognitionEnabled())
+      }
     }
   }, [])
 
@@ -296,12 +299,33 @@ export function PassiveSignalCard() {
           }
         }
 
+        const isNativeIos = Capacitor.getPlatform() === 'ios'
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {isNativeIos && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
+                    {lang === 'zh' ? 'iOS 原生解锁被动守护 (PassiveGuard)' : 'iOS Native Unlock Guard'}
+                  </span>
+                  <strong style={{ color: guard?.enabled ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
+                    {guard?.enabled
+                      ? (lang === 'zh' ? '运行中 (解锁静默告活已就绪)' : 'Running (Unlock detection active)')
+                      : (lang === 'zh' ? '未初始化 (需开启位置"始终"权限)' : 'Not initialized (Requires "Always" location)')}
+                  </strong>
+                </div>
+                <p className="muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: '1.3' }}>
+                  {lang === 'zh'
+                    ? '检测设备解锁行为并生成告活 Ping（绝不收集或传输地理位置）。请确保在 iOS 系统设置中已授予【位置权限 -> 始终】及开启【后台 App 刷新】。'
+                    : 'Detects phone unlocks in background without uploading location. Make sure Location is set to "Always" and Background App Refresh is enabled in iOS Settings.'}
+                </p>
+              </div>
+            )}
+
             <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
               {lang === 'zh'
-                ? '由于 iOS 系统的后台限制，网页/PWA 关闭后无法在后台运行。你可以导入我们预设的 Apple 快捷指令，利用系统事件（如充电、亮屏）触发静默报活，无需保持 App 开启：'
-                : 'Due to iOS background restrictions, web/PWA mode cannot run in the background. Import our pre-configured Apple Shortcut to trigger silent check-ins via system events (e.g. charging, screen unlock) without keeping the app open:'}
+                ? '你也可以导入我们预设的 Apple 快捷指令，利用系统事件（如充电、特定 App 打开）触发静默报活：'
+                : 'You can also import our pre-configured Apple Shortcut to trigger silent check-ins via system events (e.g. charging, specific app opened):'}
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '4px 0' }}>
