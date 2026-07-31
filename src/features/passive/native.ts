@@ -146,8 +146,17 @@ export async function openAutostartSettings(): Promise<void> {
   }
 }
 
+// Both platforms register through the same Firebase project, so an iOS device
+// lands in `push_tokens` exactly like an Android one and push-dispatch needs no
+// iOS branch. This is what gives an iOS user a chance to clear a `self` alert
+// before it escalates to their group.
+function isNativePushPlatform(): boolean {
+  const platform = Capacitor.getPlatform()
+  return platform === 'android' || platform === 'ios'
+}
+
 export async function requestNativeNotificationPermission(): Promise<void> {
-  if (Capacitor.getPlatform() !== 'android') return
+  if (!isNativePushPlatform()) return
   try {
     await PassivePing.requestNotificationPermission()
   } catch {
@@ -156,7 +165,7 @@ export async function requestNativeNotificationPermission(): Promise<void> {
 }
 
 export async function getNativeFcmToken(): Promise<string | null> {
-  if (Capacitor.getPlatform() !== 'android') return null
+  if (!isNativePushPlatform()) return null
   try {
     const res = await PassivePing.getFcmToken()
     return res?.token && res.token.length > 10 ? res.token : null

@@ -12,7 +12,9 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "configure", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clear", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "pingApp", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getGuardStatus", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "getGuardStatus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestNotificationPermission", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getFcmToken", returnType: CAPPluginReturnPromise)
     ]
 
     override public func load() {
@@ -46,5 +48,19 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func getGuardStatus(_ call: CAPPluginCall) {
         call.resolve(PassiveGuard.shared.status())
+    }
+
+    @objc func requestNotificationPermission(_ call: CAPPluginCall) {
+        PushRegistrar.requestPermission { granted in
+            call.resolve(["granted": granted])
+        }
+    }
+
+    @objc func getFcmToken(_ call: CAPPluginCall) {
+        PushRegistrar.fetchToken { token in
+            // The web layer only registers a non-empty token, so an empty
+            // string is a clean "not available yet" rather than an error.
+            call.resolve(["token": token ?? ""])
+        }
     }
 }

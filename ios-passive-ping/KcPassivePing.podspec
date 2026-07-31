@@ -15,5 +15,8 @@ Pod::Spec.new do |s|
   s.source_files = 'ios/Sources/**/*.{swift,h,m}'
   s.ios.deployment_target = '14.0'
   s.dependency 'Capacitor'
+  # iOS reaches the alert ladder through the same Firebase project as Android,
+  # so push-dispatch needs no iOS-specific branch.
+  s.dependency 'FirebaseMessaging'
   s.swift_version = '5.1'
 end
