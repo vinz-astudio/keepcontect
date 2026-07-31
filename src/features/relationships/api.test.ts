@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getUser = vi.fn()
+const getSession = vi.fn()
 const rpc = vi.fn()
 const deleteQuery = {
   delete: vi.fn(),
@@ -11,7 +12,7 @@ const from = vi.fn()
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
-    auth: { getUser },
+    auth: { getUser, getSession },
     rpc,
     from,
   },
@@ -23,6 +24,9 @@ describe('relationship api', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    // requireUid reads the cached session rather than round-tripping to getUser,
+    // so WKWebView cold starts do not fail on a network hop.
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } } })
     rpc.mockResolvedValue({ error: null })
     deleteQuery.delete.mockReturnValue(deleteQuery)
     deleteQuery.eq.mockReturnValue(deleteQuery)

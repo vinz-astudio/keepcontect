@@ -1,4 +1,6 @@
 import { createBrowserClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
+import { Capacitor } from '@capacitor/core'
 import { resilientFetch } from '@/lib/resilientFetch'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/config'
 import type { Database } from '@/lib/database.types'
@@ -84,16 +86,36 @@ const hybridStorage = {
   },
 }
 
-export const supabase = createBrowserClient<Database>(url, anonKey, {
-  global: {
-    // iOS 主屏 PWA 的 fetch 可能全局失败(TypeError)，自动降级 XHR
-    fetch: resilientFetch,
-  },
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
-    storage: hybridStorage,
-  },
-})
+const authOptions = {
+  persistSession: true,
+  autoRefreshToken: true,
+  detectSessionInUrl: true,
+  flowType: 'pkce' as const,
+  storage: hybridStorage,
+}
+
+const globalOptions = {
+  // iOS 主屏 PWA 的 fetch 可能全局失败(TypeError)，自动降级 XHR
+  fetch: resilientFetch,
+}
+
+// 两端的存储需求是相反的，必须分叉，一个全局选择必然顾此失彼。
+//
+// Web/PWA 用 createBrowserClient：iOS 主屏 PWA 是独立进程，OAuth 回跳要靠
+// cookie 才能把会话交接过来。
+//
+// 原生(Capacitor)用标准 createClient：createBrowserClient 会用自己的 cookie
+// storage **覆盖**调用方传入的 auth.storage(见 @supabase/ssr 的
+// createBrowserClient，storage 排在 ...options.auth 之后)，于是会话只落在
+// cookie 里；而 WKWebView 进程重启会清掉 cookie，App 每次冷启动都变成未登录。
+// 走标准 createClient 时 storage 才真正生效，会话落在 localStorage，能活过
+// 进程重启。
+export const supabase = Capacitor.isNativePlatform()
+  ? createClient<Database>(url, anonKey, {
+      global: globalOptions,
+      auth: authOptions,
+    })
+  : createBrowserClient<Database>(url, anonKey, {
+      global: globalOptions,
+      auth: authOptions,
+    })

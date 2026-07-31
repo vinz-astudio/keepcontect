@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetUser, mockRpc } = vi.hoisted(() => ({
+const { mockGetUser, mockGetSession, mockRpc } = vi.hoisted(() => ({
   mockGetUser: vi.fn(),
+  mockGetSession: vi.fn(),
   mockRpc: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
-    auth: { getUser: mockGetUser },
+    auth: { getUser: mockGetUser, getSession: mockGetSession },
     rpc: mockRpc,
   },
 }))
@@ -23,6 +24,7 @@ describe('tasks api - wall clock time (TDD RED)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+    mockGetSession.mockResolvedValue({ data: { session: { user: { id: 'user-1' } } } })
     mockRpc.mockResolvedValue({ error: null })
   })
 
