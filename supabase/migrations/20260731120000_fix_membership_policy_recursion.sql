@@ -55,8 +55,13 @@ returns boolean language sql security definer set search_path = '' stable as $$
   );
 $$;
 
-revoke execute on function private.is_group_admin(uuid, uuid) from public;
-revoke execute on function private.is_community_admin(uuid, uuid) from public;
+-- An RLS policy runs as the calling role, so the role evaluating the policy has
+-- to be able to execute the helper. Revoking from PUBLIC without granting to
+-- authenticated makes every membership write fail with 42501 instead -- which
+-- is exactly what happened on the first attempt at this repair. These grants
+-- mirror private.is_group_member, whose SELECT policy has always worked.
+grant execute on function private.is_group_admin(uuid, uuid) to authenticated;
+grant execute on function private.is_community_admin(uuid, uuid) to authenticated;
 
 ------------------------------------------------------------
 -- 2. group_members write policies

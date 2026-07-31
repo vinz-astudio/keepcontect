@@ -1,7 +1,7 @@
 // 一键发布 Android:升版本号 → 构建 Web → cap sync → 签名 APK → 传到 GitHub Release。
 // 用法: npm run release:android -- <versionName>   例: npm run release:android -- 0.4.2
 import { execSync } from 'node:child_process'
-import { readFileSync, writeFileSync, copyFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 

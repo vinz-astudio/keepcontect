@@ -296,6 +296,203 @@
   font-weight: 600;
   letter-spacing: -0.01em;
   margin: 0 0 0.75rem;
+}
+
+.icon {
+  flex: 0 0 auto;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.muted {
+  color: var(--fg-muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin: 0 0 0.75rem;
+}
+
+/* 进入当前 Tab 时的轻入场（错峰） */
+.home__page > * {
+  animation: kc-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.home__page > *:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.home__page > *:nth-child(3) {
+  animation-delay: 0.12s;
+}
+.home__page > *:nth-child(4) {
+  animation-delay: 0.18s;
+}
+
+.list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg);
+  border-radius: 0.7rem;
+  padding: 0.6rem 0.75rem;
+  gap: 0.5rem;
+}
+
+.list__item--group {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.list__row1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap; /* 名字 + 按钮组过宽时换行，不溢出卡片 */
+  gap: 0.5rem;
+}
+
+.list__row1 > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.list__row2 {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.tasklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.tasklist__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.tasklist__item > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tasklist__btns {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.tasklist__edit,
+.tasklist__cancel {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.tasklist__edit {
+  color: var(--accent);
+}
+
+.tasklist__cancel {
+  color: var(--danger);
+}
+
+.tasklist__edit:disabled,
+.tasklist__cancel:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.role {
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+.leave {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--fg-muted);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+}
+
+.code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.4rem;
+  user-select: all;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.row--actions {
+  margin-top: 0.5rem;
+}
+
+.row input,
+.row select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.95rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  outline: none;
+}
+
+.row input:focus,
+.row select:focus {
+  border-color: var(--accent);
+}
+
+.row button,
+.row--actions button {
+  padding: 0.6rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--bg);
   background: var(--accent);
   border: none;
@@ -400,5 +597,27 @@
 
 .list__row2 select:focus {
   border-color: var(--accent);
+}
+
+/* 仅在 360px 及以下极窄设备上触发微调，标准屏（375px+、390px+、412px+、430px+、Pad）100% 保持高颜值的原生设计 */
+@media (max-width: 360px) {
+  .card {
+    padding: 0.85rem 0.9rem;
+  }
+  .row {
+    flex-wrap: wrap;
+  }
+  .row input,
+  .row select {
+    flex: 1 1 120px;
+  }
+  .list__row2 {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .share {
+    padding: 0.3rem 0.55rem;
+    font-size: 0.78rem;
+  }
 }
 
