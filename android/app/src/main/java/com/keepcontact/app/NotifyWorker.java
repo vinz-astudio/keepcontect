@@ -154,7 +154,10 @@ public class NotifyWorker extends Worker {
         }
     }
 
-    private static void ensureChannel(Context context) {
+    /** Package-visible so MainActivity can create the channel at app start: an
+     *  FCM notification addressed to a channel that does not exist yet is
+     *  demoted to a default-importance one, losing its heads-up and its sound. */
+    static void ensureChannel(Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationManager manager = context.getSystemService(NotificationManager.class);
         if (manager == null) return;
@@ -186,7 +189,10 @@ public class NotifyWorker extends Worker {
             .setAutoCancel(true)
             .setContentIntent(pending);
         try {
-            NotificationManagerCompat.from(context).notify(id.hashCode(), builder.build());
+            // Tagged with the notification row id, matching the tag push-dispatch
+            // puts on the alert push, so a poll that finds the same row still
+            // unread replaces that notification instead of stacking a copy.
+            NotificationManagerCompat.from(context).notify(id, 0, builder.build());
         } catch (SecurityException ignored) {
             // POST_NOTIFICATIONS revoked between the check and here.
         }

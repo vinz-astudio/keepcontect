@@ -1,7 +1,8 @@
 // push-dispatch：扫描未推送的站内通知，向收件人的所有 Web Push 订阅发送，标记 pushed_at。
-// 另有 FCM 快路径(ADR-0004 Phase 2)：对注册了 FCM token 的原生 Android 设备发
-// data-only 空唤醒(不带任何内容)，设备被唤醒后自行从 notify-feed 拉取通知——
-// 通知内容永不经过 Google。凭据缺失时该分支静默跳过，Web Push 不受影响。
+// 另有 FCM 快路径(ADR-0004 Phase 2)：对注册了 FCM token 的原生设备(Android 与
+// iOS)发 data-only 空唤醒(不带任何内容)，设备被唤醒后自行从 notify-feed 拉取
+// 通知——通知内容永不经过 Google/Apple。凭据缺失时该分支静默跳过，Web Push 不
+// 受影响。
 // 触发：pg_cron 每分钟 + 客户端在 SOS 后即时 invoke。
 // VAPID/FCM 凭据：优先环境变量（Edge Function Secrets），回退 private.app_config。
 
@@ -155,12 +156,80 @@ async function fcmAccessToken(sa: ServiceAccount): Promise<string | null> {
   }
 }
 
-/** Send one data-only high-priority tickle. Returns 'sent' | 'dead' | 'failed'. */
+// Keep in sync with src/features/push/alertPushKinds.ts (the edge runtime
+// cannot import across the src/ boundary at deploy time). Only the kinds
+// addressed to the subject themselves carry text; every escalation kind stays
+// a content-free tickle because its text exposes a third party's jeopardy.
+const SELF_ADDRESSED_KINDS = new Set(['concern', 'self'])
+
+/** Send one FCM message. Returns 'sent' | 'dead' | 'failed'.
+ *
+ * Both transport envelopes ride on every message. FCM applies only the one that
+ * matches the token's platform, so a row whose `platform` label is wrong (iOS
+ * tokens were labelled 'android' until 2026-08-01) still gets the envelope its
+ * device needs.
+ *
+ * Two shapes, chosen by kind:
+ *
+ * - `alert` (concern, self): a normal notification message. The platform draws
+ *   it itself, so it lands on a locked screen with sound whether or not the app
+ *   is alive — including after an iOS user has swiped the app away, which a
+ *   background push never survives. Android needs an explicit `channel_id`,
+ *   since a notification addressed to a channel that does not exist falls back
+ *   to a default-importance one and loses its heads-up and its sound.
+ *
+ * - `tickle` (everything else): data-only. APNs will not wake an app from a
+ *   data-only payload unless it is addressed as a background push —
+ *   `apns-push-type: background` is mandatory on iOS 13+, APNs rejects a
+ *   background push at priority 10 so it must be 5, and without
+ *   `content-available` the app is never handed the message at all. Android
+ *   needs only HIGH priority, which is what buys a wake-up out of Doze.
+ */
 async function sendTickle(
   sa: ServiceAccount,
   accessToken: string,
   deviceToken: string,
+  alertBody?: string | null,
+  notificationId?: string,
 ): Promise<'sent' | 'dead' | 'failed'> {
+  const message: Record<string, unknown> = alertBody
+    ? {
+        token: deviceToken,
+        notification: { title: 'Keep Contact', body: alertBody },
+        data: { kind: 'alert' },
+        android: {
+          priority: 'HIGH',
+          notification: {
+            channel_id: 'kc_alerts',
+            sound: 'default',
+            // Tagged with the notification row id so that if the 15-minute poll
+            // later finds the same row still unread, NotifyWorker's post
+            // replaces this one instead of stacking a second copy.
+            tag: notificationId,
+          },
+        },
+        apns: {
+          headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
+          // No content-available: the platform displays this one, and waking the
+          // app to render a second copy would show the user two notifications.
+          payload: { aps: { sound: 'default' } },
+        },
+      }
+    : {
+        token: deviceToken,
+        data: { kind: 'tickle' },
+        android: { priority: 'HIGH' },
+        apns: {
+          headers: {
+            'apns-push-type': 'background',
+            'apns-priority': '5',
+          },
+          // Content-free: the device wakes and pulls the notification text from
+          // notify-feed, so nothing personal transits Apple.
+          payload: { aps: { 'content-available': 1 } },
+        },
+      }
+
   try {
     const res = await fetch(
       `https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`,
@@ -170,13 +239,7 @@ async function sendTickle(
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          message: {
-            token: deviceToken,
-            data: { kind: 'tickle' },
-            android: { priority: 'HIGH' },
-          },
-        }),
+        body: JSON.stringify({ message }),
       },
     )
     if (res.ok) return 'sent'
@@ -266,6 +329,19 @@ Deno.serve(async () => {
     fcmRowsByUser.set(row.user_id, arr)
   }
 
+  // Which recipients own a phone that expects to be woken. Without this the
+  // outcome cannot tell "never enabled push" apart from "the phone we know
+  // about has no token", which is the failure that hid a dead Android channel
+  // behind a stray desktop-browser subscription.
+  const nativeSeenSince = new Date(Date.now() - 30 * 86_400_000).toISOString()
+  const { data: nativeClients } = await supabase
+    .from('clients')
+    .select('user_id, platform, last_seen_at')
+    .in('user_id', recipientIds)
+    .in('platform', ['android-apk', 'ios-app'])
+    .gt('last_seen_at', nativeSeenSince)
+  const nativeInstallUsers = new Set((nativeClients ?? []).map((c) => c.user_id))
+
   // Fetch badge counts (unread notifications) per recipient
   const badgeByUser = new Map<string, number>()
   for (const uid of recipientIds) {
@@ -279,6 +355,7 @@ Deno.serve(async () => {
 
   let sent = 0
   let fcmSent = 0
+  let nativeMissed = 0
   const deadSubIds: string[] = []
   const deadFcmTokens: string[] = []
 
@@ -323,10 +400,11 @@ Deno.serve(async () => {
       }
     }
 
-    // 2. Attempt FCM tickles
+    // 2. Attempt FCM delivery
+    const alertBody = SELF_ADDRESSED_KINDS.has(n.kind) ? n.body : null
     if (fcmEnabled && fcmAccessTokenVal && sa) {
       for (const row of recipientFcmRows) {
-        const result = await sendTickle(sa, fcmAccessTokenVal, row.token)
+        const result = await sendTickle(sa, fcmAccessTokenVal, row.token, alertBody, n.id)
         if (result === 'sent') {
           fcmSuccessCount++
           fcmSent++
@@ -340,11 +418,19 @@ Deno.serve(async () => {
     const outcome = determineDeliveryOutcome({
       hasWebPushConfig: webPushEnabled,
       hasFcmConfig: fcmEnabled,
+      hasNativeInstall: nativeInstallUsers.has(n.recipient_id),
       dbSubsCount: targets.length,
       dbFcmCount: recipientFcmRows.length,
       webPushSuccessCount,
       fcmSuccessCount,
     })
+
+    if (outcome === 'native_missed') {
+      nativeMissed++
+      console.warn(
+        `notification ${n.id}: recipient has a native install with no push token — nothing can wake the phone`,
+      )
+    }
 
     // Call finalize RPC
     await supabase.rpc('finalize_notification_delivery', {
@@ -366,6 +452,7 @@ Deno.serve(async () => {
       ok: true,
       sent,
       fcmSent,
+      nativeMissed,
       webPushConfigured: webPushEnabled,
       fcmConfigured: fcmEnabled,
       pendingCount: pending.length,

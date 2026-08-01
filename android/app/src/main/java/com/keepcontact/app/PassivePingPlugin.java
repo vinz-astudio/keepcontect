@@ -76,6 +76,32 @@ public class PassivePingPlugin extends Plugin {
         call.resolve(new JSObject());
     }
 
+    /** Fetch the device's FCM registration token (empty string when Google
+     *  services are unavailable — e.g. GMS-less Chinese ROMs — or Firebase is
+     *  not configured). The web layer uploads it via the register_fcm_token RPC.
+     *  Without this method the whole FCM wake path is dead: the JS call rejects,
+     *  no token is ever registered, and push-dispatch has nothing to wake — which
+     *  is exactly what happened between 784daa4 and this restore. The iOS half
+     *  (KcPassivePingPlugin.swift) registers the same JS name, so both platforms
+     *  land in push_tokens through one interface. */
+    @PluginMethod
+    public void getFcmToken(PluginCall call) {
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance()
+                .getToken()
+                .addOnCompleteListener(task -> {
+                    JSObject ret = new JSObject();
+                    ret.put("token",
+                        task.isSuccessful() && task.getResult() != null ? task.getResult() : "");
+                    call.resolve(ret);
+                });
+        } catch (Exception e) {
+            JSObject ret = new JSObject();
+            ret.put("token", "");
+            call.resolve(ret);
+        }
+    }
+
     // —— Usage Stats Permission Bridge ——
 
     @PluginMethod

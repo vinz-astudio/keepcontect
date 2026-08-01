@@ -178,12 +178,28 @@ export async function requestNativeNotificationPermission(): Promise<void> {
   }
 }
 
+/**
+ * A native install with no token has no wake channel at all: push-dispatch can
+ * only fall back to the 15-minute WorkManager poll, which Doze defers on a
+ * locked idle phone. A silent `catch` hid exactly that for 26 days after the
+ * Android plugin lost `getFcmToken`, so the two failure modes are now told
+ * apart and both are logged loudly.
+ */
 export async function getNativeFcmToken(): Promise<string | null> {
   if (!isNativePushPlatform()) return null
   try {
     const res = await PassivePing.getFcmToken()
-    return res?.token && res.token.length > 10 ? res.token : null
-  } catch {
+    const token = res?.token && res.token.length > 10 ? res.token : null
+    if (!token) {
+      // Bridge answered, device has no token: no Google services, or Firebase
+      // has not finished registering yet. Heals on a later launch.
+      console.warn('[push] native FCM token unavailable on this device')
+    }
+    return token
+  } catch (e) {
+    // The bridge itself failed — the method is missing from this build, or the
+    // plugin is not loaded. This is a broken build, not a device limitation.
+    console.error('[push] native FCM bridge call failed; this build cannot receive push', e)
     return null
   }
 }

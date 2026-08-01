@@ -76,12 +76,18 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         if defaults.double(forKey: Key.connectedAt) == 0 {
             defaults.set(Date().timeIntervalSince1970, forKey: Key.connectedAt)
         }
+        // Anchored here rather than on the first push, so a fresh install never
+        // replays a week of history as if it had just happened.
+        NotifyFeed.primeCursorIfNeeded()
         arm()
         flushRecord()
     }
 
     func clear() {
         disarm()
+        // The cursor goes too: the next account to configure this install must
+        // start from its own "now", not inherit the previous one's position.
+        NotifyFeed.resetCursor()
         for key in [Key.supabaseUrl, Key.token, Key.record, Key.lastPingAt, Key.lastEventAt, Key.lastRecordedAt, Key.connectedAt] {
             defaults.removeObject(forKey: key)
         }
@@ -319,7 +325,10 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
 
     // MARK: - Helpers
 
-    private func credentials() -> (String, String)? {
+    /// Internal rather than private: `NotifyFeed` authenticates against the
+    /// same heartbeat token, and duplicating the UserDefaults keys would let
+    /// the two drift apart.
+    func credentials() -> (String, String)? {
         guard let baseUrl = defaults.string(forKey: Key.supabaseUrl),
               let token = defaults.string(forKey: Key.token),
               !baseUrl.isEmpty, !token.isEmpty else { return nil }
@@ -339,8 +348,34 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
 /// Entry point for the app target, which cannot see internal types in this pod.
 public enum KcPassiveBridge {
     /// Forwarded from the AppDelegate's silent-push handler.
-    /// `true` means the device was unlocked and a ping was recorded.
+    ///
+    /// The wake-up serves two purposes at once: it samples whether the device is
+    /// unlocked (liveness), and it is the only moment a suspended app can learn
+    /// that a notification is waiting. Both run on every push — a device that
+    /// answers "still locked" is exactly the device whose owner needs to be
+    /// shown the alert.
+    ///
+    /// `true` means something arrived, which iOS reads as a reason to keep
+    /// granting this app background wake-ups.
     public static func handleSilentPush(completion: @escaping (Bool) -> Void) {
-        PassiveGuard.shared.handleWake(completion: completion)
+        let group = DispatchGroup()
+        var recordedPing = false
+        var postedNotification = false
+
+        group.enter()
+        PassiveGuard.shared.handleWake { recorded in
+            recordedPing = recorded
+            group.leave()
+        }
+
+        group.enter()
+        NotifyFeed.fetchAndPost { posted in
+            postedNotification = posted
+            group.leave()
+        }
+
+        group.notify(queue: .main) {
+            completion(recordedPing || postedNotification)
+        }
     }
 }

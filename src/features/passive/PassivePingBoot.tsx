@@ -34,7 +34,17 @@ export function PassivePingBoot() {
                 // mislabelled and never selected by a platform-targeted send.
                 _platform: Capacitor.getPlatform(),
               })
-              .then(() => {})
+              .then(({ error }) => {
+                // Without a push_tokens row this install has no wake channel,
+                // so a failed upsert must not pass unnoticed.
+                if (error) {
+                  console.error('[push] register_fcm_token failed', error.message)
+                }
+              })
+          } else if (Capacitor.isNativePlatform()) {
+            console.error(
+              '[push] native install registered no FCM token; push-dispatch cannot wake this device',
+            )
           }
         }
       })
