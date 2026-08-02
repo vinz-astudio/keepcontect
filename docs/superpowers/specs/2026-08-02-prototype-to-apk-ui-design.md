@@ -1,7 +1,7 @@
 # Keep Contact Prototype-to-APK UI Migration Design
 
 Date: 2026-08-02
-Status: approved in conversation; awaiting written-spec review
+Status: approved by the human for implementation on 2026-08-02
 Owner: Codex
 Task: `KC-PROTOTYPE-TO-APK-UI-001`
 
