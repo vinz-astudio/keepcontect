@@ -19,6 +19,13 @@ import { getRoutineProfile } from '@/features/profile/profileApi'
 import { getRoutineModeOptions, getRoutineModeSummary } from '@/features/baseline/routineModeCopy'
 import { normalizeRoutineMode, type RoutineMode } from '@/features/baseline/routineMode'
 import { toast } from '@/lib/toast'
+import {
+  PrototypeBadge,
+  PrototypeCard,
+  PrototypeIcon,
+  PrototypeRow,
+  PrototypeSection,
+} from '@/features/prototype/PrototypeUI'
 import './LivenessCard.css'
 
 /**
@@ -155,194 +162,177 @@ export function RoutineSettings() {
       ? (lang === 'zh' ? ' (未保存更改)' : ' (Unsaved Changes)')
       : (lang === 'zh' ? ' (已保存)' : ' (Saved)')
 
-  // —— 短期:灵敏度 ——
-  const sensitivityRow = (
-    <div className="liveness__row">
-      <span className="liveness__rowlabel">
-        {t('live.sensitivity')}
-        <span style={{ fontSize: '0.8rem', fontWeight: 'normal', marginLeft: '6px', color: isSensitivityDirty ? 'var(--danger)' : 'var(--fg-muted)' }}>
-          {sensitivityStatus}
-        </span>
-      </span>
-      <div className="liveness__seg liveness__seg--stacked">
-        {(['high', 'balanced', 'low'] as Sensitivity[]).map((s) => (
-          <button
-            key={s}
-            className={config.sensitivity === s ? 'active' : ''}
-            disabled={isSavingSensitivity}
-            onClick={async () => {
-              if (isSavingSensitivity) return
-              const previous = config.sensitivity
-              setSensitivity(s)
-              setIsSavingSensitivity(true)
-              const res = await saveSensitivitySafe(s, previous)
-              if (res.success) {
-                setServerSensitivity(s)
-                await reload()
-                setStatusKey((k) => k + 1)
-              } else {
-                setSensitivity(previous)
-                toast(t('err.save'), 'danger')
-              }
-              setIsSavingSensitivity(false)
-            }}
-          >
-            <span className="liveness__seg-name">{t(`live.sens.${s}`)}</span>
-            <span className="liveness__seg-delta">
-              {s === 'high' ? '+0m' : s === 'balanced' ? '+45m' : '+90m'}
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
-  // —— 长期:每周时间表 + 睡眠时间 + 作息模式 + 数据授权 ——
-  const longConfigCard = (
-    <section className="card">
-      <h2 className="card__title">{t('tab.routine')}</h2>
-      {scheduleInner}
+  async function chooseSensitivity(next: Sensitivity) {
+    if (isSavingSensitivity) return
+    const previous = config.sensitivity
+    setSensitivity(next)
+    setIsSavingSensitivity(true)
+    const res = await saveSensitivitySafe(next, previous)
+    if (res.success) {
+      setServerSensitivity(next)
+      await reload()
+      setStatusKey((key) => key + 1)
+    } else {
+      setSensitivity(previous)
+      toast(t('err.save'), 'danger')
+    }
+    setIsSavingSensitivity(false)
+  }
 
-      <div className="liveness__row">
-        <span className="liveness__rowlabel">
-          {t('live.sleep')}
-          <span style={{ fontSize: '0.8rem', fontWeight: 'normal', marginLeft: '6px', color: isSleepDirty ? 'var(--danger)' : 'var(--fg-muted)' }}>
-            {sleepStatus}
-          </span>
-        </span>
-        <div className="liveness__custom">
-          <input
-            type="time"
-            value={sleepStart}
-            onChange={(e) => setSleepStart(e.target.value)}
-            aria-label={t('live.sleep.start')}
-          />
-          <span>–</span>
-          <input
-            type="time"
-            value={sleepEnd}
-            onChange={(e) => setSleepEnd(e.target.value)}
-            aria-label={t('live.sleep.end')}
-          />
-          <button disabled={sleepBusy} onClick={() => void saveSleep()}>
-            {t('live.sleep.save')}
-          </button>
-          {sleepOn && (
-            <button disabled={sleepBusy} onClick={() => void turnOffSleep()}>
-              {t('live.sleep.off')}
-            </button>
-          )}
-        </div>
-      </div>
-      <p className="muted liveness__sleephint">
-        {sleepOn
-          ? t('live.sleep.on', { start: sleepStart, end: sleepEnd })
-          : t('live.sleep.disabled')}
-      </p>
+  async function chooseRoutineType(next: RoutineMode) {
+    if (isSavingRoutinePattern) return
+    const previous = serverRoutinePattern
+    setRoutinePattern(next)
+    setIsSavingRoutinePattern(true)
+    const currentProfile = { routine_pattern: previous, consent_data_sharing: consentDataSharing }
+    const res = await updateRoutineProfileSafe({ routine_pattern: next }, currentProfile)
+    if (res.success) {
+      setServerRoutinePattern(next)
+      toast(lang === 'zh' ? '已更新作息类型' : 'Routine type updated', 'ok')
+    } else {
+      setRoutinePattern(previous)
+      toast(t('err.save'), 'danger')
+    }
+    setIsSavingRoutinePattern(false)
+  }
 
-      {/* 作息模式选择 */}
-      <div className="routine-mode">
-        <div className="liveness__rowlabel routine-mode__label">
-          {lang === 'zh' ? '作息模式' : 'Routine Mode'}
-          <span style={{ fontSize: '0.8rem', fontWeight: 'normal', marginLeft: '6px', color: isRoutinePatternDirty ? 'var(--danger)' : 'var(--fg-muted)' }}>
-            {routinePatternStatus}
-          </span>
-        </div>
-        <p className="routine-mode__summary">{getRoutineModeSummary(lang)}</p>
-        <div className="routine-mode__list">
-          {getRoutineModeOptions(lang).map((item) => {
-            const isActive = routinePattern === item.value
-            return (
-              <button
-                key={item.value}
-                className={`routine-mode__button${isActive ? ' is-active' : ''}`}
-                disabled={isSavingRoutinePattern}
-                onClick={async () => {
-                  if (isSavingRoutinePattern) return
-                  const previous = serverRoutinePattern
-                  setRoutinePattern(item.value)
-                  setIsSavingRoutinePattern(true)
-                  const currentProfile = { routine_pattern: previous, consent_data_sharing: consentDataSharing }
-                  const res = await updateRoutineProfileSafe({ routine_pattern: item.value }, currentProfile)
-                  if (res.success) {
-                    setServerRoutinePattern(item.value)
-                    toast(lang === 'zh' ? '已更新作息模式' : 'Routine mode updated', 'ok')
-                  } else {
-                    setRoutinePattern(previous)
-                    toast(t('err.save'), 'danger')
-                  }
-                  setIsSavingRoutinePattern(false)
-                }}
-              >
-                <span className="routine-mode__copy">
-                  <span>{item.label}</span>
-                  <small>{item.description}</small>
-                </span>
-                {isActive && <span className="routine-mode__check">✓</span>}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* 匿名数据共享授权 */}
-      <div className="liveness__row" style={{ alignItems: 'flex-start' }}>
-        <label className="toggle" style={{ gap: '10px', alignItems: 'flex-start', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            style={{ marginTop: '3px' }}
-            checked={consentDataSharing}
-            disabled={isSavingConsent}
-            onChange={async (e) => {
-              if (isSavingConsent) return
-              const checked = e.target.checked
-              const previous = serverConsentDataSharing
-              setConsentDataSharing(checked)
-              setIsSavingConsent(true)
-              const currentProfile = { routine_pattern: routinePattern, consent_data_sharing: previous }
-              const res = await updateRoutineProfileSafe({ consent_data_sharing: checked }, currentProfile)
-              if (res.success) {
-                setServerConsentDataSharing(checked)
-                toast(lang === 'zh' ? '共享协议设置已更新' : 'Data sharing agreement updated', 'ok')
-              } else {
-                setConsentDataSharing(previous)
-                toast(t('err.save'), 'danger')
-              }
-              setIsSavingConsent(false)
-            }}
-          />
-          <span style={{ fontSize: '0.85rem', color: 'var(--fg-muted)', lineHeight: '1.4' }}>
-            {lang === 'zh'
-              ? '我同意授权匿名共享我的活跃频次数据,帮助改进作息分析模型且优化新用户的冷启动样板。'
-              : 'I consent to anonymous sharing of my activity density data to help improve routine models and optimize patterns for new users.'}
-            <span style={{ fontSize: '0.8rem', fontWeight: 'normal', marginLeft: '6px', color: isConsentDirty ? 'var(--danger)' : 'var(--fg-muted)' }}>
-              {consentStatus}
-            </span>
-          </span>
-        </label>
-      </div>
-    </section>
-  )
+  async function chooseConsent(checked: boolean) {
+    if (isSavingConsent) return
+    const previous = serverConsentDataSharing
+    setConsentDataSharing(checked)
+    setIsSavingConsent(true)
+    const currentProfile = { routine_pattern: routinePattern, consent_data_sharing: previous }
+    const res = await updateRoutineProfileSafe({ consent_data_sharing: checked }, currentProfile)
+    if (res.success) {
+      setServerConsentDataSharing(checked)
+      toast(lang === 'zh' ? '共享设置已更新' : 'Sharing preference updated', 'ok')
+    } else {
+      setConsentDataSharing(previous)
+      toast(t('err.save'), 'danger')
+    }
+    setIsSavingConsent(false)
+  }
 
   return (
-    <div className="routine-grid">
-      {/* 短期组:守护活跃度 + 判断依据 + 灵敏度,合成一个 block */}
-      <div className="routine-grid__col1">
-        <section className="card psig__short">
-          <ActiveStatusBox
-            statusLine={statusLine}
-            serverLastAt={serverLastBehaviorAt}
-            serverTruthRequired
+    <div className="routine-prototype-settings">
+      <PrototypeSection
+        title={lang === 'zh' ? '夜间休息与晨间缓冲' : 'Sleep & Morning Grace'}
+        subtitle={lang === 'zh' ? '休息期间与起床后的短暂缓冲不会被误判为异常安静。' : 'Sleep and a short morning grace period are excluded from quiet-time judgement.'}
+      >
+        <PrototypeCard>
+          {scheduleInner}
+          <PrototypeRow
+            icon="bedtime"
+            title={t('live.sleep')}
+            subtitle={sleepOn
+              ? t('live.sleep.on', { start: sleepStart, end: sleepEnd })
+              : t('live.sleep.disabled')}
+            trailing={<PrototypeBadge tone={isSleepDirty ? 'limited' : 'ready'}>{sleepStatus.replace(/[()]/g, '')}</PrototypeBadge>}
           />
-          {basisInner}
-          {sensitivityRow}
-        </section>
-      </div>
+          <div className="routine-prototype-settings__time-row">
+            <label>
+              <span>{t('live.sleep.start')}</span>
+              <input type="time" value={sleepStart} onChange={(event) => setSleepStart(event.target.value)} />
+            </label>
+            <label>
+              <span>{t('live.sleep.end')}</span>
+              <input type="time" value={sleepEnd} onChange={(event) => setSleepEnd(event.target.value)} />
+            </label>
+          </div>
+          <div className="routine-prototype-settings__actions">
+            <button className="prototype-button prototype-button--primary" disabled={sleepBusy} onClick={() => void saveSleep()}>
+              {t('live.sleep.save')}
+            </button>
+            {sleepOn && (
+              <button className="prototype-button prototype-button--ghost" disabled={sleepBusy} onClick={() => void turnOffSleep()}>
+                {t('live.sleep.off')}
+              </button>
+            )}
+          </div>
+        </PrototypeCard>
+      </PrototypeSection>
 
-      {/* 长期组:慢慢学习与长期设置 */}
-      <div className="routine-grid__col2">
-        {longConfigCard}
-      </div>
+      <PrototypeSection
+        title={lang === 'zh' ? '作息类型' : 'Routine type'}
+        subtitle={getRoutineModeSummary(lang)}
+      >
+        <PrototypeCard compact>
+          <div className="routine-prototype-settings__options">
+            {getRoutineModeOptions(lang).map((item) => {
+              const active = routinePattern === item.value
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  className="routine-prototype-settings__option"
+                  aria-pressed={active}
+                  disabled={isSavingRoutinePattern}
+                  onClick={() => void chooseRoutineType(item.value)}
+                >
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>{item.description}</small>
+                  </span>
+                  {active && <PrototypeIcon name="check" />}
+                </button>
+              )
+            })}
+          </div>
+          <p className="routine-prototype-settings__feedback" aria-live="polite">{routinePatternStatus}</p>
+        </PrototypeCard>
+      </PrototypeSection>
+
+      <PrototypeSection
+        title={lang === 'zh' ? '提醒灵敏度' : 'Alert Sensitivity'}
+        subtitle={lang === 'zh' ? '调节提醒提前或延后的缓冲，不会改变已学到的真实作息。' : 'Adjust the reminder buffer without replacing the routine evidence already learned.'}
+      >
+        <PrototypeCard>
+          <ActiveStatusBox statusLine={statusLine} serverLastAt={serverLastBehaviorAt} serverTruthRequired />
+          {basisInner}
+          <div className="routine-prototype-settings__sensitivity" role="radiogroup" aria-label={t('live.sensitivity')}>
+            {(['high', 'balanced', 'low'] as Sensitivity[]).map((sensitivity) => (
+              <button
+                key={sensitivity}
+                type="button"
+                role="radio"
+                aria-checked={config.sensitivity === sensitivity}
+                disabled={isSavingSensitivity}
+                onClick={() => void chooseSensitivity(sensitivity)}
+              >
+                <span>{t(`live.sens.${sensitivity}`)}</span>
+                <small>{sensitivity === 'high' ? '+0m' : sensitivity === 'balanced' ? '+45m' : '+90m'}</small>
+              </button>
+            ))}
+          </div>
+          <p className="routine-prototype-settings__feedback" aria-live="polite">{sensitivityStatus}</p>
+        </PrototypeCard>
+      </PrototypeSection>
+
+      <PrototypeSection
+        title={lang === 'zh' ? '时区与隐私' : 'Timezone & Privacy'}
+        subtitle={lang === 'zh' ? '时区来自本机；共享选择与当前提醒估算分开处理。' : 'Timezone comes from this phone; sharing choices stay separate from the current alert estimate.'}
+      >
+        <PrototypeCard>
+          <PrototypeRow icon="globe" title={lang === 'zh' ? '本机时区' : 'This phone’s timezone'} subtitle={timezone} />
+          <label className="routine-prototype-settings__check">
+            <input
+              type="checkbox"
+              checked={consentDataSharing}
+              disabled={isSavingConsent}
+              onChange={(event) => void chooseConsent(event.target.checked)}
+            />
+            <span>
+              <strong>{lang === 'zh' ? '允许匿名作息学习' : 'Allow anonymous routine learning'}</strong>
+              <small>{lang === 'zh'
+                ? '只共享用于改善冷启动模型的活跃频次，不共享手机内容。'
+                : 'Shares activity frequency for cold-start improvement, never phone content.'}</small>
+            </span>
+          </label>
+          <p className="routine-prototype-settings__feedback" aria-live="polite">{consentStatus}</p>
+        </PrototypeCard>
+      </PrototypeSection>
     </div>
   )
 }
