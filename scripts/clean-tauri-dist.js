@@ -7,6 +7,7 @@ const rootDir = path.join(__dirname, '..');
 const roots = [
   path.join(rootDir, 'dist'),
   path.join(rootDir, 'android/app/src/main/assets/public'),
+  path.join(rootDir, 'ios/App/App/public'),
 ];
 
 // Installer artifacts are served from public/, but must never be bundled back
@@ -22,6 +23,11 @@ const roots = [
 // and the desktop installers by one exact relative path, so it missed both the
 // `.aab` bundles and the `.exe` files that sit at the root of public/ with a
 // version in their filename.
+//
+// Wired to `postbuild` rather than called by each release script: the iOS
+// TestFlight workflow ran `npm run build && npx cap sync ios` and never invoked
+// this, so the whole installer pile shipped inside the iOS app. A pipeline that
+// has to remember an extra step is a pipeline that will forget it.
 const INSTALLER_EXTENSIONS = ['.apk', '.aab', '.exe', '.msi'];
 
 function cleanTree(dir) {

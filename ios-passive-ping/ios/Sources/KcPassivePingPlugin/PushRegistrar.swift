@@ -57,10 +57,32 @@ enum PushRegistrar {
         }
     }
 
-    static func fetchToken(completion: @escaping (String?) -> Void) {
+    /// Firebase cannot mint an FCM token until APNs has handed back a device
+    /// token, and that round-trip finishes a second or two after
+    /// `registerForRemoteNotifications()`. The web layer asks for the token
+    /// immediately after requesting permission, so the first attempt normally
+    /// loses that race and fails with "No APNS token specified before fetching
+    /// FCM Token" — an error the old one-shot version swallowed, leaving iOS
+    /// with no row in `push_tokens` and therefore no push at all.
+    ///
+    /// Retrying costs nothing when the token is already there, and the JS side
+    /// simply awaits a slightly slower promise when it is not.
+    static func fetchToken(retriesLeft: Int = 6, completion: @escaping (String?) -> Void) {
         configureIfNeeded()
-        Messaging.messaging().token { token, _ in
-            completion(token)
+        Messaging.messaging().token { token, error in
+            if let token, !token.isEmpty {
+                completion(token)
+                return
+            }
+            guard retriesLeft > 0 else {
+                NSLog("[KC] FCM token unavailable after retries: %@",
+                      error?.localizedDescription ?? "no token, no error")
+                completion(nil)
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                fetchToken(retriesLeft: retriesLeft - 1, completion: completion)
+            }
         }
     }
 }
