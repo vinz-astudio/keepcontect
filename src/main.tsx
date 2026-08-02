@@ -2,6 +2,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from '@/App'
 import '@/features/install/installPrompt' // 尽早注册 beforeinstallprompt 捕获
+import '@fontsource-variable/plus-jakarta-sans'
+import '@material-symbols/font-400/rounded.css'
 import '@/index.css'
 import { installViewportDiagnostics, recordViewportTrace } from '@/lib/viewportDiagnostics'
 
