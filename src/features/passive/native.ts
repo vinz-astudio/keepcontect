@@ -30,6 +30,7 @@ interface PassivePingPlugin {
   openAutostartSettings(): Promise<void>
   requestNotificationPermission(): Promise<void>
   getFcmToken(): Promise<{ token: string }>
+  consumeLaunchNotificationKind(): Promise<{ kind: string }>
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>
   getGuardStatus(): Promise<GuardStatus>
 
@@ -201,6 +202,28 @@ export async function getNativeFcmToken(): Promise<string | null> {
     // plugin is not loaded. This is a broken build, not a device limitation.
     console.error('[push] native FCM bridge call failed; this build cannot receive push', e)
     return null
+  }
+}
+
+/**
+ * Which notification kind opened the app, read once and cleared.
+ *
+ * The PWA gets this from the `?notifKind=` query the service worker adds when a
+ * web notification is tapped. A tapped system notification hands the native
+ * shell no such signal, so without this the app opened on the home screen and
+ * only swapped to the unlock prompt once the network confirmed an open alert —
+ * home screen, sync, flicker, prompt. Returns '' when the app was opened some
+ * other way, and on platforms with no native shell.
+ */
+export async function consumeLaunchNotificationKind(): Promise<string> {
+  const platform = Capacitor.getPlatform()
+  if (platform !== 'android' && platform !== 'ios') return ''
+  try {
+    const res = await PassivePing.consumeLaunchNotificationKind()
+    return res?.kind ?? ''
+  } catch {
+    // An older shell without the method: fall back to the network path.
+    return ''
   }
 }
 

@@ -14,7 +14,8 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "pingApp", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getGuardStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestNotificationPermission", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getFcmToken", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "getFcmToken", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "consumeLaunchNotificationKind", returnType: CAPPluginReturnPromise)
     ]
 
     override public func load() {
@@ -54,6 +55,12 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
         PushRegistrar.requestPermission { granted in
             call.resolve(["granted": granted])
         }
+    }
+
+    /// Which notification kind opened the app, read once and cleared. Empty
+    /// string means the app was opened some other way.
+    @objc func consumeLaunchNotificationKind(_ call: CAPPluginCall) {
+        call.resolve(["kind": NotificationTap.shared.consume()])
     }
 
     @objc func getFcmToken(_ call: CAPPluginCall) {

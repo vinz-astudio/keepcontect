@@ -347,6 +347,13 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
 
 /// Entry point for the app target, which cannot see internal types in this pod.
 public enum KcPassiveBridge {
+    /// Call from `didFinishLaunchingWithOptions`. A cold-start notification tap
+    /// is delivered as soon as a delegate exists, so registering later — from a
+    /// plugin's `load()`, say — can miss the launch that carried it.
+    public static func registerNotificationTapCapture() {
+        NotificationTap.shared.register()
+    }
+
     /// Forwarded from the AppDelegate's silent-push handler.
     ///
     /// The wake-up serves two purposes at once: it samples whether the device is

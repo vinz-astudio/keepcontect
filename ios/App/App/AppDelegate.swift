@@ -8,7 +8,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // Registered here rather than from the plugin's load(): a tap that cold-
+        // starts the app is delivered the moment a notification delegate exists,
+        // and anything later can miss it.
+        KcPassiveBridge.registerNotificationTapCapture()
         return true
     }
 

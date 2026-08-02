@@ -35,6 +35,7 @@ import { primeAlarm } from '@/features/baseline/alarm'
 import type { BaselineConfig, Evaluation } from '@/features/baseline/types'
 import { shouldShowSelfCheckForNotificationKind } from '@/features/alerts/notificationRouting'
 import { recordViewportTrace } from '@/lib/viewportDiagnostics'
+import { consumeLaunchNotificationKind } from '@/features/passive/native'
 
 /** 解锁遮罩的非告警模式：演练（验证已设手势）/ 设置（首次或修改手势） */
 export type OverlayMode = 'none' | 'practice' | 'setup'
@@ -106,6 +107,15 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
       if (shouldShowSelfCheckForNotificationKind(notificationKind)) setAlertHint(true)
       window.history.replaceState(null, '', window.location.pathname) // 清掉参数，避免刷新再触发
     }
+
+    // 原生壳没有上面那个查询参数：系统通知点击只是把 App 拉起来。改由原生记下
+    // "用户点的是哪种通知"，这里读一次就清掉，让解锁界面第一帧就顶出来，而不是
+    // 先落到首页、等网络确认完再闪一下换过去。
+    void consumeLaunchNotificationKind().then((notificationKind) => {
+      if (!notificationKind) return
+      recordViewportTrace('liveness-from-notification-native', { notificationKind })
+      if (shouldShowSelfCheckForNotificationKind(notificationKind)) setAlertHint(true)
+    })
 
   }, [])
 

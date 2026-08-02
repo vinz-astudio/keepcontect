@@ -191,12 +191,18 @@ async function sendTickle(
   deviceToken: string,
   alertBody?: string | null,
   notificationId?: string,
+  notificationKind?: string,
 ): Promise<'sent' | 'dead' | 'failed'> {
   const message: Record<string, unknown> = alertBody
     ? {
         token: deviceToken,
         notification: { title: 'Keep Contact', body: alertBody },
-        data: { kind: 'alert' },
+        // `notifKind` mirrors the query parameter the service worker puts on the
+        // URL when a web notification is tapped. It lets the app raise the
+        // unlock prompt the instant it launches, instead of showing the home
+        // screen and only swapping to the prompt once the network round-trip
+        // confirms an open alert.
+        data: { kind: 'alert', notifKind: notificationKind ?? '' },
         android: {
           priority: 'HIGH',
           notification: {
@@ -414,7 +420,9 @@ Deno.serve(async () => {
     if (fcmEnabled && fcmAccessTokenVal && sa) {
       for (const row of recipientFcmRows) {
         const alertBody = selfAddressed && row.platform === 'ios' ? n.body : null
-        const result = await sendTickle(sa, fcmAccessTokenVal, row.token, alertBody, n.id)
+        const result = await sendTickle(
+          sa, fcmAccessTokenVal, row.token, alertBody, n.id, n.kind,
+        )
         if (result === 'sent') {
           fcmSuccessCount++
           fcmSent++

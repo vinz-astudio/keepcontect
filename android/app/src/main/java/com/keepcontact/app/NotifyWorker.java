@@ -59,6 +59,8 @@ public class NotifyWorker extends Worker {
         return "concern".equals(kind) || "self".equals(kind);
     }
     private static final String PREFS = "keep_contact_passive";
+    /** Read once by PassivePingPlugin.consumeLaunchNotificationKind. */
+    static final String EXTRA_NOTIF_KIND = "kcNotifKind";
     private static final String KEY_SINCE = "notify_since";
 
     public NotifyWorker(@NonNull Context context, @NonNull WorkerParameters params) {
@@ -201,6 +203,10 @@ public class NotifyWorker extends Worker {
             .getLaunchIntentForPackage(context.getPackageName());
         if (launch == null) return;
         launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        // Mirrors the ?notifKind= query the service worker puts on the PWA's URL:
+        // it lets the web layer raise the unlock prompt on the first frame rather
+        // than after the network confirms an open alert.
+        launch.putExtra(EXTRA_NOTIF_KIND, kind);
         PendingIntent pending = PendingIntent.getActivity(
             context, id.hashCode(), launch,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);

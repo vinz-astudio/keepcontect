@@ -76,6 +76,26 @@ public class PassivePingPlugin extends Plugin {
         call.resolve(new JSObject());
     }
 
+    /** Which notification kind opened the app, read once and cleared. Empty
+     *  string means the app was opened some other way. Lets the web layer raise
+     *  the unlock prompt on the first frame instead of after a round-trip. */
+    @PluginMethod
+    public void consumeLaunchNotificationKind(PluginCall call) {
+        String kind = "";
+        android.app.Activity activity = getActivity();
+        if (activity != null && activity.getIntent() != null) {
+            String extra = activity.getIntent().getStringExtra(NotifyWorker.EXTRA_NOTIF_KIND);
+            if (extra != null) {
+                kind = extra;
+                // Cleared so a later resume cannot replay a prompt already dealt with.
+                activity.getIntent().removeExtra(NotifyWorker.EXTRA_NOTIF_KIND);
+            }
+        }
+        JSObject ret = new JSObject();
+        ret.put("kind", kind);
+        call.resolve(ret);
+    }
+
     /** Fetch the device's FCM registration token (empty string when Google
      *  services are unavailable — e.g. GMS-less Chinese ROMs — or Firebase is
      *  not configured). The web layer uploads it via the register_fcm_token RPC.
