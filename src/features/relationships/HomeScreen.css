@@ -27,6 +27,11 @@
   gap: 12px;
 }
 
+.prototype-section > .spatial-v2-section > .spatial-v2-header,
+.prototype-section .card > .card__title:first-child {
+  display: none;
+}
+
 .home-prototype__button-row {
   display: flex;
   flex-wrap: wrap;

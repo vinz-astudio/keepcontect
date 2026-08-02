@@ -466,6 +466,7 @@ export function HomeScreen() {
             displayName={(user?.user_metadata?.display_name as string | undefined) ?? user?.email ?? ''}
             unreadCount={unread}
             sosBusy={sosBusy}
+            contentKey={gmOpen ? 'gm' : activeTab}
           >
             {screen}
           </AppShell>

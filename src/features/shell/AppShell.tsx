@@ -29,6 +29,7 @@ export function AppShell({
   displayName = '',
   unreadCount = 0,
   sosBusy = false,
+  contentKey = activeTab,
   children,
 }: {
   activeTab: PrimaryTab
@@ -37,6 +38,7 @@ export function AppShell({
   displayName?: string
   unreadCount?: number
   sosBusy?: boolean
+  contentKey?: string
   children?: ReactNode
 }) {
   const { t, lang } = useI18n()
@@ -45,6 +47,7 @@ export function AppShell({
   const startedAtRef = useRef<number | null>(null)
   const frameRef = useRef<number | null>(null)
   const firedRef = useRef(false)
+  const scrollRef = useRef<HTMLElement | null>(null)
 
   const stopAnimation = () => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
@@ -59,6 +62,10 @@ export function AppShell({
   }
 
   useEffect(() => () => stopAnimation(), [])
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'instant' })
+  }, [contentKey])
 
   const tick = (now: number) => {
     const progress = getSosHoldProgress(startedAtRef.current, now)
@@ -131,7 +138,7 @@ export function AppShell({
         )}
       </header>
 
-      <main className="app-shell__scroll" id="main-content">
+      <main ref={scrollRef} className="app-shell__scroll" id="main-content">
         {children}
       </main>
 

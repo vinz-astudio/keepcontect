@@ -5,6 +5,7 @@ const indexCss = readFileSync('src/index.css', 'utf8')
 const homeCss = readFileSync('src/features/relationships/HomeScreen.css', 'utf8')
 const tabBarCss = readFileSync('src/features/nav/TabBar.css', 'utf8')
 const appShellCss = readFileSync('src/features/shell/AppShell.css', 'utf8')
+const appShellSource = readFileSync('src/features/shell/AppShell.tsx', 'utf8')
 const html = readFileSync('index.html', 'utf8')
 
 function ruleBlock(source: string, prelude: string): string {
@@ -65,6 +66,11 @@ describe('iOS installed-PWA full-height regression', () => {
     expect(appShellCss).toMatch(/\.app-shell\s*\{[\s\S]*min-height:\s*100dvh;/)
     expect(appShellCss).toMatch(/\.app-shell__scroll\s*\{[\s\S]*overflow-y:\s*auto;/)
     expect(appShellCss).toMatch(/\.app-shell__nav\s*\{[\s\S]*safe-area-inset-bottom/)
+  })
+
+  it('returns the content viewport to the top when destinations change', () => {
+    expect(appShellSource).toContain('contentKey')
+    expect(appShellSource).toContain('scrollTo({ top: 0')
   })
 
   it('uses 100vh during the standalone splash and removes unreachable fixed-strip workarounds', () => {
