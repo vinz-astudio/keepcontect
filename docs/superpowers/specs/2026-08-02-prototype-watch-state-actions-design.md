@@ -1,6 +1,6 @@
 # Prototype Watch State-Conditioned Actions
 
-Date: 2026-08-02  
+Date: 2026-08-02
 Task: `KC-PROTOTYPE-WATCH-ACTIONS-001`
 
 ## Problem
