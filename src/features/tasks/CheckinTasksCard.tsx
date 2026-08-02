@@ -7,9 +7,11 @@ import {
 } from '@/features/tasks/api'
 import { getProfileName } from '@/features/alerts/api'
 import { translate, useI18n } from '@/lib/i18n'
+import { useUiMode } from '@/lib/uiMode'
 
 export function CheckinTasksCard() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  const [uiMode] = useUiMode()
   const [tasks, setTasks] = useState<CheckinTask[]>([])
   const [names, setNames] = useState<Map<string, string>>(new Map())
   const [busy, setBusy] = useState(false)
@@ -65,9 +67,18 @@ export function CheckinTasksCard() {
   if (!loading && tasks.length === 0) return null
 
   return (
-    <section className="card">
-      <h2 className="card__title">{t('tasks.title')}</h2>
-      <p className="muted">{t('tasks.desc')}</p>
+    <section className={uiMode === 'v2' ? 'spatial-v2-section' : 'card'}>
+      {uiMode === 'v2' ? (
+        <div className="spatial-v2-header">
+          <span>{lang === 'zh' ? '守护打卡安排' : 'CHECK-IN ARRANGEMENTS'}</span>
+          <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>{tasks.length} ACTIVE</span>
+        </div>
+      ) : (
+        <>
+          <h2 className="card__title">{t('tasks.title')}</h2>
+          <p className="muted">{t('tasks.desc')}</p>
+        </>
+      )}
 
       {error && <p className="home__error">{error}</p>}
 

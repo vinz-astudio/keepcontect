@@ -17,6 +17,7 @@ import {
 import { onAlertChange } from '@/features/alerts/alertBus'
 import { subscribeGroupStatusSignals } from '@/features/alerts/realtime'
 import { translate, useI18n } from '@/lib/i18n'
+import { useUiMode } from '@/lib/uiMode'
 import { Icon } from '@/features/common/Icon'
 import './GroupBoard.css'
 import './StatusBoard.css'
@@ -30,7 +31,8 @@ interface GData {
 }
 
 export function StatusBoard() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  const [uiMode] = useUiMode()
   const [groups, setGroups] = useState<GData[]>([])
   const [communities, setCommunities] = useState<Community[]>([])
   const [open, setOpen] = useState<Set<string>>(new Set())
@@ -172,11 +174,19 @@ export function StatusBoard() {
   )
 
   return (
-    <section className="card">
-      <h2 className="card__title">
-        <Icon name="group" />
-        {t('status.title')}
-      </h2>
+    <section className={uiMode === 'v2' ? 'spatial-v2-section' : 'card'}>
+      {uiMode === 'v2' ? (
+        <div className="spatial-v2-header">
+          <span>{lang === 'zh' ? '亲友与守护圈连线状态' : "EVERYONE'S STATUS"}</span>
+          <span style={{ fontSize: '0.7rem', opacity: 0.6 }}>{groups.length} CIRCLES</span>
+        </div>
+      ) : (
+        <h2 className="card__title">
+          <Icon name="group" />
+          {t('status.title')}
+        </h2>
+      )}
+
       {error && <p className="home__error">{error}</p>}
 
       {loading ? (

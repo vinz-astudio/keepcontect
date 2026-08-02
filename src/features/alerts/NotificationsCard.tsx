@@ -33,6 +33,7 @@ import { fetchLatest } from '@/features/update/versionCheck'
 import { renderNotificationCopy } from '@/features/alerts/notificationCopy'
 import { buildNotificationFeed } from '@/features/alerts/notificationFeed'
 import { getPlatform, isStandalone } from '@/lib/platform'
+import { useUiMode } from '@/lib/uiMode'
 import './NotificationsCard.css'
 
 interface ResponderItem {
@@ -70,6 +71,7 @@ export function NotificationsCard({
 } = {}) {
   const { t, lang } = useI18n()
   const { user } = useAuth()
+  const [uiMode] = useUiMode()
   const [notifs, setNotifs] = useState<AppNotification[]>([])
   const [updBusy, setUpdBusy] = useState<string | null>(null)
   const [items, setItems] = useState<ResponderItem[]>([])
@@ -177,23 +179,31 @@ export function NotificationsCard({
         : t('push.desc')
 
   return (
-    <section className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-        <h2 className="card__title" style={{ margin: 0 }}>
-          <Icon name="bell" />
-          {t('notif.title')}
-          {unread > 0 && <span className="nbadge">{unread}</span>}
-        </h2>
-        {pushStatus === 'subscribed' && (
-          <button
-            className="notif-tools-toggle"
-            aria-expanded={showTools}
-            onClick={() => setShowTools((v) => !v)}
-          >
-            {t('push.tools')} {showTools ? '▴' : '▾'}
-          </button>
-        )}
-      </div>
+    <section className={uiMode === 'v2' ? 'spatial-v2-section' : 'card'}>
+      {uiMode === 'v2' ? (
+        <div className="spatial-v2-header">
+          <span>{lang === 'zh' ? '动态与风险通知' : 'NOTIFICATIONS'}</span>
+          {unread > 0 && <span className="nbadge">{unread} UNREAD</span>}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <h2 className="card__title" style={{ margin: 0 }}>
+            <Icon name="bell" />
+            {t('notif.title')}
+            {unread > 0 && <span className="nbadge">{unread}</span>}
+          </h2>
+          {pushStatus === 'subscribed' && (
+            <button
+              className="notif-tools-toggle"
+              aria-expanded={showTools}
+              onClick={() => setShowTools((v) => !v)}
+            >
+              {t('push.tools')} {showTools ? '▴' : '▾'}
+            </button>
+          )}
+        </div>
+      )}
+
 
       {error && <p className="home__error">{error}</p>}
 

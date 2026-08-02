@@ -133,3 +133,57 @@
   font-size: 0.82rem;
   line-height: 1.45;
 }
+
+/* V2 Person Card Styles for Spatial Layout */
+.person-card-v2 {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-1);
+}
+
+.person-card-v2:hover {
+  border-color: var(--accent-line);
+}
+
+.person-card-v2__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.person-card-v2__name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.person-card-v2__badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-weight: 500;
+}
+
+.person-card-v2__badge--ward {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+}
+
+.person-card-v2__status {
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
