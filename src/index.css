@@ -129,18 +129,31 @@ html.kc-ios-standalone #root .tabbar--mobile {
 
 button {
   font-family: inherit;
+/* 入场与呼吸动效 */
+@keyframes kc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* 全局可见焦点环：键盘/无障碍 */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 2px;
+@keyframes kc-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.82;
+  }
 }
 
-::selection {
-  background: var(--accent-line);
-  color: var(--fg);
+  font-family: inherit;
 }
 
 /* 入场与呼吸动效 */
@@ -175,4 +188,121 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* iOS Native & Retina Display Optimizations */
+*, *::before, *::after {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button, input, select, textarea {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+input[type="text"], input[type="email"], input[type="time"], select {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+/* V2 Spatial UI Design Tokens & Layout Utilities */
+.spatial-v2-container {
+  padding-top: max(10px, env(safe-area-inset-top));
+  padding-bottom: calc(72px + max(8px, env(safe-area-inset-bottom)));
+}
+
+.spatial-v2-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.spatial-v2-header {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+.spatial-v2-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 16px 0;
+  border: none;
+}
+
+.btn-terracotta {
+  background: linear-gradient(135deg, #e07a5f 0%, #d4684d 100%);
+  color: #ffffff !important;
+  border-radius: 9999px !important;
+  border: none !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(224, 122, 95, 0.25);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.btn-terracotta:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+.segmented-scroll-row {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  gap: 8px;
+  padding: 4px 2px;
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
+}
+
+.segmented-scroll-row::-webkit-scrollbar {
+  display: none;
+}
+
+/* UI Switcher Card */
+.ui-mode-switcher-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 16px;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ui-mode-switcher-options {
+  display: flex;
+  gap: 8px;
+}
+
+.ui-mode-btn {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ui-mode-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
 }

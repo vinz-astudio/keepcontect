@@ -62,6 +62,7 @@ import {
 } from '@/features/invites/inviteLink'
 import { LangToggle, translate, useI18n } from '@/lib/i18n'
 import { ThemeToggle } from '@/lib/theme'
+import { useUiMode } from '@/lib/uiMode'
 import {
   ensurePushSubscription,
   getPushStatus,
@@ -91,7 +92,9 @@ interface ProfileSectionProps {
 function ProfileSection({ setIsScanning, signOut }: ProfileSectionProps) {
   const { user } = useAuth()
   const { t, lang } = useI18n()
+  const [uiMode, setUiMode] = useUiMode()
   const { startSetup, startPractice } = useLivenessContext()
+
   const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported')
   const showPushSettings = getPushPromptPlacement({
     status: pushStatus,
@@ -180,7 +183,39 @@ function ProfileSection({ setIsScanning, signOut }: ProfileSectionProps) {
         </div>
       </div>
 
+      {/* Dual-UI Safety Mode Switcher */}
+      <div className="ui-mode-switcher-card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <strong style={{ fontSize: '0.88rem', color: 'var(--fg)' }}>
+            {lang === 'zh' ? '界面视觉风格通道' : 'UI Interface Style Channel'}
+          </strong>
+          <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600 }}>
+            {uiMode === 'v2' ? 'v0.5.25 (V2 空间新版)' : 'v0.5.24 (经典原版)'}
+          </span>
+        </div>
+        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--fg-muted)', lineHeight: '1.4' }}>
+          {lang === 'zh'
+            ? '保留安全回退通道：可随时在 0.5.25 极简空间新版与 0.5.24 经典双层卡片之间无缝切换。'
+            : 'Safety Channel: Seamlessly toggle between 0.5.25 V2 Spatial UI and 0.5.24 Classic UI.'}
+        </p>
+        <div className="ui-mode-switcher-options">
+          <button
+            className={`ui-mode-btn ${uiMode === 'v2' ? 'active' : ''}`}
+            onClick={() => setUiMode('v2')}
+          >
+            ✨ {lang === 'zh' ? '0.5.25 空间新版' : '0.5.25 V2 Spatial'}
+          </button>
+          <button
+            className={`ui-mode-btn ${uiMode === 'classic' ? 'active' : ''}`}
+            onClick={() => setUiMode('classic')}
+          >
+            🛡️ {lang === 'zh' ? '0.5.24 经典原版' : '0.5.24 Classic'}
+          </button>
+        </div>
+      </div>
+
       <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
         <button className="profile__danger-action" onClick={() => void signOut()}>
           {t('header.signout')}
         </button>
@@ -273,6 +308,7 @@ export function HomeScreen() {
   const [notice, setNotice] = useState<string | null>(null)
   const [openBoard, setOpenBoard] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('home')
+  const [uiMode] = useUiMode()
   const [isGm, setIsGm] = useState(false)
   const [unread, setUnread] = useState(0)
   const [sosBusy, setSosBusy] = useState(false)
@@ -512,43 +548,83 @@ export function HomeScreen() {
 
         <ApkUpgradeNotice />
 
-        <main className="home__page">
-          <div className={`dashboard-grid ${tab !== 'home' ? 'home__tab-content--hidden' : ''}`}>
-            <div className="dashboard-grid__col1">
-              <NotificationsCard onChanged={refreshUnread} />
-            </div>
-            <div className="dashboard-grid__col2">
-              <StatusBoard />
-              <CheckinTasksCard />
-              {isGm && (
-                <section className="card" style={{ border: '1px solid var(--accent-line)', background: 'var(--accent-soft)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-                        <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
-                        <path d="M9 12l2 2 4-4" />
-                      </svg>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', color: 'var(--fg)' }}>
-                          {lang === 'zh' ? '管理员控制台' : 'Manager Console'}
-                        </h3>
-                        <p className="muted" style={{ margin: 0, fontSize: '0.8rem', lineHeight: '1.4' }}>
-                          {lang === 'zh' ? '管理本群组成员状态及客户端版本' : 'Manage member statuses and client versions'}
-                        </p>
+        <main className={`home__page ${uiMode === 'v2' ? 'spatial-v2-container' : ''}`}>
+          <div className={`dashboard-grid ${tab !== 'home' ? 'home__tab-content--hidden' : ''} ${uiMode === 'v2' ? 'spatial-v2-mode' : ''}`}>
+            {uiMode === 'v2' ? (
+              /* 0.5.25 V2 空间极简模式：Notifications 置顶，随后紧跟 StatusBoard 与 CheckinTasks */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+                <NotificationsCard onChanged={refreshUnread} />
+                <StatusBoard />
+                <CheckinTasksCard />
+                {isGm && (
+                  <section className="card" style={{ border: '1px solid var(--accent-line)', background: 'var(--accent-soft)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+                          <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
+                          <path d="M9 12l2 2 4-4" />
+                        </svg>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', color: 'var(--fg)' }}>
+                            {lang === 'zh' ? '管理员控制台' : 'Manager Console'}
+                          </h3>
+                          <p className="muted" style={{ margin: 0, fontSize: '0.8rem', lineHeight: '1.4' }}>
+                            {lang === 'zh' ? '管理本群组成员状态及客户端版本' : 'Manage member statuses and client versions'}
+                          </p>
+                        </div>
                       </div>
+                      <button 
+                        className="share" 
+                        onClick={() => setTab('gm')}
+                        style={{ background: 'var(--accent)', color: 'var(--bg)', border: 'none', cursor: 'pointer' }}
+                      >
+                        {lang === 'zh' ? '进入' : 'Enter'}
+                      </button>
                     </div>
-                    <button 
-                      className="share" 
-                      onClick={() => setTab('gm')}
-                      style={{ background: 'var(--accent)', color: 'var(--bg)', border: 'none', cursor: 'pointer' }}
-                    >
-                      {lang === 'zh' ? '进入' : 'Enter'}
-                    </button>
-                  </div>
-                </section>
-              )}
-            </div>
+                  </section>
+                )}
+              </div>
+            ) : (
+              /* 0.5.24 经典原版双栏模式 */
+              <>
+                <div className="dashboard-grid__col1">
+                  <NotificationsCard onChanged={refreshUnread} />
+                </div>
+                <div className="dashboard-grid__col2">
+                  <StatusBoard />
+                  <CheckinTasksCard />
+                  {isGm && (
+                    <section className="card" style={{ border: '1px solid var(--accent-line)', background: 'var(--accent-soft)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)', flexShrink: 0 }}>
+                            <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
+                            <path d="M9 12l2 2 4-4" />
+                          </svg>
+                          <div>
+                            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', color: 'var(--fg)' }}>
+                              {lang === 'zh' ? '管理员控制台' : 'Manager Console'}
+                            </h3>
+                            <p className="muted" style={{ margin: 0, fontSize: '0.8rem', lineHeight: '1.4' }}>
+                              {lang === 'zh' ? '管理本群组成员状态及客户端版本' : 'Manage member statuses and client versions'}
+                            </p>
+                          </div>
+                        </div>
+                        <button 
+                          className="share" 
+                          onClick={() => setTab('gm')}
+                          style={{ background: 'var(--accent)', color: 'var(--bg)', border: 'none', cursor: 'pointer' }}
+                        >
+                          {lang === 'zh' ? '进入' : 'Enter'}
+                        </button>
+                      </div>
+                    </section>
+                  )}
+                </div>
+              </>
+            )}
           </div>
+
 
           <div className={tab !== 'routine' ? 'home__tab-content--hidden' : ''}>
             <RoutineSettings />
