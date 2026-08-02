@@ -1,0 +1,2851 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Keep Contact — Humanist Warmth Interactive Experience</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400;1,500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..700,0..1,0" rel="stylesheet">
+  <style>
+    /* 100% Unified Slender Humanist Sans-Serif (Plus Jakarta Sans) */
+    :root {
+      --font-primary: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    :root,
+    [data-theme="light"] {
+      color-scheme: light;
+      --outer: #e3ded5;
+      --canvas: #f6f3ed;
+      --mesh: radial-gradient(circle at 10% 10%, rgba(224, 122, 95, 0.09) 0%, transparent 52%),
+              radial-gradient(circle at 90% 90%, rgba(16, 185, 129, 0.09) 0%, transparent 52%),
+              linear-gradient(180deg, #faf7f2 0%, #f0e7d7 100%);
+      --surface-glass: rgba(255, 253, 249, 0.75);
+      --surface-border: 1px solid rgba(255, 255, 255, 0.92);
+      --surface-2: rgba(246, 240, 230, 0.60);
+      --ink: #24211e;        /* Soft warm charcoal espresso */
+      --muted: #6a6258;      /* Soft hazelnut brown-gray */
+      --quiet: #948b7e;      /* Gentle warm stone */
+      --line: rgba(185, 165, 135, 0.18);
+      --line-strong: rgba(185, 165, 135, 0.32);
+      --accent: #e07a5f;
+      --accent-soft: rgba(224, 122, 95, 0.12);
+      --success: #10b981;
+      --success-soft: rgba(16, 185, 129, 0.12);
+      --warning: #d97706;
+      --warning-soft: rgba(217, 119, 6, 0.12);
+      --danger: #dc2626;
+      --danger-glow: rgba(220, 38, 38, 0.28);
+      --danger-soft: rgba(220, 38, 38, 0.12);
+      --neutral-soft: rgba(237, 231, 220, 0.50);
+      --nav-bg: rgba(255, 253, 249, 0.82);
+      --glass-shadow: 0 16px 40px rgba(140, 120, 90, 0.07), inset 0 1.5px 0 rgba(255, 255, 255, 0.95);
+      --shadow-lg: 0 28px 70px rgba(120, 100, 70, 0.14);
+      --focus: #e07a5f;
+    }
+
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --outer: #0b0a09;
+      --canvas: #141311;
+      --mesh: radial-gradient(circle at 10% 10%, rgba(229, 138, 102, 0.12) 0%, transparent 52%),
+              radial-gradient(circle at 90% 90%, rgba(72, 201, 166, 0.12) 0%, transparent 52%),
+              linear-gradient(180deg, #181613 0%, #0d0c0b 100%);
+      --surface-glass: rgba(30, 27, 23, 0.76);
+      --surface-border: 1px solid rgba(255, 255, 255, 0.12);
+      --surface-2: rgba(42, 38, 33, 0.65);
+      --ink: #f5efe7;
+      --muted: #a9a194;
+      --quiet: #7a7266;
+      --line: rgba(225, 205, 175, 0.12);
+      --line-strong: rgba(225, 205, 175, 0.24);
+      --accent: #e58a66;
+      --accent-soft: rgba(229, 138, 102, 0.18);
+      --success: #48c9a6;
+      --success-soft: rgba(72, 201, 166, 0.16);
+      --warning: #e8a84e;
+      --warning-soft: rgba(232, 168, 78, 0.16);
+      --danger: #ef4444;
+      --danger-glow: rgba(239, 68, 68, 0.36);
+      --danger-soft: rgba(239, 68, 68, 0.18);
+      --neutral-soft: rgba(42, 38, 33, 0.50);
+      --nav-bg: rgba(26, 23, 19, 0.82);
+      --glass-shadow: 0 18px 48px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      --shadow-lg: 0 30px 80px rgba(0, 0, 0, 0.70);
+      --focus: #e58a66;
+    }
+
+    /* 100% Unified Slender Humanist Sans-Serif Scale System (Plus Jakarta Sans) */
+    *, *::before, *::after {
+      font-family: var(--font-primary);
+    }
+
+    .text-h1 {
+      font-family: var(--font-primary);
+      font-size: clamp(1.35rem, 4.1vw, 1.55rem);
+      line-height: 1.3;
+      font-weight: 500;
+      letter-spacing: -0.018em;
+      color: var(--ink);
+    }
+    .text-h2 {
+      font-family: var(--font-primary);
+      font-size: clamp(1.05rem, 3.2vw, 1.15rem);
+      line-height: 1.35;
+      font-weight: 500;
+      letter-spacing: -0.012em;
+      color: var(--ink);
+    }
+    .text-warm-sub {
+      font-family: var(--font-primary);
+      font-size: clamp(0.86rem, 2.6vw, 0.91rem);
+      font-weight: 400;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .text-body {
+      font-family: var(--font-primary);
+      font-size: clamp(0.86rem, 2.5vw, 0.92rem);
+      line-height: 1.55;
+      font-weight: 400;
+      color: var(--ink);
+    }
+    .text-sub {
+      font-family: var(--font-primary);
+      font-size: clamp(0.78rem, 2.2vw, 0.82rem);
+      line-height: 1.5;
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .text-caption {
+      font-family: var(--font-primary);
+      font-size: clamp(0.68rem, 1.9vw, 0.72rem);
+      line-height: 1.3;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--quiet);
+    }
+
+    html, body { width: 100%; min-height: 100%; }
+    body {
+      margin: 0;
+      padding: 12px 10px 20px;
+      background: var(--outer);
+      color: var(--ink);
+      font-family: var(--font-primary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: background 0.3s ease, color 0.3s ease;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .material-symbols-rounded {
+      font-size: clamp(20px, 5vw, 23px);
+      line-height: 1;
+      font-variation-settings: "FILL" 0, "wght" 420, "GRAD" 0, "opsz" 24;
+    }
+
+    /* Top Control Toolbar - Fully Responsive */
+    .prototype-toolbar {
+      width: min(412px, 100%);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .toolbar-group { display: flex; gap: 6px; }
+    .prototype-debug { width: 100%; position: relative; }
+    .prototype-debug > summary { list-style: none; width: max-content; }
+    .prototype-debug > summary::-webkit-details-marker { display: none; }
+    .prototype-debug-panel {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 10px;
+      border: var(--surface-border);
+      border-radius: 16px;
+      background: var(--surface-glass);
+      box-shadow: var(--glass-shadow);
+    }
+    .prototype-debug-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .prototype-debug-label { width: 100%; color: var(--muted); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .toolbar-button {
+      border: var(--surface-border);
+      background: var(--surface-glass);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      color: var(--ink);
+      cursor: pointer;
+      min-height: 36px;
+      border-radius: 999px;
+      padding: 0 12px;
+      font-size: clamp(0.74rem, 2vw, 0.78rem);
+      font-weight: 700;
+      box-shadow: var(--glass-shadow);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .toolbar-button:hover { transform: translateY(-1px); }
+    .toolbar-button[aria-pressed="true"] {
+      color: var(--canvas);
+      background: var(--ink);
+      border-color: var(--ink);
+    }
+
+    /* Responsive Device Frame */
+    .device-frame {
+      width: min(412px, 100%);
+      height: min(840px, calc(100vh - 66px));
+      min-height: 560px;
+      background: var(--mesh);
+      border: 8px solid var(--outer);
+      border-radius: 44px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.26), 0 0 0 1px var(--line-strong);
+      transition: background 0.3s ease;
+    }
+
+    .system-bar {
+      min-height: 34px;
+      padding: max(10px, env(safe-area-inset-top)) 20px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+      z-index: 10;
+    }
+
+    .app-header {
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      z-index: 15;
+    }
+
+    .brand {
+      font-family: var(--font-primary);
+      font-size: clamp(1.35rem, 4vw, 1.48rem);
+      font-weight: 600;
+      letter-spacing: -0.024em;
+      color: var(--ink);
+    }
+
+    .user-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+
+    .user-avatar-tiny {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-family: var(--font-primary);
+      font-size: 0.72rem;
+      font-weight: 600;
+      display: grid;
+      place-items: center;
+    }
+
+    .user-name-label {
+      font-family: var(--font-primary);
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .screen-scroll {
+      flex: 1;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      padding: 0 16px 88px;
+    }
+    .screen-scroll::-webkit-scrollbar { display: none; }
+
+    .screen[hidden] { display: none; }
+    .screen-heading {
+      padding-left: 2px;
+      padding-right: 2px;
+ margin: 2px 0 14px; }
+    .screen-heading h1 { margin: 0; }
+    .screen-heading p,
+    .supporting {
+      margin: 5px 0 0;
+    }
+
+    /* Hero Status Seal & Breathing Aura */
+    .hero {
+      text-align: center;
+      padding: 8px 6px 14px;
+    }
+    .status-seal-wrapper {
+      position: relative;
+      width: clamp(108px, 28vw, 124px);
+      height: clamp(108px, 28vw, 124px);
+      margin: 0 auto 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .status-seal-glow {
+      position: absolute;
+      inset: 4px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--success-soft) 0%, transparent 70%);
+      filter: blur(12px);
+      animation: breathe 4.5s ease-in-out infinite;
+    }
+    .status-seal-ring {
+      position: absolute;
+      inset: 12px;
+      border-radius: 50%;
+      border: 1.5px dashed var(--success);
+      opacity: 0.42;
+      animation: spin 24s linear infinite;
+    }
+    .status-seal {
+      width: clamp(64px, 16vw, 72px);
+      height: clamp(64px, 16vw, 72px);
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--success) 0%, #059669 100%);
+      color: #ffffff;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 10px 26px var(--success-soft), inset 0 2px 4px rgba(255,255,255,0.4);
+      z-index: 2;
+    }
+    .status-seal .material-symbols-rounded { font-size: clamp(30px, 8vw, 36px); }
+    .hero h1 { margin: 4px 0 0; }
+    .hero p { margin: 3px 0 0; }
+    .hero .evidence-line { margin-top: 5px; font-weight: 500; color: var(--muted); }
+
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.12); opacity: 0.45; }
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Truth Strip Grid - Fully Responsive */
+    .truth-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .truth-item {
+      min-width: 0;
+      background: var(--surface-glass);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: var(--surface-border);
+      border-radius: 16px;
+      padding: 10px 4px;
+      text-align: center;
+      box-shadow: var(--glass-shadow);
+    }
+    .truth-item strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .truth-item span { display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Frosted Glass Cards */
+    .card {
+      background: var(--surface-glass);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: var(--surface-border);
+      border-radius: 22px;
+      padding: 14px 15px;
+      margin-bottom: 12px;
+      box-shadow: var(--glass-shadow);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover { transform: translateY(-1.5px); }
+    .card.compact { padding: 12px 14px; }
+    .card.warning { background: color-mix(in srgb, var(--warning-soft) 85%, var(--surface-glass)); border-color: color-mix(in srgb, var(--warning) 38%, transparent); }
+    .card.success { background: color-mix(in srgb, var(--success-soft) 85%, var(--surface-glass)); border-color: color-mix(in srgb, var(--success) 38%, transparent); }
+    .card.danger { background: color-mix(in srgb, var(--danger-soft) 85%, var(--surface-glass)); border-color: color-mix(in srgb, var(--danger) 38%, transparent); }
+
+    .emergency-list { display: grid; gap: 10px; }
+    .emergency-item {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--surface-2);
+    }
+    .emergency-item-head,
+    .emergency-item-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .emergency-item-head { align-items: flex-start; }
+    .emergency-item-actions { justify-content: flex-end; flex-wrap: wrap; margin-top: 10px; }
+    .emergency-item-actions .button { min-height: 38px; }
+    .emergency-item p { margin: 4px 0 0; }
+
+    .card-header,
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .card-header { margin-bottom: 10px; flex-wrap: wrap; }
+    .card-title { margin: 0; }
+
+    .row {
+      min-height: 44px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .row:last-child { border-bottom: 0; }
+    .row-main { min-width: 0; flex: 1; }
+    .row-title { display: block; }
+    .row-sub { margin-top: 2px; display: block; }
+    .row-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      flex: 0 0 36px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      background: var(--surface-2);
+    }
+
+    /* Section Headers */
+    .section-block { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+    .section-block:first-of-type { margin-top: 12px; padding-top: 0; border-top: 0; }
+    .section-header {
+      padding-left: 2px;
+      padding-right: 2px;
+
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .section-header .section-title {
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .section-header .section-sub {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 22px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .badge.ready { background: var(--success-soft); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.22); }
+    .badge.limited { background: var(--warning-soft); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.22); }
+    .badge.action { background: var(--danger-soft); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.22); }
+    .badge.unknown { background: var(--neutral-soft); color: var(--muted); border: 1px solid var(--line); }
+
+    /* Buttons */
+    .button, .choice-button, .nav-button, .icon-button {
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .button {
+      border: var(--surface-border);
+      background: var(--surface-2);
+      border-radius: 999px;
+      padding: 0 16px;
+      min-height: 42px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .button:hover { transform: translateY(-1.5px); }
+    .button.primary {
+      background: linear-gradient(135deg, #e07a5f 0%, #d4684d 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 999px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      box-shadow: 0 8px 20px rgba(224, 122, 95, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    .button.primary:hover {
+      box-shadow: 0 12px 26px rgba(224, 122, 95, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    }
+    .button.accent { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 4px 14px var(--accent-soft); border-radius: 999px; }
+    .button.ghost { background: var(--surface-2); border-color: var(--line); color: var(--ink); border-radius: 999px; }
+    .button.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); background: transparent; border-radius: 999px; }
+    .button.full { width: 100%; margin-top: 12px; margin-bottom: 14px; }
+    .button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
+
+    .icon-button {
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      padding: 0;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+    }
+
+    .disclosure-button {
+      width: 100%;
+      border: 0;
+      border-top: 1px dashed var(--line);
+      background: transparent;
+      padding: 10px 0 0;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--accent);
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .disclosure-button .material-symbols-rounded { transition: transform 220ms ease; }
+    .disclosure-button[aria-expanded="true"] .material-symbols-rounded { transform: rotate(180deg); }
+    .disclosure-panel { margin-top: 6px; animation: fadeIn 0.25s ease; }
+    .disclosure-panel[hidden] { display: none; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      border-radius: 16px;
+      background: var(--accent-soft);
+      color: var(--muted);
+      border: 1px solid rgba(224, 122, 95, 0.22);
+      backdrop-filter: blur(12px);
+    }
+    .notice .material-symbols-rounded { color: var(--accent); flex: 0 0 auto; }
+
+    .concept-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 12px 12px 10px;
+      border-radius: 18px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+      box-sizing: border-box;
+    }
+    .concept-card .button {
+      margin-top: 10px;
+      margin-bottom: 0;
+      min-height: 36px;
+      font-size: 0.82rem;
+      width: 100%;
+    }
+
+    .people-list { display: grid; gap: 10px; }
+    .person {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--surface-2);
+    }
+    .person > div:first-child {
+      min-width: 0;
+      flex: 1;
+    }
+    .person strong {
+      display: block;
+      font-size: 0.94rem;
+      font-weight: 600;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .person small {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .person-card {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface-glass);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+      overflow: hidden;
+    }
+    .person-card + .person-card { margin-top: 10px; }
+    .person-card .person { border: 0; border-radius: 0; background: transparent; padding: 14px 14px 10px; }
+    .person-card .person-context { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; }
+    .person-card .person-context span { color: var(--muted); font-size: 0.8rem; }
+    .person-card .person-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      padding: 0 14px 12px;
+    }
+    .person-card .person-detail {
+      margin: 0 12px 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: var(--surface-glass);
+      border: 1px solid var(--line);
+    }
+    .person-card .person-detail .row { align-items: flex-start; }
+    .person-card .person-detail-action { margin-top: 10px; width: 100%; }
+    .person-card .button { min-height: 38px; }
+    .watch-own-checkin {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: 16px;
+      background: var(--surface-glass);
+      box-shadow: var(--glass-shadow);
+    }
+    .watch-own-checkin strong, .watch-own-checkin span { display: block; }
+    .watch-own-checkin span { margin-top: 2px; }
+    .responsibility-block {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+    .responsibility-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .responsibility-heading h3 { margin: 0; }
+    .responsibility-copy { margin: 4px 0 8px; }
+    .responsibility-task { padding: 10px; border-radius: 12px; background: var(--surface-2); }
+    .responsibility-task strong, .responsibility-task span { display: block; }
+    .responsibility-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 9px; }
+    .alert-response {
+      margin-top: 12px;
+      padding: 14px;
+      border: 1px solid rgba(220, 38, 38, 0.24);
+      border-radius: 16px;
+      background: var(--danger-soft);
+    }
+    .alert-response h3, .alert-response p { margin: 0; }
+    .alert-response p { margin-top: 5px; }
+    .alert-response-actions { display: grid; gap: 8px; margin-top: 12px; }
+    .state-feedback { min-height: 20px; margin: 8px 0 0; color: var(--muted); }
+    .empty-state { padding: 10px 0 4px; color: var(--muted); }
+    .action-list { display: grid; gap: 8px; }
+    .action-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .action-item:last-child { border-bottom: 0; }
+    [aria-busy="true"] { cursor: progress; }
+
+    /* Floating Navigation Bar - Adaptive Responsive Column Ratios */
+    .bottom-nav {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: max(8px, env(safe-area-inset-bottom));
+      min-height: 58px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.25fr 1fr 1fr;
+      align-items: center;
+      padding: 3px 4px;
+      border: var(--surface-border);
+      border-radius: 30px;
+      background: var(--nav-bg);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      z-index: 20;
+    }
+    .nav-button {
+      border: 0;
+      min-height: 46px;
+      background: transparent;
+      border-radius: 16px;
+      color: var(--quiet);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 2px;
+      min-width: 0;
+    }
+    .nav-button span.text-caption {
+      font-size: clamp(0.64rem, 1.8vw, 0.7rem);
+      text-transform: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      width: 100%;
+      text-align: center;
+    }
+    .nav-button[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+
+    /* Elevated Center Bottom SOS Trigger Button - Clean Circular Design */
+    .center-sos-button {
+      border: 3px solid var(--nav-bg);
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: #ffffff;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 20px var(--danger-glow), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      cursor: pointer;
+      user-select: none;
+      touch-action: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      margin: -16px auto 0;
+      justify-self: center;
+    }
+    .center-sos-button span {
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: 0.92rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      line-height: 1;
+    }
+    .center-sos-button.holding { transform: scale(0.92); box-shadow: 0 0 28px var(--danger); }
+
+    /* SOS Full-Screen / Overlay Hold Countdown Sheet */
+    .sos-active-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(220, 38, 38, 0.95);
+      color: #ffffff;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 20px;
+      text-align: center;
+      animation: fadeIn 0.2s ease;
+    }
+    .sos-active-overlay[hidden] { display: none; }
+    .sos-ring-progress {
+      width: clamp(120px, 30vw, 140px);
+      height: clamp(120px, 30vw, 140px);
+      border-radius: 50%;
+      border: 5px solid rgba(255,255,255,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      margin-bottom: 20px;
+    }
+    .sos-ring-fill {
+      position: absolute;
+      inset: -5px;
+      border-radius: 50%;
+      border: 5px solid #ffffff;
+      clip-path: polygon(50% 50%, 50% 0%, 50% 0%, 50% 0%, 50% 0%);
+      transition: clip-path 80ms linear;
+    }
+
+    /* Timeline Stream - Responsive Grid */
+    .timeline { position: relative; display: grid; gap: 8px; margin-top: 8px; }
+    .event {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr);
+      gap: 10px;
+      padding: 12px;
+      border-radius: 16px;
+      border: var(--surface-border);
+      background: var(--surface-glass);
+      backdrop-filter: blur(20px);
+      box-shadow: var(--glass-shadow);
+    }
+    .event-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: var(--surface-2);
+      color: var(--muted);
+    }
+    .event h2 { margin: 0; }
+    .event p { margin: 3px 0 0; }
+    .event-meta { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+
+    /* Clean Setting Rows */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .setting-row:last-of-type { border-bottom: 0; }
+    .setting-label {
+      font-weight: 500;
+      font-size: 0.88rem;
+      color: var(--ink);
+    }
+    .setting-row .segmented {
+      grid-template-columns: repeat(2, 1fr);
+      margin-bottom: 0;
+      flex-shrink: 0;
+      min-width: 110px;
+    }
+
+    /* Segmented Controls - Single-line horizontal scrollable pill bar with mask-image fade */
+    .segmented-scroll-wrapper {
+      position: relative;
+      width: 100%;
+      margin-bottom: 12px;
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 12px, #000 calc(100% - 12px), transparent 100%);
+      mask-image: linear-gradient(to right, transparent 0%, #000 12px, #000 calc(100% - 12px), transparent 100%);
+    }
+    .segmented-scroll-wrapper .segmented {
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      grid-template-columns: none !important;
+      overflow-x: auto !important;
+      scrollbar-width: none !important;
+      -webkit-overflow-scrolling: touch !important;
+      gap: 6px !important;
+      padding: 4px !important;
+      border-radius: 16px !important;
+      margin-bottom: 0 !important;
+    }
+    .segmented-scroll-wrapper .segmented::-webkit-scrollbar {
+      display: none !important;
+    }
+    .segmented-scroll-wrapper .choice-button {
+      flex: 0 0 auto !important;
+      white-space: nowrap !important;
+      min-width: max-content !important;
+      padding: 6px 14px !important;
+    }
+    .choice-button {
+      flex: 0 0 auto;
+      white-space: nowrap;
+      padding: 6px 14px;
+      min-height: 36px;
+      border: 0;
+      background: transparent;
+      border-radius: 12px;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.84rem;
+    }
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      padding: 3px;
+      background: var(--surface-2);
+      border-radius: 14px;
+      margin-bottom: 12px;
+      border: 1px solid var(--line);
+    }
+    .choice-button {
+      min-height: 34px;
+      padding: 4px;
+      border: 0;
+      background: transparent;
+      border-radius: 10px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .choice-button[aria-pressed="true"],
+    .choice-button[aria-selected="true"] {
+      background: var(--surface-glass);
+      color: var(--ink);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    /* Form Fields */
+    .field { display: grid; gap: 5px; margin-top: 10px; min-width: 0; }
+    .field label, fieldset legend { font-weight: 600; color: var(--ink); font-size: 0.82rem; }
+    .field input,
+    .field select {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      min-height: 42px;
+      border: var(--surface-border);
+      border-radius: 14px;
+      background: var(--surface-2);
+      color: var(--ink);
+      padding: 0 10px;
+      outline: none;
+      font-size: 0.84rem;
+    }
+    .field input[type="time"] {
+      padding: 0 6px;
+      font-size: 0.8rem;
+      box-sizing: border-box;
+    }
+    .field select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2324211e' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px !important;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+    .check-row {
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .check-row:last-child { border-bottom: 0; }
+    .check-row input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); }
+    .check-row label { cursor: pointer; }
+    .check-row strong { display: block; }
+    .check-row small { display: block; margin-top: 2px; }
+
+    .feedback { min-height: 20px; color: var(--success); font-weight: 700; margin-top: 6px; }
+
+    .masked {
+      letter-spacing: 0.08em;
+      padding: 8px 0;
+    }
+
+    /* User-first onboarding: two tasks and a result */
+    dialog {
+      width: min(370px, calc(100vw - 20px));
+      max-height: min(720px, calc(100vh - 30px));
+      border: var(--surface-border);
+      border-radius: 28px;
+      padding: 0;
+      overflow: hidden;
+      background: var(--surface-glass);
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      color: var(--ink);
+      box-shadow: var(--shadow-lg);
+    }
+    dialog::backdrop { background: rgba(14, 12, 10, 0.65); backdrop-filter: blur(8px); }
+    .dialog-shell { display: flex; flex-direction: column; max-height: inherit; }
+    .dialog-header {
+      padding: 14px 16px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+    }
+    .dialog-header h2 { margin: 0; }
+    .dialog-progress { padding: 10px 16px 0; }
+    .progress-track { height: 5px; border-radius: 999px; background: var(--surface-2); margin-top: 6px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 33.33%; background: var(--accent); transition: width 200ms ease; }
+    .dialog-body { overflow-y: auto; padding: 14px 16px; }
+    .setup-step[hidden] { display: none; }
+    .setup-step h3 { margin: 0; }
+    .setup-step > p { margin: 5px 0 0; }
+    .option-stack { display: grid; gap: 8px; margin-top: 12px; }
+    .option-card {
+      width: 100%;
+      min-height: 56px;
+      padding: 10px 12px;
+      border: var(--surface-border);
+      border-radius: 14px;
+      background: var(--surface-2);
+      color: var(--ink);
+      cursor: pointer;
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 10px;
+      align-items: center;
+      text-align: left;
+      transition: all 0.2s ease;
+    }
+    .option-card[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+    .option-card strong { display: block; }
+    .option-card small { display: block; margin-top: 2px; }
+    .dialog-actions {
+      padding: 10px 16px 14px;
+      border-top: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+    }
+    .dialog-actions .button:last-child { justify-self: stretch; }
+    .step-actions { display: grid; gap: 8px; margin-top: 12px; }
+    .live-region { min-height: 22px; margin-top: 8px; color: var(--success); font-weight: 700; }
+    .setup-benefits { display: grid; gap: 8px; margin-top: 14px; }
+    .setup-benefit { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: start; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+    .setup-benefit strong { display: block; }
+    .setup-benefit small { display: block; margin-top: 2px; }
+    .permission-action { min-width: 64px; }
+    .setup-result { display: grid; gap: 10px; margin-top: 14px; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface-2); }
+    .setup-result.ready { border-color: color-mix(in srgb, var(--success) 45%, transparent); background: var(--success-soft); }
+    .setup-result.limited { border-color: color-mix(in srgb, var(--warning) 45%, transparent); background: var(--warning-soft); }
+    .setup-result-icon { font-size: 34px; color: var(--success); }
+    .setup-result.limited .setup-result-icon { color: var(--warning); }
+    .setup-result p { margin: 0; }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 76px;
+      transform: translate(-50%, 20px);
+      width: calc(100% - 40px);
+      padding: 10px 14px;
+      border-radius: 14px;
+      color: var(--canvas);
+      background: var(--ink);
+      font-size: 0.82rem;
+      font-weight: 700;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease, transform 200ms ease;
+      z-index: 40;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* Media Queries for Small Mobile Devices (e.g. iPhone SE, 360px widths) */
+    @media (max-width: 430px) {
+      body { padding: 0; background: var(--canvas); }
+      .prototype-toolbar { padding: 6px 8px; margin: 0; }
+      .device-frame { width: 100%; height: 100dvh; min-height: 100vh; border: 0; border-radius: 0; box-shadow: none; }
+      .screen-scroll { padding: 0 12px 84px; }
+      .bottom-nav { left: 4px; right: 4px; bottom: 6px; border-radius: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="prototype-toolbar" aria-label="Prototype controls">
+    <button class="toolbar-button" type="button" data-action="open-setup">
+      <span class="material-symbols-rounded" aria-hidden="true">sparkles</span>
+      Test onboarding
+    </button>
+    <div class="toolbar-group" aria-label="Language">
+      <button class="toolbar-button" type="button" data-lang-choice="en" aria-pressed="true">EN</button>
+      <button class="toolbar-button" type="button" data-lang-choice="zh" aria-pressed="false">中文</button>
+    </div>
+    <div class="toolbar-group" aria-label="Theme">
+      <button class="toolbar-button" type="button" data-theme-choice="light" aria-pressed="true">☀️ Light</button>
+      <button class="toolbar-button" type="button" data-theme-choice="dark" aria-pressed="false">🌙 Dark</button>
+    </div>
+    <details class="prototype-debug">
+      <summary class="toolbar-button">🛠 Prototype scenarios</summary>
+      <div class="prototype-debug-panel" aria-label="Prototype-only scenario controls">
+        <div class="prototype-debug-row" role="group" aria-label="Simulated phone">
+          <span class="prototype-debug-label">Detected phone</span>
+          <button class="toolbar-button" type="button" data-debug-platform="android-native" aria-pressed="true">Android</button>
+          <button class="toolbar-button" type="button" data-debug-platform="ios-native" aria-pressed="false">iOS native</button>
+          <button class="toolbar-button" type="button" data-debug-platform="ios-pwa" aria-pressed="false">iOS web app</button>
+        </div>
+        <div class="prototype-debug-row" role="group" aria-label="Simulated setup outcome">
+          <span class="prototype-debug-label">Setup outcome</span>
+          <button class="toolbar-button" type="button" data-debug-readiness="auto" aria-pressed="true">Auto</button>
+          <button class="toolbar-button" type="button" data-debug-readiness="ready" aria-pressed="false">Ready</button>
+          <button class="toolbar-button" type="button" data-debug-readiness="limited" aria-pressed="false">Limited</button>
+          <button class="toolbar-button" type="button" data-debug-readiness="needs-action" aria-pressed="false">Needs action</button>
+          <button class="toolbar-button" type="button" data-debug-readiness="unknown" aria-pressed="false">Unknown</button>
+        </div>
+        <div class="prototype-debug-row" role="group" aria-label="Demo Watch state">
+          <span class="prototype-debug-label">Demo Watch state</span>
+          <button class="toolbar-button" type="button" data-watch-scenario="normal" aria-pressed="true">Normal</button>
+          <button class="toolbar-button" type="button" data-watch-scenario="task" aria-pressed="false">Task due</button>
+          <button class="toolbar-button" type="button" data-watch-scenario="limited" aria-pressed="false">Limited</button>
+          <button class="toolbar-button" type="button" data-watch-scenario="alert" aria-pressed="false">Needs action</button>
+          <button class="toolbar-button" type="button" data-watch-scenario="concern-sent" aria-pressed="false">Concern sent</button>
+          <button class="toolbar-button" type="button" data-watch-scenario="claimed" aria-pressed="false">Claimed</button>
+          <button class="toolbar-button" type="button" data-watch-scenario="resolved" aria-pressed="false">Resolved</button>
+          <button class="toolbar-button" type="button" data-watch-scenario="loading" aria-pressed="false">Loading</button>
+          <button class="toolbar-button" type="button" data-watch-scenario="error" aria-pressed="false">Error</button>
+        </div>
+        <div class="prototype-debug-row" role="group" aria-label="Demo Routine result">
+          <span class="prototype-debug-label">Demo Routine save</span>
+          <button class="toolbar-button" type="button" data-routine-result="success" aria-pressed="true">Success</button>
+          <button class="toolbar-button" type="button" data-routine-result="failure" aria-pressed="false">Failure</button>
+        </div>
+        <div class="prototype-debug-row" role="group" aria-label="Demo SOS result">
+          <span class="prototype-debug-label">Demo SOS delivery</span>
+          <button class="toolbar-button" type="button" data-sos-result="accepted" aria-pressed="true">Server accepted</button>
+          <button class="toolbar-button" type="button" data-sos-result="degraded" aria-pressed="false">Delivery degraded</button>
+          <button class="toolbar-button" type="button" data-sos-result="failed" aria-pressed="false">Failed</button>
+        </div>
+        <div class="prototype-debug-row" role="group" aria-label="Demo invitation handoff result">
+          <span class="prototype-debug-label">Demo invitation handoff</span>
+          <button class="toolbar-button" type="button" data-invite-result="accepted" aria-pressed="true">Accepted</button>
+          <button class="toolbar-button" type="button" data-invite-result="invalid" aria-pressed="false">Invalid</button>
+          <button class="toolbar-button" type="button" data-invite-result="already-member" aria-pressed="false">Already member</button>
+          <button class="toolbar-button" type="button" data-invite-result="handoff-failed" aria-pressed="false">Handoff failed</button>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="device-frame" data-phone-screen>
+    <div class="system-bar" aria-hidden="true">
+      <span>9:41</span>
+      <span class="material-symbols-rounded">signal_cellular_alt</span>
+    </div>
+
+    <header class="app-header">
+      <div class="brand">Keep Contact</div>
+      <div class="user-chip">
+        <span class="user-name-label">Alma</span>
+      </div>
+    </header>
+
+    <main class="screen-scroll" id="main-content">
+      <!-- Integrated Watch Screen: summary, own due action, people, then history -->
+      <section class="screen" id="watch" aria-labelledby="watch-title">
+        <!-- Section 1: Status -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="status-section-title">Status</div>
+              <div class="section-sub text-sub" id="status-section-sub">Current safety overview and alerts</div>
+            </div>
+            <button class="button ghost text-body" id="watch-retry" type="button" data-action="retry-watch" style="min-height:32px;padding:0 12px;font-size:0.78rem;margin:0" hidden>Retry status</button>
+          </div>
+          <div class="hero" id="watch-action-summary" aria-live="polite">
+            <div class="status-seal-wrapper" aria-hidden="true">
+              <div class="status-seal-glow"></div>
+              <div class="status-seal-ring"></div>
+              <div class="status-seal"><span class="material-symbols-rounded">verified_user</span></div>
+            </div>
+            <h1 class="text-h1" id="watch-title" tabindex="-1">No active alerts right now</h1>
+            <p class="text-warm-sub" id="watch-qualifier">2 contacts active · 1 signal limited</p>
+            <p class="evidence-line text-sub" id="watch-summary-meta">Last refreshed · 2 min ago</p>
+          </div>
+
+          <section class="watch-own-checkin" id="watch-own-checkin" aria-labelledby="watch-own-checkin-title" hidden>
+            <div>
+              <strong class="text-body" id="watch-own-checkin-title">Your check-in is due</strong>
+              <span class="text-sub">Due now · arranged by Min</span>
+            </div>
+            <button class="button primary text-body" type="button" data-action="complete-own-checkin">Check in</button>
+          </section>
+
+          <div class="truth-strip" aria-label="Current safety overview" style="margin-top:12px">
+            <div class="truth-item"><strong class="text-body" id="watch-alert-count">0 alerts</strong><span class="text-sub">Active Status</span></div>
+            <div class="truth-item"><strong class="text-body" id="watch-coverage-count">2 current</strong><span class="text-sub">People Connected</span></div>
+            <div class="truth-item"><strong class="text-body">Limited</strong><span class="text-sub">This device</span></div>
+          </div>
+        </div>
+
+        <!-- Section 2: Notifications (High priority, placed above Everyone's Status) -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="notifications-section-title">Notifications</div>
+              <div class="section-sub text-sub" id="notifications-section-sub">Recent alerts, check-ins, and evidence</div>
+            </div>
+            <span class="badge ready text-caption" id="history-channel-state">Live</span>
+          </div>
+          <div class="segmented-scroll-wrapper">
+            <div class="segmented" role="group" aria-label="History filter">
+              <button class="choice-button text-sub" type="button" aria-pressed="true" data-filter="all">All</button>
+              <button class="choice-button text-sub" type="button" aria-pressed="false" data-filter="alerts">Alerts</button>
+              <button class="choice-button text-sub" type="button" aria-pressed="false" data-filter="checkins">Check-ins</button>
+              <button class="choice-button text-sub" type="button" aria-pressed="false" data-filter="evidence">Evidence</button>
+              <button class="choice-button text-sub" type="button" aria-pressed="false" data-filter="system">System</button>
+            </div>
+          </div>
+          <div class="timeline" id="timeline-list">
+            <article class="event" data-event-type="evidence"><div class="event-icon"><span class="material-symbols-rounded" aria-hidden="true">smartphone</span></div><div><h2 class="text-h2">Phone activity available</h2><p class="text-sub">Min · Android phone · 5 min ago. Evidence is current.</p><div class="event-meta"><span class="badge ready text-caption">Evidence</span><span class="badge ready text-caption">Trusted</span></div></div></article>
+            <article class="event" data-event-type="checkins"><div class="event-icon"><span class="material-symbols-rounded" aria-hidden="true">how_to_reg</span></div><div><h2 class="text-h2">Manual check-in received</h2><p class="text-sub">You checked in from your iPad · 18 min ago.</p><div class="event-meta"><span class="badge ready text-caption">Check-in</span></div></div></article>
+            <article class="event" data-event-type="system"><div class="event-icon"><span class="material-symbols-rounded" aria-hidden="true">signal_disconnected</span></div><div><h2 class="text-h2">Evidence is limited</h2><p class="text-sub">John's phone has not refreshed background evidence for 1 hour. No alert is active.</p><div class="event-meta"><span class="badge limited text-caption">Limited</span><span class="badge unknown text-caption">Not proof of danger</span></div></div></article>
+            <article class="event" id="alert-history-event" data-event-type="alerts" hidden><div class="event-icon"><span class="material-symbols-rounded" aria-hidden="true">notification_important</span></div><div><h2 class="text-h2">Concern alert opened</h2><p class="text-sub">Min · needs someone to review the latest evidence.</p><div class="event-meta"><span class="badge action text-caption">Needs action</span></div></div></article>
+          </div>
+        </div>
+
+        <!-- Section 3: Everyone's Status (Grouped by Circle & Community) -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="people-section-title">Everyone's Status</div>
+              <div class="section-sub text-sub" id="people-section-sub">Live evidence grouped by Circle &amp; Community</div>
+            </div>
+            <span class="badge limited text-caption" id="watch-summary-badge">1 limited</span>
+          </div>
+
+          <!-- Circle 1: Warm Family Circle -->
+          <div class="circle-group-block" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 2px">
+              <span class="text-body" style="font-weight:600;font-size:0.86rem;color:var(--ink)">Warm Family Circle</span>
+              <span class="badge ready text-caption">Reciprocal</span>
+            </div>
+            <div class="people-list">
+              <article class="person-card" id="person-min" data-relationship="Daughter" data-circle="Warm Family" data-evidence-source="Phone activity" data-coverage="Full">
+                <div class="person">
+                  <div><strong class="text-body" style="font-size:0.96rem;font-weight:600">Min · Daughter</strong><div class="person-context text-sub"><span id="min-evidence">Phone activity · 5 min ago</span></div></div>
+                  <span class="badge ready text-caption" id="min-state">Current</span>
+                </div>
+                <div class="person-actions">
+                  <button class="button ghost text-sub" type="button" data-action="toggle-person" aria-expanded="false" aria-controls="person-details-min">View details</button>
+                  <button class="button primary text-sub" id="min-primary-action" type="button" data-action="view-alert" hidden>View alert</button>
+                </div>
+                <div class="person-detail" id="person-details-min" hidden>
+                  <div class="row"><div class="row-main"><div class="row-title text-body">Monitoring direction</div><div class="row-sub text-sub">Reciprocal · watch each other</div></div></div>
+                  <div class="row"><div class="row-main"><div class="row-title text-body">Device status</div><div class="row-sub text-sub">Android phone · active 5 min ago</div></div></div>
+                </div>
+              </article>
+              <article class="person-card" id="person-john" data-relationship="Friend" data-circle="Warm Family" data-evidence-source="Manual check-in" data-coverage="Partial">
+                <div class="person">
+                  <div><strong class="text-body" style="font-size:0.96rem;font-weight:600">John · Friend</strong><div class="person-context text-sub"><span>Manual check-in · 1 hr ago</span></div></div>
+                  <span class="badge limited text-caption">Limited</span>
+                </div>
+                <div class="person-actions">
+                  <button class="button ghost text-sub" type="button" data-action="toggle-person" aria-expanded="false" aria-controls="person-details-john">View details</button>
+                </div>
+                <div class="person-detail" id="person-details-john" hidden>
+                  <div class="row"><div class="row-main"><div class="row-title text-body">Monitoring direction</div><div class="row-sub text-sub">You watch John</div></div></div>
+                  <div class="row"><div class="row-main"><div class="row-title text-body">Device coverage</div><div class="row-sub text-sub">iPhone web app · opened 1 hr ago</div></div></div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <!-- Circle 2: Home Circle (Ward) -->
+          <div class="circle-group-block" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 2px">
+              <span class="text-body" style="font-weight:600;font-size:0.86rem;color:var(--ink)">Home Circle</span>
+              <span class="badge ready text-caption">Ward Care</span>
+            </div>
+            <div class="people-list">
+              <article class="person-card" id="person-mei" data-relationship="Mother" data-circle="Home Circle" data-evidence-source="Movement available" data-coverage="Full" data-responsibility="ward">
+                <div class="person">
+                  <div><strong class="text-body" style="font-size:0.96rem;font-weight:600">Mei · Mother</strong><div class="person-context text-sub"><span>Movement available · 12 min ago</span><span class="badge ready text-caption" style="margin-left:4px;font-size:0.72rem;padding:2px 6px" id="mei-card-task-badge">Morning 09:00 Active</span></div></div>
+                  <span class="badge ready text-caption">Current</span>
+                </div>
+                <div class="person-actions">
+                  <button class="button ghost text-sub" type="button" data-action="toggle-person" aria-expanded="false" aria-controls="person-details-mei">View details</button>
+                </div>
+                <div class="person-detail" id="person-details-mei" hidden>
+                  <div class="row"><div class="row-main"><div class="row-title text-body">Monitoring direction</div><div class="row-sub text-sub">You watch Mei · Home Circle</div></div></div>
+                  <div class="row"><div class="row-main"><div class="row-title text-body">Contributing devices</div><div class="row-sub text-sub">Android phone · last seen 12 min ago · movement and phone activity available</div></div></div>
+                  <div class="row"><div class="row-main"><div class="row-title text-body">Privacy</div><div class="row-sub text-sub">Routine timestamps are shared with this Circle; raw motion and app content stay private.</div></div></div>
+                  <div class="responsibility-block">
+                    <div class="responsibility-heading"><h3 class="text-body">Check-in arrangement</h3><span class="badge ready text-caption">Ward</span></div>
+                    <p class="responsibility-copy text-sub">You can arrange scheduled check-ins because you are Mei's Guardian. Circle membership alone does not allow this.</p>
+                    <div class="responsibility-task" id="mei-checkin-task">
+                      <strong class="text-body">Morning check-in</strong>
+                      <span class="text-sub" id="mei-checkin-schedule">Daily · 09:00 · Active</span>
+                      <div class="responsibility-actions">
+                        <button class="button ghost text-sub" type="button" data-action="edit-checkin-task" data-task-id="morning">Edit</button>
+                        <button class="button ghost text-sub" type="button" data-action="remove-checkin-task" data-task-id="morning">Remove</button>
+                      </div>
+                    </div>
+                    <div class="responsibility-task" id="mei-added-checkin-task" hidden>
+                      <strong class="text-body">Evening check-in</strong>
+                      <span class="text-sub" id="mei-added-checkin-schedule">Daily · 18:00 · Active</span>
+                      <div class="responsibility-actions">
+                        <button class="button ghost text-sub" type="button" data-action="edit-checkin-task" data-task-id="added">Edit</button>
+                        <button class="button ghost text-sub" type="button" data-action="remove-checkin-task" data-task-id="added">Remove</button>
+                      </div>
+                    </div>
+                    <button class="button ghost text-sub person-detail-action" type="button" data-action="add-checkin-task">Add task</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <!-- Community Layer: Oakland Care Community -->
+          <div class="circle-group-block">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 2px">
+              <span class="text-body" style="font-weight:600;font-size:0.86rem;color:var(--ink)">Oakland Care Community</span>
+              <span class="badge unknown text-caption">Escalation Network</span>
+            </div>
+            <div class="person-card" style="padding:12px 14px">
+              <div class="row" style="margin:0"><div class="row-main"><div class="row-title text-body">Escalation support ready</div><div class="row-sub text-sub">12 circles connected · crisis details shared only when assigned</div></div><span class="badge ready text-caption">Ready</span></div>
+            </div>
+          </div>
+
+          <section class="alert-response" id="watch-alert-response" tabindex="-1" aria-labelledby="watch-alert-response-title" hidden>
+            <h3 class="text-body" id="watch-alert-response-title">Min needs someone to contact her</h3>
+            <p class="text-sub" id="watch-alert-response-copy">No responder has claimed this alert.</p>
+            <div class="alert-response-actions" id="watch-alert-response-actions">
+              <button class="button ghost text-sub" id="watch-concern-action" type="button" data-action="send-concern">Send concern</button>
+              <button class="button primary text-sub" id="watch-claim-action" type="button" data-action="claim-alert">I'll contact them</button>
+              <button class="button primary text-sub" id="watch-confirm-safe-action" type="button" data-action="confirm-safe" hidden>Confirm safe</button>
+            </div>
+          </section>
+          <p class="state-feedback text-sub" id="watch-feedback" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <!-- Routine Screen -->
+      <section class="screen" id="routine" aria-labelledby="routine-title" hidden>
+        <div class="screen-heading">
+          <h1 class="text-h1" id="routine-title" tabindex="-1">Your routine</h1>
+          <p class="text-warm-sub">Set quiet expectations without turning daily life into a fixed timer.</p>
+        </div>
+
+        <!-- Section 1: Sleep Window -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="sleep-section-title">Sleep &amp; Morning Grace</div>
+              <div class="section-sub text-sub" id="sleep-section-sub">Quiet window and wake-up buffer</div>
+            </div>
+            <span class="badge ready text-caption">Active</span>
+          </div>
+          <section class="card" aria-labelledby="sleep-section-title">
+            <div class="row"><div class="row-main"><div class="row-title text-body">Sleep window</div><div class="row-sub text-sub">We wait through sleep and a short morning grace period before judging quiet time.</div></div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div class="field"><label class="text-sub" for="sleep-start">Starts</label><input id="sleep-start" type="time" value="23:00"></div>
+              <div class="field"><label class="text-sub" for="sleep-end">Wake time</label><input id="sleep-end" type="time" value="07:30"></div>
+            </div>
+            <div class="field"><label class="text-sub" for="morning-grace">Morning grace</label><select id="morning-grace"><option>30 minutes</option><option selected>45 minutes</option><option>60 minutes</option></select></div>
+          </section>
+        </div>
+
+        <!-- Section 2: Sensitivity -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="sensitivity-section-title">Alert Sensitivity</div>
+              <div class="section-sub text-sub" id="sensitivity-section-sub">Adaptive rhythm estimation</div>
+            </div>
+            <span class="badge unknown text-caption">Adaptive</span>
+          </div>
+          <section class="card" aria-labelledby="sensitivity-section-title">
+            <div class="segmented" role="group" aria-label="Alert sensitivity">
+              <button class="choice-button text-sub" type="button" aria-pressed="false" data-sensitivity="sensitive">Sensitive</button>
+              <button class="choice-button text-sub" type="button" aria-pressed="true" data-sensitivity="balanced">Balanced</button>
+              <button class="choice-button text-sub" type="button" aria-pressed="false" data-sensitivity="relaxed">Relaxed</button>
+            </div>
+            <p class="supporting text-sub" id="sensitivity-description">Balanced uses your usual rhythm and avoids unnecessary alerts.</p>
+            <div class="notice text-sub" style="margin-top:12px;margin-bottom:0">
+              <span class="material-symbols-rounded" aria-hidden="true">schedule</span>
+              <span><strong>Current effective estimate: about 3 hours.</strong><br>This can adapt as your routine changes. Sensitive alerts sooner; Relaxed allows longer quiet periods.</span>
+            </div>
+          </section>
+        </div>
+
+        <!-- Section 3: Timezone & Privacy -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="timezone-section-title">Timezone &amp; Privacy</div>
+              <div class="section-sub text-sub" id="timezone-section-sub">Routine location and timestamp sharing</div>
+            </div>
+          </div>
+          <section class="card" aria-labelledby="timezone-section-title">
+            <div class="field"><label class="text-sub" for="timezone">Routine timezone</label><select id="timezone"><option selected>Shanghai (UTC+8)</option><option>Dhaka (UTC+6)</option><option>Los Angeles (UTC-8)</option></select></div>
+            <div class="check-row"><input id="routine-sharing-consent" type="checkbox" checked><label for="routine-sharing-consent"><strong class="text-body">Share routine timestamps with approved Circles</strong><small class="text-sub">This shares evidence type and time, not phone content. Your saved choice is separate from the current adaptive estimate.</small></label></div>
+          </section>
+        </div>
+
+        <button class="button primary full text-body" type="button" data-action="save-routine">Save routine</button>
+        <div class="feedback text-sub" id="routine-feedback" role="status" aria-live="polite"></div>
+      </section>
+
+      <!-- Circles Screen -->
+      <section class="screen" id="circles" aria-labelledby="circles-title" hidden>
+        <div class="screen-heading">
+          <h1 class="text-h1" id="circles-title" tabindex="-1">Circles &amp; Community</h1>
+          <p class="text-warm-sub">Trusted people, clear responsibilities, and visible privacy boundaries.</p>
+        </div>
+
+        <!-- Section 1: Circles -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="circles-section-title">Circles</div>
+              <div class="section-sub text-sub" id="circles-section-sub">Small reciprocal groups for daily care</div>
+            </div>
+            <button class="button primary text-body" type="button" data-action="create-circle" style="min-height:34px;padding:0 14px;font-size:0.82rem;margin:0">+ Create</button>
+          </div>
+          <section class="card" aria-labelledby="family-circle-title">
+            <div class="row">
+              <div class="row-icon"><span class="material-symbols-rounded" aria-hidden="true">family_restroom</span></div>
+              <div class="row-main">
+                <div class="row-title text-body">Warm Family</div>
+                <div class="row-sub text-sub">3 members · You watch each other · routine timestamps visible</div>
+              </div>
+              <span class="badge ready text-caption">Reciprocal</span>
+            </div>
+            <button class="disclosure-button text-sub" type="button" aria-expanded="false" aria-controls="circle-members" data-action="toggle-disclosure">View members<span class="material-symbols-rounded" aria-hidden="true">expand_more</span></button>
+            <div class="disclosure-panel" id="circle-members" hidden>
+              <div class="row"><div class="row-main"><div class="row-title text-body">Alma · Admin</div><div class="row-sub text-sub">Last trusted evidence 12 min ago</div></div><span class="badge ready text-caption">Current</span></div>
+              <div class="row"><div class="row-main"><div class="row-title text-body">Min</div><div class="row-sub text-sub">Last trusted evidence 5 min ago</div></div><span class="badge ready text-caption">Current</span></div>
+              <div class="row"><div class="row-main"><div class="row-title text-body">John</div><div class="row-sub text-sub">Coverage limited · 1 hr ago</div></div><span class="badge limited text-caption">Limited</span></div>
+              <div class="check-row"><input id="monitoring-direction" type="checkbox" checked data-action="toggle-monitoring"><label for="monitoring-direction"><strong class="text-body">You watch each other</strong><small class="text-sub">Turn this off to make the direction one-way for this Circle.</small></label></div>
+              <div class="check-row"><input id="share-routine-activity" type="checkbox" checked data-action="toggle-sharing"><label for="share-routine-activity"><strong class="text-body">Share routine timestamps</strong><small class="text-sub">Members see evidence type and time, never phone content.</small></label></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px">
+              <button class="button ghost text-body" type="button" data-action="open-invite">Invite member</button>
+              <button class="button ghost text-body" type="button" data-action="share-circle">Share link</button>
+              <button class="button ghost text-body" type="button" data-action="show-circle-qr">Show QR</button>
+              <button class="button ghost text-body" type="button" data-action="scan-circle-qr">Scan QR</button>
+              <button class="button danger text-body" type="button" data-action="confirm-leave">Leave Circle</button>
+            </div>
+          </section>
+        </div>
+
+        <!-- Section 2: Community -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="community-section-title">Community</div>
+              <div class="section-sub text-sub" id="community-section-sub">Emergency escalation networks</div>
+            </div>
+            <button class="button ghost text-body" type="button" data-action="create-community" style="min-height:34px;padding:0 14px;font-size:0.82rem;margin:0">+ Create</button>
+          </div>
+          <section class="card" aria-labelledby="community-title">
+            <div class="row">
+              <div class="row-icon"><span class="material-symbols-rounded" aria-hidden="true">diversity_3</span></div>
+              <div class="row-main">
+                <div class="row-title text-body">Oakland Care Community</div>
+                <div class="row-sub text-sub">Escalation support · crisis details only when assigned</div>
+              </div>
+              <span class="badge unknown text-caption">12 circles</span>
+            </div>
+            <button class="disclosure-button text-sub" type="button" aria-expanded="false" aria-controls="community-privacy" data-action="toggle-disclosure">Who can see what<span class="material-symbols-rounded" aria-hidden="true">expand_more</span></button>
+            <div class="disclosure-panel" id="community-privacy" hidden><p class="supporting text-sub">Community responders see an assigned alert and the minimum information needed to act. Routine evidence stays inside your Circle.</p></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px"><button class="button ghost text-body" type="button" data-action="rename-circle">Rename</button><button class="button ghost text-body" type="button" data-action="move-circle">Assign circles</button></div>
+          </section>
+        </div>
+
+        <!-- Section 3: Responsibilities -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="responsibilities-section-title">Responsibilities</div>
+              <div class="section-sub text-sub" id="responsibilities-section-sub">Guardian and Ward roles</div>
+            </div>
+            <button class="button ghost text-body" type="button" data-action="manage-guardians" style="min-height:34px;padding:0 14px;font-size:0.82rem;margin:0">Manage</button>
+          </div>
+          <section class="card" aria-labelledby="responsibilities-title">
+            <div class="row"><div class="row-main"><div class="row-title text-body" style="font-weight:600">Min · Guardian</div><div class="row-sub text-sub">Receives your crisis alerts · 1 assigned check-in task</div></div><span class="badge ready text-caption">Active</span></div>
+            <div class="row"><div class="row-main"><div class="row-title text-body" style="font-weight:600">Mei · Ward</div><div class="row-sub text-sub">You receive Mei's assigned alerts</div></div><span class="badge ready text-caption">Active</span></div>
+            <p class="supporting text-sub" style="margin-top:8px">Guardian and Ward responsibilities are separate from emergency contacts and Circle membership.</p>
+          </section>
+        </div>
+      </section>
+
+      <!-- Me Screen -->
+      <section class="screen" id="me" aria-labelledby="me-title" hidden>
+        <div class="screen-heading"><h1 class="text-h1" id="me-title" tabindex="-1">Me</h1><p class="text-warm-sub">Your account, check-in method, this device, and crisis information.</p></div>
+
+        <!-- Section 1: Account -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="account-section-title">Account</div>
+              <div class="section-sub text-sub" id="account-section-sub">Profile and care role</div>
+            </div>
+            <button class="button ghost text-body" type="button" data-action="edit-name" style="min-height:34px;padding:0 14px;font-size:0.82rem;margin:0">Edit</button>
+          </div>
+          <section class="card" aria-labelledby="account-section-title">
+            <div class="row"><div class="row-main"><div class="row-title text-body">Alma</div><div class="row-sub text-sub">alma.ai@example.com</div></div></div>
+            <div class="row"><div class="row-main"><div class="row-title text-body">Care relationships are set in each Circle</div><div class="row-sub text-sub">One Circle can look after you while you look after someone in another.</div></div></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px"><button class="button ghost text-body" type="button" data-action="scan-sync">Link device</button><button class="button ghost text-body" type="button" data-action="sign-out">Sign out</button></div>
+          </section>
+        </div>
+
+        <!-- Section 2: Safety Check-in -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="checkin-section-title">Safety Check-in</div>
+              <div class="section-sub text-sub" id="checkin-section-sub">Intentional confirmation pattern</div>
+            </div>
+            <span class="badge ready text-caption">Set</span>
+          </div>
+          <section class="card" aria-labelledby="checkin-section-title">
+            <p class="supporting text-sub">Your pattern is an intentional check-in method, not a passive sensor.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px"><button class="button ghost text-body" type="button" data-action="practice-pattern">Practice</button><button class="button ghost text-body" type="button" data-action="change-pattern">Change pattern</button><button class="button danger text-body" type="button" data-action="clear-pattern">Clear pattern</button></div>
+          </section>
+        </div>
+
+        <!-- Section 3: This Device -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="this-device-section-title">This Device</div>
+              <div class="section-sub text-sub" id="this-device-section-sub">Active platform protection readiness</div>
+            </div>
+            <span class="badge limited text-caption" id="me-readiness-badge">Limited</span>
+          </div>
+          <section class="card warning" aria-labelledby="this-device-section-title">
+            <p class="supporting text-sub"><strong>This Device · Active Guard</strong><br>Readiness below reflects the current platform only. Other linked devices are separate.</p>
+            <div class="row"><div class="row-main"><div class="row-title text-body">Notifications</div><div class="row-sub text-sub">Allowed</div></div><span class="badge ready text-caption">Ready</span></div>
+            <div class="row"><div class="row-main"><div class="row-title text-body">Phone activity</div><div class="row-sub text-sub">Notices ordinary use without reading content</div></div><span class="badge ready text-caption">Ready</span></div>
+            <div class="row"><div class="row-main"><div class="row-title text-body">Movement</div><div class="row-sub text-sub">Notices movement without using precise location</div></div><span class="badge ready text-caption">Ready</span></div>
+            <div class="row"><div class="row-main"><div class="row-title text-body">Background protection</div><div class="row-sub text-sub">May pause when the app is closed</div></div><span class="badge action text-caption">Needs action</span></div>
+            <button class="button primary full text-body" type="button" data-action="open-setup">Review phone setup</button>
+            <button class="button ghost full text-body" type="button" data-action="repair-push">Repair notification delivery</button>
+          </section>
+        </div>
+
+        <!-- Section 4: Linked Devices -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="linked-section-title">Linked Devices</div>
+              <div class="section-sub text-sub" id="linked-section-sub">Cross-platform connected hardware</div>
+            </div>
+            <button class="button ghost text-body" type="button" data-action="scan-sync" style="min-height:34px;padding:0 14px;font-size:0.82rem;margin:0">Link</button>
+          </div>
+          <section class="card" aria-labelledby="linked-section-title">
+            <div class="row"><div class="row-main"><div class="row-title text-body">This Pixel 6</div><div class="row-sub text-sub">Android native · v0.5.25 · seen just now</div></div><span class="badge limited text-caption">Limited</span></div>
+            <div class="row"><div class="row-main"><div class="row-title text-body">Alma's iPad</div><div class="row-sub text-sub">iOS native · v0.5.25 · seen 18 min ago</div></div><span class="badge ready text-caption">Current</span></div>
+            <p class="supporting text-sub" style="margin-top:8px">Each device has separate signal and notification readiness.</p>
+          </section>
+        </div>
+
+        <!-- Section 5: Emergency Contacts -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="contacts-section-title">Emergency Contacts</div>
+              <div class="section-sub text-sub" id="contacts-section-sub">Authorized crisis responders</div>
+            </div>
+            <button class="button ghost text-body" type="button" data-action="add-emergency-contact" style="min-height:34px;padding:0 14px;font-size:0.82rem;margin:0">+ Add</button>
+          </div>
+          <section class="card" aria-labelledby="contacts-section-title">
+            <p class="supporting text-sub">People who may receive your crisis information. One contact is Primary.</p>
+            <div class="emergency-list" id="emergency-contacts-list" aria-live="polite"></div>
+          </section>
+        </div>
+
+        <!-- Section 6: Emergency Addresses -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="addresses-section-title">Emergency Addresses</div>
+              <div class="section-sub text-sub" id="addresses-section-sub">Saved reference locations</div>
+            </div>
+            <button class="button ghost text-body" type="button" data-action="add-emergency-address" style="min-height:34px;padding:0 14px;font-size:0.82rem;margin:0">+ Add</button>
+          </div>
+          <section class="card" aria-labelledby="addresses-section-title">
+            <p class="supporting text-sub">Static reference addresses — not your current GPS.</p>
+            <div class="emergency-list" id="emergency-addresses-list" aria-live="polite"></div>
+          </section>
+        </div>
+
+        <!-- Section 7: Emergency GPS -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="gps-section-title">Emergency GPS</div>
+              <div class="section-sub text-sub" id="gps-section-sub">Crisis location sharing consent</div>
+            </div>
+            <span class="badge unknown text-caption">Device setting</span>
+          </div>
+          <section class="card" aria-labelledby="gps-section-title">
+            <div class="check-row"><input id="allow-emergency-gps" type="checkbox"><label for="allow-emergency-gps"><strong class="text-body">Allow this device's GPS when emergency information must be shared</strong><small class="text-sub">Only during an active crisis, for authorized Circle responders and verified emergency contacts. This does not grant the phone location permission or track you continuously.</small></label></div>
+            <p class="state-feedback text-sub" id="emergency-gps-feedback" role="status" aria-live="polite">Off on this device.</p>
+          </section>
+        </div>
+
+        <!-- Section 8: Preferences & Updates -->
+        <div class="section-block">
+          <div class="section-header">
+            <div>
+              <div class="section-title text-caption" id="preferences-section-title">Preferences &amp; Updates</div>
+              <div class="section-sub text-sub" id="preferences-section-sub">Language, theme, and version</div>
+            </div>
+            <span class="badge ready text-caption">v0.5.25</span>
+          </div>
+          <section class="card" aria-labelledby="preferences-section-title">
+            <div class="setting-row">
+              <span class="setting-label text-body">Language</span>
+              <div class="segmented" role="group" aria-label="Language switch">
+                <button class="choice-button text-sub" type="button" data-lang-choice="en" aria-pressed="true">EN</button>
+                <button class="choice-button text-sub" type="button" data-lang-choice="zh" aria-pressed="false">中文</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label text-body">Theme</span>
+              <div class="segmented" role="group" aria-label="Theme switch">
+                <button class="choice-button text-sub" type="button" data-theme-choice="light" aria-pressed="true">☀️ Light</button>
+                <button class="choice-button text-sub" type="button" data-theme-choice="dark" aria-pressed="false">🌙 Dark</button>
+              </div>
+            </div>
+            <div style="margin-top:14px">
+              <button class="button ghost full text-body" type="button" data-action="check-update">Check for updates</button>
+            </div>
+            <div style="margin-top:10px">
+              <button class="button danger full text-body" type="button" data-action="delete-account">Delete account</button>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <!-- Elevated Floating Navigation Bar with CLEAN SOS CENTER BUTTON -->
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="nav-button" type="button" data-tab="watch" aria-current="page">
+        <span class="material-symbols-rounded" aria-hidden="true">visibility</span>
+        <span class="text-caption">Watch</span>
+      </button>
+
+      <button class="nav-button" type="button" data-tab="routine">
+        <span class="material-symbols-rounded" aria-hidden="true">schedule</span>
+        <span class="text-caption">Routine</span>
+      </button>
+
+      <!-- Center Raised Clean Circular Emergency SOS Button -->
+      <button class="center-sos-button" id="sos-dock-button" type="button" aria-label="Press and hold for 1.4 seconds to send emergency SOS alert" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <span>SOS</span>
+      </button>
+
+      <button class="nav-button" type="button" data-tab="circles">
+        <span class="material-symbols-rounded" aria-hidden="true">group</span>
+        <span class="text-caption">Circles</span>
+      </button>
+
+      <button class="nav-button" type="button" data-tab="me">
+        <span class="material-symbols-rounded" aria-hidden="true">person</span>
+        <span class="text-caption">Me</span>
+      </button>
+    </nav>
+
+    <!-- Full-Screen Emergency SOS Hold Overlay -->
+    <div class="sos-active-overlay" id="sos-overlay" hidden>
+      <div class="sos-ring-progress">
+        <div class="sos-ring-fill" id="sos-ring-fill"></div>
+        <span class="material-symbols-rounded" style="font-size:56px" aria-hidden="true">emergency</span>
+      </div>
+      <h2 class="text-h1" style="color:#fff;margin:0 0 8px">HOLD FOR SOS</h2>
+      <p class="text-body" style="color:#fff;margin:0 0 16px;opacity:0.9">Keep holding for 1.4 seconds to send SOS to the server. Delivery is confirmed separately.</p>
+      <p id="sos-overlay-status" class="text-body" style="color:#fff;font-weight:700;min-height:24px"></p>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <!-- User onboarding: two tasks, then an honest result -->
+  <dialog id="setup-dialog" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+    <div class="dialog-shell">
+      <header class="dialog-header">
+        <h2 class="text-h2" id="setup-title">Welcome to Keep Contact</h2>
+        <button class="icon-button" type="button" data-action="close-dialog" aria-label="Close setup"><span class="material-symbols-rounded" aria-hidden="true">close</span></button>
+      </header>
+      <div class="dialog-progress"><span class="text-caption" id="setup-progress-label">Step 1 of 2</span><div class="progress-track"><div class="progress-fill" id="setup-progress-fill"></div></div></div>
+      <div class="dialog-body">
+
+        <!-- Step 1: value, with no persona or platform decision -->
+        <section class="setup-step" data-setup-step="1">
+          <h3 class="text-h2" tabindex="-1">Stay connected without checking in all day</h3>
+          <p class="text-sub">Keep Contact quietly checks for everyday signs and only alerts trusted people when something may need attention.</p>
+          <div class="setup-benefits">
+            <div class="setup-benefit"><span class="material-symbols-rounded" aria-hidden="true">quiet_time</span><span><strong class="text-body">Quiet by default</strong><small class="text-sub">No constant messages, calls, or status reporting.</small></span></div>
+            <div class="setup-benefit"><span class="material-symbols-rounded" aria-hidden="true">group</span><span><strong class="text-body">People you trust</strong><small class="text-sub">You decide who joins each Circle when you create or accept it.</small></span></div>
+            <div class="setup-benefit"><span class="material-symbols-rounded" aria-hidden="true">privacy_tip</span><span><strong class="text-body">Private routine signs</strong><small class="text-sub">We never read message content. Precise location stays separate for an active crisis.</small></span></div>
+          </div>
+        </section>
+
+        <!-- Step 2: this phone, auto-detected and explained in user language -->
+        <section class="setup-step" data-setup-step="2" hidden>
+          <h3 class="text-h2" tabindex="-1">Let this phone quietly keep in touch</h3>
+          <p class="text-sub" id="detected-device-copy">This Android phone was detected automatically. Allow the essentials below; you can change them later.</p>
+          <div id="permission-list">
+            <div class="row"><div class="row-icon"><span class="material-symbols-rounded" aria-hidden="true">notifications</span></div><div class="row-main"><div class="row-title text-body">Notifications</div><div class="row-sub text-sub">Receive check-ins and important alerts.</div></div><button class="button ghost text-sub permission-action" type="button">Allow</button></div>
+            <div class="row"><div class="row-icon"><span class="material-symbols-rounded" aria-hidden="true">phone_android</span></div><div class="row-main"><div class="row-title text-body">Phone activity</div><div class="row-sub text-sub">Notice ordinary phone use without reading what you do.</div></div><button class="button ghost text-sub permission-action" type="button">Allow</button></div>
+            <div class="row"><div class="row-icon"><span class="material-symbols-rounded" aria-hidden="true">shield</span></div><div class="row-main"><div class="row-title text-body">Background protection</div><div class="row-sub text-sub">Keep working when the app is closed.</div></div><button class="button ghost text-sub permission-action" type="button">Allow</button></div>
+          </div>
+          <div class="live-region text-sub" id="readiness-live" role="status" aria-live="polite">Nothing is checked until you continue.</div>
+        </section>
+
+        <!-- Result: verification is automatic and invisible as an internal mechanism -->
+        <section class="setup-step" data-setup-step="3" hidden>
+          <h3 class="text-h2" id="setup-result-title" tabindex="-1">This phone is ready</h3>
+          <p class="text-sub" id="setup-result-summary">Keep Contact can run quietly and send important alerts from this phone.</p>
+          <div class="card compact" aria-label="Capability results">
+            <div class="row"><div class="row-main"><div class="row-title text-body">Notifications</div><div class="row-sub text-sub">Important alerts and check-ins</div></div><span class="badge unknown text-caption" id="setup-notifications-state">Unknown</span></div>
+            <div class="row"><div class="row-main"><div class="row-title text-body">Passive evidence</div><div class="row-sub text-sub">Phone activity or available movement signs</div></div><span class="badge unknown text-caption" id="setup-evidence-state">Unknown</span></div>
+            <div class="row"><div class="row-main"><div class="row-title text-body">Background reliability</div><div class="row-sub text-sub">Ability to continue when the app is closed</div></div><span class="badge unknown text-caption" id="setup-background-state">Unknown</span></div>
+          </div>
+          <div class="setup-result ready" data-result-state="ready">
+            <span class="material-symbols-rounded setup-result-icon" aria-hidden="true">check_circle</span>
+            <p class="text-body"><strong>This phone is ready</strong></p>
+            <p class="text-sub">We will keep checking automatically. You can review this phone anytime from Me.</p>
+          </div>
+          <div class="setup-result limited" data-result-state="limited" hidden>
+            <span class="material-symbols-rounded setup-result-icon" aria-hidden="true">info</span>
+            <p class="text-body"><strong>Protection is limited</strong></p>
+            <p class="text-sub" id="limited-reason">Some phone settings are still off. Keep Contact will use what is available and show what needs attention.</p>
+            <button class="button ghost full text-body" type="button" data-action="fix-setup">Fix now</button>
+          </div>
+        </section>
+      </div>
+      <footer class="dialog-actions">
+        <button class="button ghost text-body" id="setup-back" type="button" data-action="setup-back" disabled>Back</button>
+        <button class="button accent text-body" id="setup-next" type="button" data-action="setup-next" data-complete-copy="Go to Home">Set up this phone</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <dialog id="simple-dialog" role="dialog" aria-modal="true" aria-labelledby="simple-dialog-title">
+    <div class="dialog-shell">
+      <header class="dialog-header"><h2 class="text-h2" id="simple-dialog-title">Invite a trusted person</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="Close"><span class="material-symbols-rounded" aria-hidden="true">close</span></button></header>
+      <div class="dialog-body"><p class="supporting text-sub" id="simple-dialog-copy">Choose a Circle member or send a verified invitation. Adding someone as an emergency contact always requires separate confirmation.</p><div class="field" id="simple-dialog-field"><label class="text-sub" for="invite-email">Email or phone</label><input id="invite-email" type="text" placeholder="name@example.com"></div></div>
+      <footer class="dialog-actions"><button class="button ghost text-body" type="button" data-action="close-dialog">Cancel</button><button class="button accent text-body" id="simple-dialog-confirm" type="button" data-action="confirm-simple">Send invitation</button></footer>
+    </div>
+  </dialog>
+
+  <dialog id="emergency-item-dialog" role="dialog" aria-modal="true" aria-labelledby="emergency-item-title">
+    <form class="dialog-shell" id="emergency-item-form">
+      <header class="dialog-header"><h2 class="text-h2" id="emergency-item-title">Add emergency contact</h2><button class="icon-button" type="button" data-action="close-dialog" aria-label="Close"><span class="material-symbols-rounded" aria-hidden="true">close</span></button></header>
+      <div class="dialog-body">
+        <div class="field"><label class="text-sub" id="emergency-name-label" for="emergency-item-name">Name</label><input id="emergency-item-name" type="text" autocomplete="off" required></div>
+        <div id="emergency-contact-fields">
+          <div class="field"><label class="text-sub" for="emergency-contact-relationship">Relationship</label><input id="emergency-contact-relationship" type="text" autocomplete="off"></div>
+          <div class="field"><label class="text-sub" for="emergency-contact-phone">Phone</label><input id="emergency-contact-phone" type="tel" autocomplete="tel"></div>
+          <div class="check-row"><input id="emergency-contact-crisis" type="checkbox" checked><label for="emergency-contact-crisis"><strong class="text-body">Receive crisis information</strong><small class="text-sub">Demo setting for this verified contact.</small></label></div>
+          <div class="check-row"><input id="emergency-contact-primary" type="checkbox"><label for="emergency-contact-primary"><strong class="text-body">Primary emergency contact</strong><small class="text-sub">Choosing this demotes the previous Primary contact.</small></label></div>
+        </div>
+        <div id="emergency-address-fields" hidden>
+          <div class="field"><label class="text-sub" for="emergency-address-street">Street address</label><input id="emergency-address-street" type="text" autocomplete="street-address"></div>
+          <div class="field"><label class="text-sub" for="emergency-address-note">Access note</label><input id="emergency-address-note" type="text" autocomplete="off" placeholder="Gate, floor, or reception note"></div>
+        </div>
+        <p class="state-feedback text-sub" id="emergency-item-feedback" role="status" aria-live="polite"></p>
+      </div>
+      <footer class="dialog-actions"><button class="button ghost text-body" type="button" data-action="close-dialog">Cancel</button><button class="button accent text-body" id="emergency-item-submit" type="submit">Add contact</button></footer>
+    </form>
+  </dialog>
+
+  <script>
+    const root = document.documentElement;
+    const setupDialog = document.getElementById('setup-dialog');
+    const simpleDialog = document.getElementById('simple-dialog');
+    const emergencyItemDialog = document.getElementById('emergency-item-dialog');
+    const screenScroll = document.querySelector('.screen-scroll');
+    const toast = document.getElementById('toast');
+    let activeTab = 'watch';
+    let setupStep = 1;
+    let selectedPlatform = 'android-native';
+    let readinessState = 'unknown';
+    let debugReadiness = 'auto';
+    let dialogOpener = null;
+    let toastTimer = null;
+    let sosStartAt = null;
+    let sosFrame = null;
+    let sosTriggered = false;
+    let simpleAction = 'invite';
+    let pendingCheckinTaskId = 'morning';
+    let currentWatchScenario = 'normal';
+    let routineResult = 'success';
+    let sosResult = 'accepted';
+    let inviteResult = 'accepted';
+    let verificationStartedAt = null;
+    let verificationEventAt = null;
+    let emergencyContacts = [
+      { id: 'min', name: 'Min', relationship: 'Daughter', phone: '+1 ••• ••• 0148', verified: true, receivesCrisis: true, primary: true },
+      { id: 'john', name: 'John', relationship: 'Neighbour', phone: '+1 ••• ••• 8831', verified: true, receivesCrisis: true, primary: false }
+    ];
+    let emergencyAddresses = [
+      { id: 'home', label: 'Home', address: '1234 Warm Street', note: 'Gate code 2058', revealed: false },
+      { id: 'office', label: 'Office', address: '8 Garden Square', note: 'Reception until 18:00', revealed: false }
+    ];
+    let emergencyEditor = { kind: null, mode: null, id: null, opener: null };
+    let pendingEmergencyRemoval = null;
+    const SOS_HOLD_MS = 1400;
+
+    const platformContent = {
+      'android-native': {
+        label: 'Android phone',
+        detectedCopy: 'This Android phone was detected automatically. Allow the essentials below; you can change them later.',
+        permissions: [
+          { key: 'notifications', icon: 'notifications', title: 'Notifications', copy: 'Receive check-ins and important alerts.', granted: true },
+          { key: 'phone-activity', icon: 'phone_android', title: 'Phone activity', copy: 'Notice ordinary phone use without reading what you do.', granted: false },
+          { key: 'background', icon: 'shield', title: 'Background protection', copy: 'Keep working when the app is closed.', granted: false }
+        ]
+      },
+      'ios-native': {
+        label: 'iPhone',
+        detectedCopy: 'This iPhone was detected automatically. Allow the essentials below; you can change them later.',
+        permissions: [
+          { key: 'notifications', icon: 'notifications', title: 'Notifications', copy: 'Receive check-ins and important alerts.', granted: true },
+          { key: 'phone-activity', icon: 'phone_iphone', title: 'Phone activity', copy: 'Notice when Keep Contact is used without reading content.', granted: true },
+          { key: 'background', icon: 'shield', title: 'Background protection', copy: 'Keep working when iOS allows the app to refresh.', granted: false }
+        ]
+      },
+      'ios-pwa': {
+        label: 'iPhone web app',
+        detectedCopy: 'This iPhone web app was detected automatically. It can help, but cannot offer the same background coverage as the native app.',
+        permissions: [
+          { key: 'notifications', icon: 'notifications', title: 'Notifications', copy: 'Receive check-ins and important alerts.', granted: true },
+          { key: 'phone-activity', icon: 'web_asset', title: 'Phone activity', copy: 'Notice when you open and use Keep Contact.', granted: true },
+          { key: 'background', icon: 'add_to_home_screen', title: 'Background protection', copy: 'Limited on an iPhone web app, even after setup.', granted: false, unavailable: true }
+        ]
+      }
+    };
+
+    const watchScenarios = {
+      normal: {
+        title: 'No active alerts right now',
+        qualifier: "Evidence is current for 2 of 3 people; John's coverage is limited.",
+        meta: 'Last refreshed · 2 min ago', alerts: '0 alerts', coverage: '2 current', badge: '1 limited', tone: 'limited', channel: 'Live'
+      },
+      task: {
+        title: 'Your check-in is due',
+        qualifier: 'Min arranged one check-in task for you through your Guardian responsibility.',
+        meta: 'Due now', alerts: '0 alerts', coverage: '2 current', badge: '1 task due', tone: 'limited', channel: 'Live'
+      },
+      limited: {
+        title: 'No active alerts right now',
+        qualifier: 'Coverage is limited for 2 people. This is not proof of danger.',
+        meta: 'Last complete refresh · 1 hr ago', alerts: '0 alerts', coverage: '2 limited', badge: '2 limited', tone: 'limited', channel: 'Last refresh'
+      },
+      alert: {
+        title: '1 person needs attention',
+        qualifier: 'Min has an active alert. Check for a false alarm or contact her directly.',
+        meta: 'Alert opened · 4 min ago', alerts: '1 active', coverage: '1 needs action', badge: 'Action needed', tone: 'action', channel: 'Live'
+      },
+      'concern-sent': {
+        title: 'Waiting for Min to confirm',
+        qualifier: 'Concern was sent, but you can still contact Min immediately if this feels urgent.',
+        meta: 'Concern accepted just now', alerts: '1 active', coverage: 'Waiting for reply', badge: 'Action available', tone: 'action', channel: 'Live'
+      },
+      claimed: {
+        title: 'A response is in progress',
+        qualifier: 'You are contacting Min. Other responders can see that this alert is claimed.',
+        meta: 'Claimed just now', alerts: '1 active', coverage: 'Being contacted', badge: 'In progress', tone: 'action', channel: 'Live'
+      },
+      resolved: {
+        title: 'The alert is resolved',
+        qualifier: 'Demo: Min was confirmed safe. Routine evidence remains separate from this external confirmation.',
+        meta: 'Resolved just now', alerts: '0 active', coverage: 'Resolved', badge: 'Resolved', tone: 'ready', channel: 'Live'
+      },
+      loading: {
+        title: 'Refreshing people status',
+        qualifier: 'Last known information stays visible while Keep Contact reconnects.',
+        meta: 'Refresh in progress', alerts: 'Checking', coverage: 'Checking', badge: 'Refreshing', tone: 'unknown', channel: 'Refreshing'
+      },
+      error: {
+        title: 'Status could not refresh',
+        qualifier: 'Showing the last known update. Retry before making a safety judgment.',
+        meta: 'Refresh failed · last known 1 hr ago', alerts: 'Unknown', coverage: 'Unknown', badge: 'Needs retry', tone: 'action', channel: 'Offline'
+      }
+    };
+
+    const prototypeActionDialogs = {
+      'create-circle': ['Create a Circle', 'Demo: name the Circle and choose its privacy before inviting anyone. No production Circle will be created.'],
+      'create-community': ['Create a Community', 'Demo: set up a broader escalation network to connect multiple trusted Circles.'],
+      'rename-circle': ['Rename this group', 'Demo: update the name without changing members or monitoring direction.'],
+      'move-circle': ['Assign circles to this Community', 'Demo: choose which circles receive broader escalation support.'],
+      'share-circle': ['Share an invitation link', 'Demo: the real app must verify cross-platform handoff before this link can be trusted.'],
+      'show-circle-qr': ['Circle QR invitation', 'Demo: a runtime-generated QR belongs here. This prototype does not invent an expiring code.'],
+      'scan-circle-qr': ['Scan a Circle QR', 'Demo states include accepted, invalid, already a member, and handoff failed.'],
+      'manage-guardians': ['Manage responsibilities', 'Demo: invite a Guardian, accept a Ward responsibility, or review assigned check-in tasks.'],
+      'scan-sync': ['Link another device', 'Demo: scan a one-time account-link QR, then show readiness separately for the new device.'],
+      'sign-out': ['Sign out?', 'Signing out stops this device from contributing evidence until you sign in again.'],
+      'repair-push': ['Repair notification delivery', 'Demo: open system settings, retry token registration, then verify a fresh delivery result.'],
+      'check-update': ['Check for updates', 'Demo: checking the Android release channel for a version newer than 0.5.25.'],
+      'clear-pattern': ['Clear safety pattern?', 'Clearing removes this account’s intentional check-in method. Passive evidence remains separate.'],
+      'add-checkin-task': ['Add a check-in task for Mei', "You can arrange this because Mei is your Ward. Choose Mei's local daily time; ordinary Circle membership does not grant this responsibility."],
+      'edit-checkin-task': ['Edit Mei’s check-in task', "Change Mei's local daily time. This remains a Guardian-to-Ward care arrangement."],
+      'remove-checkin-task': ['Remove Mei’s check-in task?', 'Removing stops this scheduled care arrangement. It does not change Circle membership or alert monitoring.'],
+      'complete-own-checkin': ['Complete your check-in', 'Min arranged this task for you. Continue to your explicit safety confirmation; opening this screen alone does not complete the task.']
+    };
+
+    function setBadgeState(element, state, text) {
+      element.className = `badge ${state} text-caption`;
+      element.textContent = text;
+    }
+
+    function getWatchActionState(scenario) {
+      if (scenario === 'task') return { alertVisible: false, concernVisible: false, claimVisible: false, confirmVisible: false, ownTaskVisible: true };
+      if (scenario === 'alert') return { alertVisible: true, concernVisible: true, claimVisible: true, confirmVisible: false, ownTaskVisible: false };
+      if (scenario === 'concern-sent') return { alertVisible: true, concernVisible: false, claimVisible: true, confirmVisible: false, ownTaskVisible: false };
+      if (scenario === 'claimed') return { alertVisible: true, concernVisible: false, claimVisible: false, confirmVisible: true, ownTaskVisible: false };
+      return { alertVisible: false, concernVisible: false, claimVisible: false, confirmVisible: false, ownTaskVisible: false };
+    }
+
+    function renderWatchResponse(scenario) {
+      const actionState = getWatchActionState(scenario);
+      const response = document.getElementById('watch-alert-response');
+      const concern = document.getElementById('watch-concern-action');
+      const claim = document.getElementById('watch-claim-action');
+      const confirm = document.getElementById('watch-confirm-safe-action');
+      response.hidden = !actionState.alertVisible;
+      document.getElementById('watch-own-checkin').hidden = !actionState.ownTaskVisible;
+      concern.hidden = !actionState.concernVisible;
+      claim.hidden = !actionState.claimVisible;
+      confirm.hidden = !actionState.confirmVisible;
+      if (scenario === 'claimed') {
+        document.getElementById('watch-alert-response-title').textContent = "You're contacting Min";
+        document.getElementById('watch-alert-response-copy').textContent = 'Contact Min directly. Confirm safe only after you have actually checked on her.';
+      } else if (scenario === 'concern-sent') {
+        document.getElementById('watch-alert-response-title').textContent = 'Waiting for Min to confirm';
+        document.getElementById('watch-alert-response-copy').textContent = "Concern sent · waiting for Min to confirm. You can still choose I'll contact them without waiting.";
+      } else {
+        document.getElementById('watch-alert-response-title').textContent = 'Check whether this is a false alarm';
+        document.getElementById('watch-alert-response-copy').textContent = "Send concern asks Min to confirm she is safe. If this feels urgent, choose I'll contact them now.";
+      }
+    }
+
+    function renderWatchScenario(name) {
+      currentWatchScenario = watchScenarios[name] ? name : 'normal';
+      const scenario = watchScenarios[currentWatchScenario];
+      document.getElementById('watch-title').textContent = scenario.title;
+      document.getElementById('watch-qualifier').textContent = scenario.qualifier;
+      document.getElementById('watch-summary-meta').textContent = scenario.meta;
+      document.getElementById('watch-alert-count').textContent = scenario.alerts;
+      document.getElementById('watch-coverage-count').textContent = scenario.coverage;
+      setBadgeState(document.getElementById('watch-summary-badge'), scenario.tone, scenario.badge);
+      const isLiveScenario = ['normal', 'task', 'alert', 'concern-sent', 'claimed', 'resolved'].includes(currentWatchScenario);
+      const hasActiveAlert = ['alert', 'concern-sent', 'claimed'].includes(currentWatchScenario);
+      setBadgeState(document.getElementById('history-channel-state'), isLiveScenario ? 'ready' : currentWatchScenario === 'limited' ? 'limited' : 'unknown', scenario.channel);
+      document.getElementById('watch').setAttribute('aria-busy', String(currentWatchScenario === 'loading'));
+      document.getElementById('watch-retry').hidden = currentWatchScenario !== 'error';
+      document.getElementById('alert-history-event').hidden = !hasActiveAlert;
+      const minState = document.getElementById('min-state');
+      const minAction = document.getElementById('min-primary-action');
+      if (hasActiveAlert) {
+        const alertLabel = currentWatchScenario === 'claimed' ? 'Being contacted' : currentWatchScenario === 'concern-sent' ? 'Waiting' : 'Needs action';
+        setBadgeState(minState, 'action', alertLabel);
+        minAction.textContent = 'View alert';
+        minAction.dataset.action = 'view-alert';
+        minAction.hidden = false;
+      } else if (currentWatchScenario === 'resolved') {
+        setBadgeState(minState, 'ready', 'Resolved');
+        minAction.hidden = true;
+      } else {
+        setBadgeState(minState, 'ready', 'Current');
+        minAction.hidden = true;
+      }
+      renderWatchResponse(currentWatchScenario);
+      document.querySelectorAll('[data-watch-scenario]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.watchScenario === currentWatchScenario)));
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+    }
+
+    function switchTab(tabName) {
+      activeTab = tabName;
+      document.querySelectorAll('.screen').forEach((screen) => {
+        screen.hidden = screen.id !== tabName;
+      });
+      document.querySelectorAll('.nav-button[data-tab]').forEach((button) => {
+        if (button.dataset.tab === tabName) button.setAttribute('aria-current', 'page');
+        else button.removeAttribute('aria-current');
+      });
+      screenScroll.scrollTop = 0;
+      document.getElementById(tabName).querySelector('h1')?.focus({ preventScroll: true });
+    }
+
+    function setTheme(theme) {
+      const resolved = theme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : theme;
+      root.dataset.theme = resolved;
+      document.querySelectorAll('[data-theme-choice]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.dataset.themeChoice === theme || (theme !== 'system' && button.dataset.themeChoice === resolved)));
+      });
+    }
+
+    function toggleDisclosure(button) {
+      const panel = document.getElementById(button.getAttribute('aria-controls'));
+      const willOpen = button.getAttribute('aria-expanded') !== 'true';
+      button.setAttribute('aria-expanded', String(willOpen));
+      panel.hidden = !willOpen;
+    }
+
+    function openDialog(dialog, opener) {
+      dialogOpener = opener || document.activeElement;
+      if (dialog === setupDialog) {
+        setupStep = 1;
+        readinessState = 'unknown';
+        renderSetupStep();
+      }
+      dialog.showModal();
+      dialog.querySelector('button, input, select')?.focus();
+    }
+
+    function closeDialog(dialog) {
+      if (!dialog?.open) return;
+      dialog.close();
+      dialogOpener?.focus();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      })[character]);
+    }
+
+    function renderEmergencyContacts() {
+      const list = document.getElementById('emergency-contacts-list');
+      if (!emergencyContacts.length) {
+        list.innerHTML = '<p class="empty-state text-sub">No emergency contacts yet. Add one before relying on crisis sharing.</p>';
+        return;
+      }
+      list.innerHTML = emergencyContacts.map((contact) => `
+        <article class="emergency-item" aria-label="${escapeHtml(contact.name)} emergency contact">
+          <div class="emergency-item-head">
+            <div><strong class="text-body">${escapeHtml(contact.name)} · ${escapeHtml(contact.relationship)}</strong><p class="text-sub">${escapeHtml(contact.phone)}</p></div>
+            <span class="badge ${contact.primary ? 'ready' : 'unknown'} text-caption">${contact.primary ? 'Primary' : 'Backup'}</span>
+          </div>
+          <p class="text-sub">${contact.verified ? 'Phone verified' : 'Phone verification pending'} · ${contact.receivesCrisis ? 'Crisis notices on' : 'Crisis notices off'}</p>
+          <div class="emergency-item-actions">
+            <button class="button ghost text-sub" type="button" data-action="edit-emergency-contact" data-id="${contact.id}">Edit</button>
+            <button class="button ghost text-sub" type="button" data-action="remove-emergency-contact" data-id="${contact.id}">Remove</button>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    function renderEmergencyAddresses() {
+      const list = document.getElementById('emergency-addresses-list');
+      if (!emergencyAddresses.length) {
+        list.innerHTML = '<p class="empty-state text-sub">No saved emergency addresses. Device GPS remains a separate crisis permission.</p>';
+        return;
+      }
+      list.innerHTML = emergencyAddresses.map((address) => `
+        <article class="emergency-item" aria-label="${escapeHtml(address.label)} saved emergency address">
+          <div class="emergency-item-head"><div><strong class="text-body">${escapeHtml(address.label)}</strong><p class="text-sub">Static reference address · not current GPS</p></div><span class="badge unknown text-caption">Protected</span></div>
+          <p class="masked text-sub">${address.revealed ? `${escapeHtml(address.address)} · ${escapeHtml(address.note || 'No access note')}` : 'Address hidden · •••• •••• · access note protected'}</p>
+          <div class="emergency-item-actions">
+            <button class="button ghost text-sub" type="button" data-action="toggle-emergency-address" data-id="${address.id}" aria-pressed="${address.revealed}">${address.revealed ? 'Hide' : 'Reveal'}</button>
+            <button class="button ghost text-sub" type="button" data-action="edit-emergency-address" data-id="${address.id}">Edit</button>
+            <button class="button ghost text-sub" type="button" data-action="remove-emergency-address" data-id="${address.id}">Remove</button>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    function openEmergencyItemDialog(kind, mode, id, opener) {
+      const isContact = kind === 'contact';
+      const item = mode === 'edit'
+        ? (isContact ? emergencyContacts : emergencyAddresses).find((entry) => entry.id === id)
+        : null;
+      if (mode === 'edit' && !item) return;
+      emergencyEditor = { kind, mode, id: item?.id || null, opener };
+      document.getElementById('emergency-item-title').textContent = `${mode === 'add' ? 'Add' : 'Edit'} emergency ${isContact ? 'contact' : 'address'}`;
+      document.getElementById('emergency-name-label').textContent = isContact ? 'Name' : 'Address label';
+      document.getElementById('emergency-item-name').value = item ? (isContact ? item.name : item.label) : '';
+      document.getElementById('emergency-contact-fields').hidden = !isContact;
+      document.getElementById('emergency-address-fields').hidden = isContact;
+      document.getElementById('emergency-contact-relationship').required = isContact;
+      document.getElementById('emergency-contact-phone').required = isContact;
+      document.getElementById('emergency-address-street').required = !isContact;
+      document.getElementById('emergency-contact-relationship').value = isContact && item ? item.relationship : '';
+      document.getElementById('emergency-contact-phone').value = isContact && item ? item.phone : '';
+      document.getElementById('emergency-contact-crisis').checked = isContact ? (item?.receivesCrisis ?? true) : false;
+      document.getElementById('emergency-contact-primary').checked = isContact ? (item?.primary ?? emergencyContacts.length === 0) : false;
+      document.getElementById('emergency-address-street').value = !isContact && item ? item.address : '';
+      document.getElementById('emergency-address-note').value = !isContact && item ? item.note : '';
+      document.getElementById('emergency-item-submit').textContent = `${mode === 'add' ? 'Add' : 'Save'} ${isContact ? 'contact' : 'address'}`;
+      document.getElementById('emergency-item-feedback').textContent = 'Demo only · changes reset when this page reloads.';
+      openDialog(emergencyItemDialog, opener);
+    }
+
+    function saveEmergencyItem() {
+      const form = document.getElementById('emergency-item-form');
+      if (!form.reportValidity()) return;
+      const name = document.getElementById('emergency-item-name').value.trim();
+      const id = emergencyEditor.id || `${emergencyEditor.kind}-${Date.now().toString(36)}`;
+      if (emergencyEditor.kind === 'contact') {
+        const existing = emergencyContacts.find((contact) => contact.id === emergencyEditor.id);
+        const saved = {
+          id, name,
+          relationship: document.getElementById('emergency-contact-relationship').value.trim(),
+          phone: document.getElementById('emergency-contact-phone').value.trim(),
+          verified: existing?.verified ?? false,
+          receivesCrisis: document.getElementById('emergency-contact-crisis').checked,
+          primary: document.getElementById('emergency-contact-primary').checked || emergencyContacts.length === 0
+        };
+        if (saved.primary) emergencyContacts.forEach((contact) => { contact.primary = false; });
+        const index = emergencyContacts.findIndex((contact) => contact.id === id);
+        if (index >= 0) emergencyContacts[index] = saved;
+        else emergencyContacts.push(saved);
+        if (!emergencyContacts.some((contact) => contact.primary)) emergencyContacts[0].primary = true;
+        renderEmergencyContacts();
+        showToast('Demo contact saved.');
+      } else {
+        const existing = emergencyAddresses.find((address) => address.id === emergencyEditor.id);
+        const saved = {
+          id, label: name,
+          address: document.getElementById('emergency-address-street').value.trim(),
+          note: document.getElementById('emergency-address-note').value.trim(),
+          revealed: existing?.revealed ?? false
+        };
+        const index = emergencyAddresses.findIndex((address) => address.id === id);
+        if (index >= 0) emergencyAddresses[index] = saved;
+        else emergencyAddresses.push(saved);
+        renderEmergencyAddresses();
+        showToast('Demo address saved.');
+      }
+      closeDialog(emergencyItemDialog);
+    }
+
+    function requestEmergencyRemoval(kind, id, opener) {
+      const collection = kind === 'contact' ? emergencyContacts : emergencyAddresses;
+      const item = collection.find((entry) => entry.id === id);
+      if (!item) return;
+      const label = kind === 'contact' ? item.name : item.label;
+      pendingEmergencyRemoval = { kind, id };
+      const primaryNote = kind === 'contact' && item.primary ? ' Another contact will become Primary.' : '';
+      simulateSimpleDialog(`Remove ${label}?`, `Demo: remove this ${kind === 'contact' ? 'emergency contact' : 'saved address'}.${primaryNote}`, opener, 'remove-emergency');
+    }
+
+    function removePendingEmergencyItem() {
+      if (!pendingEmergencyRemoval) return 'No Demo item was removed.';
+      const { kind, id } = pendingEmergencyRemoval;
+      if (kind === 'contact') {
+        emergencyContacts = emergencyContacts.filter((contact) => contact.id !== id);
+        if (emergencyContacts.length && !emergencyContacts.some((contact) => contact.primary)) emergencyContacts[0].primary = true;
+        renderEmergencyContacts();
+      } else {
+        emergencyAddresses = emergencyAddresses.filter((address) => address.id !== id);
+        renderEmergencyAddresses();
+      }
+      pendingEmergencyRemoval = null;
+      return `Demo ${kind === 'contact' ? 'contact' : 'address'} removed.`;
+    }
+
+    function renderPermissionList() {
+      const list = document.getElementById('permission-list');
+      const platform = platformContent[selectedPlatform];
+      document.getElementById('detected-device-copy').textContent = platform.detectedCopy;
+      list.innerHTML = platform.permissions.map((permission) => `
+        <div class="row">
+          <div class="row-icon"><span class="material-symbols-rounded" aria-hidden="true">${permission.icon}</span></div>
+          <div class="row-main"><div class="row-title text-body">${permission.title}</div><div class="row-sub text-sub">${permission.copy}</div></div>
+          ${permission.unavailable ? '<span class="badge limited text-caption">Limited</span>' : `<button class="button ${permission.granted ? 'ghost' : 'primary'} text-sub permission-action" type="button" data-action="toggle-permission" data-permission="${permission.key}">${permission.granted ? 'Allowed' : 'Allow'}</button>`}
+        </div>
+      `).join('');
+    }
+
+    function hasFullProtection() {
+      return selectedPlatform !== 'ios-pwa' && platformContent[selectedPlatform].permissions.every((permission) => permission.granted || permission.unavailable);
+    }
+
+    function renderSetupStep() {
+      document.querySelectorAll('.setup-step').forEach((step) => {
+        step.hidden = Number(step.dataset.setupStep) !== setupStep;
+      });
+      document.getElementById('setup-progress-label').textContent = setupStep === 3 ? 'Setup result' : `Step ${setupStep} of 2`;
+      document.getElementById('setup-progress-fill').style.width = setupStep === 1 ? '50%' : '100%';
+      const back = document.getElementById('setup-back');
+      const next = document.getElementById('setup-next');
+      back.disabled = setupStep === 1;
+      back.hidden = setupStep === 3;
+      if (setupStep === 1) next.textContent = 'Set up this phone';
+      if (setupStep === 2) {
+        renderPermissionList();
+        next.textContent = hasFullProtection() ? 'Check this phone' : 'Continue with limited protection';
+      }
+      if (setupStep === 3) {
+        renderSetupResult();
+        next.textContent = 'Go to Home';
+      }
+      document.querySelector(`[data-setup-step="${setupStep}"] h3`)?.focus({ preventScroll: true });
+    }
+
+    function runAutomaticCheck() {
+      document.getElementById('readiness-live').textContent = 'Checking this phone…';
+      verificationStartedAt = Date.now();
+      verificationEventAt = hasFullProtection() ? verificationStartedAt + 1 : null;
+      const freshVerification = verificationEventAt !== null && verificationEventAt > verificationStartedAt;
+      readinessState = debugReadiness === 'auto' ? (freshVerification ? 'ready' : 'limited') : debugReadiness;
+      renderSetupResult();
+    }
+
+    function renderSetupResult() {
+      const isReady = readinessState === 'ready';
+      const isLimited = readinessState === 'limited';
+      document.querySelector('[data-result-state="ready"]').hidden = !isReady;
+      document.querySelector('[data-result-state="limited"]').hidden = isReady;
+      const title = { ready: 'This phone is ready', limited: 'Protection is limited', 'needs-action': 'This phone needs attention', unknown: 'Readiness is unknown' }[readinessState] || 'Readiness is unknown';
+      const summary = {
+        ready: 'A fresh check confirmed the available capabilities on this phone.',
+        limited: 'Keep Contact can still help, but this phone may miss signs while some capabilities are limited.',
+        'needs-action': 'One or more phone settings need your action before Keep Contact can rely on them.',
+        unknown: 'Keep Contact could not verify this phone yet. Try again before relying on background evidence.'
+      }[readinessState] || 'Keep Contact could not verify this phone yet.';
+      document.getElementById('setup-result-title').textContent = title;
+      document.getElementById('setup-result-summary').textContent = summary;
+      const missing = platformContent[selectedPlatform].permissions.filter((permission) => !permission.granted).map((permission) => permission.title.toLowerCase());
+      document.getElementById('limited-reason').textContent = readinessState === 'unknown' ? 'No fresh verification event was received after this check began.' : selectedPlatform === 'ios-pwa' ? 'The iPhone web app has limited background protection. For fuller coverage, use the native iOS app when available.' : `${missing.join(' and ') || 'A phone setting'} still needs attention. You can fix it now or finish later.`;
+      const permissions = platformContent[selectedPlatform].permissions;
+      const capabilityStates = readinessState === 'unknown'
+        ? [['unknown', 'Unknown'], ['unknown', 'Unknown'], ['unknown', 'Unknown']]
+        : readinessState === 'needs-action'
+          ? [['ready', 'Ready'], ['action', 'Needs action'], ['action', 'Needs action']]
+          : permissions.map((permission) => permission.granted ? ['ready', 'Ready'] : permission.unavailable ? ['limited', 'Limited'] : ['action', 'Needs action']);
+      for (const [id, state] of [['setup-notifications-state', capabilityStates[0]], ['setup-evidence-state', capabilityStates[1]], ['setup-background-state', capabilityStates[2]]]) setBadgeState(document.getElementById(id), state[0], state[1]);
+    }
+
+    function completeSetup() {
+      closeDialog(setupDialog);
+      switchTab('watch');
+      const label = { ready: 'Ready', limited: 'Limited', 'needs-action': 'Needs action', unknown: 'Unknown' }[readinessState] || 'Unknown';
+      const badgeTone = { ready: 'ready', limited: 'limited', 'needs-action': 'action', unknown: 'unknown' }[readinessState] || 'unknown';
+      for (const id of ['home-readiness-badge', 'me-readiness-badge']) {
+        const badge = document.getElementById(id);
+        if (badge) setBadgeState(badge, badgeTone, label);
+      }
+      const copy = document.getElementById('home-readiness-copy');
+      if (copy) copy.textContent = readinessState === 'ready' ? 'A fresh check confirmed this phone is contributing evidence.' : readinessState === 'unknown' ? 'This phone has not produced a fresh verification result.' : 'Keep Contact is helping with the capabilities currently available.';
+      showToast(`Setup result: ${label}.`);
+    }
+
+    function simulateSimpleDialog(title, copy, opener, action = 'invite') {
+      simpleAction = action;
+      document.getElementById('simple-dialog-title').textContent = title;
+      document.getElementById('simple-dialog-copy').textContent = copy;
+      const field = document.getElementById('simple-dialog-field');
+      const fieldLabel = field.querySelector('label');
+      const fieldInput = document.getElementById('invite-email');
+      const fieldConfig = {
+        invite: { label: 'Email or phone', placeholder: 'name@example.com', value: '' },
+        'create-circle': { label: 'Circle name', placeholder: 'Family Circle', value: '' },
+        'rename-circle': { label: 'Circle name', placeholder: 'Family Circle', value: 'Warm Family' },
+        'add-checkin-task': { label: "Mei's local daily time", placeholder: '18:00', value: '18:00' },
+        'edit-checkin-task': {
+          label: "Mei's local daily time",
+          placeholder: pendingCheckinTaskId === 'added' ? '18:00' : '09:00',
+          value: (document.getElementById(pendingCheckinTaskId === 'added' ? 'mei-added-checkin-schedule' : 'mei-checkin-schedule').textContent.match(/\d{2}:\d{2}/) || ['09:00'])[0]
+        }
+      }[action];
+      field.hidden = !fieldConfig;
+      if (fieldConfig) {
+        fieldLabel.textContent = fieldConfig.label;
+        fieldInput.placeholder = fieldConfig.placeholder;
+        fieldInput.value = fieldConfig.value;
+      }
+      const confirmLabel = {
+        invite: 'Send invitation', leave: 'Leave Circle', delete: 'Delete account', pattern: 'Start practice',
+        'create-circle': 'Create demo Circle', 'rename-circle': 'Save demo name', 'move-circle': 'Save assignment',
+        'share-circle': 'Copy demo link', 'show-circle-qr': 'Close', 'scan-circle-qr': 'Try demo scan',
+        'manage-guardians': 'Open responsibilities', 'scan-sync': 'Start demo scan', 'sign-out': 'Sign out',
+        'repair-push': 'Run demo repair', 'check-update': 'Run demo check', 'clear-pattern': 'Clear demo pattern',
+        'remove-emergency': 'Remove', 'add-checkin-task': 'Add task', 'edit-checkin-task': 'Save changes',
+        'remove-checkin-task': 'Remove task', 'complete-own-checkin': 'Open safety check-in', 'send-concern': 'Send concern'
+      }[action] || 'Continue';
+      document.getElementById('simple-dialog-confirm').textContent = confirmLabel;
+      const destructiveActions = new Set(['leave', 'delete', 'sign-out', 'clear-pattern', 'remove-emergency', 'remove-checkin-task']);
+      document.getElementById('simple-dialog-confirm').className = `button ${destructiveActions.has(action) ? 'danger' : 'accent'}`;
+      openDialog(simpleDialog, opener);
+    }
+
+    /* Center Raised Bottom Emergency SOS Button Mechanics */
+    function beginSosHold(event) {
+      if (sosTriggered || event.button > 0) return;
+      event.preventDefault();
+      sosStartAt = performance.now();
+      const dockBtn = document.getElementById('sos-dock-button');
+      const overlay = document.getElementById('sos-overlay');
+      dockBtn.classList.add('holding');
+      overlay.hidden = false;
+      document.getElementById('sos-overlay-status').textContent = 'Keep holding… release to cancel.';
+
+      const tick = (now) => {
+        if (sosStartAt === null) return;
+        const progress = Math.min(100, Math.round(((now - sosStartAt) / SOS_HOLD_MS) * 100));
+        dockBtn.setAttribute('aria-valuenow', String(progress));
+        const fill = document.getElementById('sos-ring-fill');
+        fill.style.clipPath = `polygon(50% 50%, 50% 0%, ${progress > 25 ? '100%' : '50%'} ${progress > 25 ? '0%' : '0%'}, ${progress > 50 ? '100%' : (progress > 25 ? '100%' : '50%')} ${progress > 50 ? '100%' : (progress > 25 ? '0%' : '0%')}, ${progress > 75 ? '0%' : (progress > 50 ? '100%' : (progress > 25 ? '100%' : '50%'))} ${progress > 75 ? '100%' : (progress > 50 ? '100%' : (progress > 25 ? '0%' : '0%'))}, ${progress >= 100 ? '0%' : (progress > 75 ? '0%' : (progress > 50 ? '100%' : (progress > 25 ? '100%' : '50%')))} ${progress >= 100 ? '0%' : (progress > 75 ? '100%' : (progress > 50 ? '100%' : (progress > 25 ? '0%' : '0%')))})`;
+        if (progress >= 100) dispatchSos();
+        else sosFrame = requestAnimationFrame(tick);
+      };
+      sosFrame = requestAnimationFrame(tick);
+    }
+
+    function cancelSosHold() {
+      if (sosStartAt === null || sosTriggered) return;
+      cancelAnimationFrame(sosFrame);
+      sosStartAt = null;
+      const dockBtn = document.getElementById('sos-dock-button');
+      const overlay = document.getElementById('sos-overlay');
+      dockBtn.classList.remove('holding');
+      dockBtn.setAttribute('aria-valuenow', '0');
+      overlay.hidden = true;
+    }
+
+    function dispatchSos() {
+      cancelAnimationFrame(sosFrame);
+      sosStartAt = null;
+      sosTriggered = true;
+      const dockBtn = document.getElementById('sos-dock-button');
+      const status = document.getElementById('sos-overlay-status');
+      dockBtn.classList.remove('holding');
+      dockBtn.disabled = true;
+      status.textContent = 'Demo · queued securely on this device…';
+      setTimeout(() => {
+        status.textContent = sosResult === 'accepted'
+          ? 'Demo · accepted by server. Contact delivery is not yet confirmed.'
+          : sosResult === 'degraded'
+            ? 'Demo · server accepted, but one or more delivery channels are unconfirmed. Retry or call directly.'
+            : 'Demo · server acceptance could not be confirmed. Retry or call emergency services now.';
+      }, 650);
+      setTimeout(() => {
+        document.getElementById('sos-overlay').hidden = true;
+        const toastMessage = sosResult === 'accepted'
+          ? 'Demo SOS: server accepted; awaiting delivery receipts.'
+          : sosResult === 'degraded'
+            ? 'Demo SOS: delivery degraded; use Retry or call directly.'
+            : 'Demo SOS: send failed; retry or call emergency services.';
+        showToast(toastMessage);
+        dockBtn.disabled = false;
+        dockBtn.setAttribute('aria-valuenow', '0');
+        sosTriggered = false;
+      }, 2400);
+    }
+
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      if (button.id === 'sos-dock-button') {
+        const isZh = currentLanguage === 'zh';
+        showToast(isZh ? '请长按 1.4 秒以发送 SOS 紧急求助' : 'Press and hold for 1.4s to trigger SOS');
+      }
+      if (button.dataset.tab) switchTab(button.dataset.tab);
+      if (button.dataset.themeChoice) setTheme(button.dataset.themeChoice);
+      if (button.dataset.debugPlatform) {
+        selectedPlatform = button.dataset.debugPlatform;
+        document.querySelectorAll('[data-debug-platform]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+        readinessState = 'unknown';
+        if (setupDialog.open && setupStep === 2) renderSetupStep();
+        showToast(`Prototype now detects: ${platformContent[selectedPlatform].label}`);
+      }
+      if (button.dataset.debugReadiness) {
+        debugReadiness = button.dataset.debugReadiness;
+        document.querySelectorAll('[data-debug-readiness]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+        if (setupDialog.open && setupStep === 3) { runAutomaticCheck(); renderSetupStep(); }
+      }
+      if (button.dataset.routineResult) {
+        routineResult = button.dataset.routineResult;
+        document.querySelectorAll('[data-routine-result]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+      }
+      if (button.dataset.sosResult) {
+        sosResult = button.dataset.sosResult;
+        document.querySelectorAll('[data-sos-result]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+      }
+      if (button.dataset.inviteResult) {
+        inviteResult = button.dataset.inviteResult;
+        document.querySelectorAll('[data-invite-result]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+      }
+      if (button.dataset.watchScenario) renderWatchScenario(button.dataset.watchScenario);
+      if (button.dataset.filter) {
+        document.querySelectorAll('[data-filter]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+        document.querySelectorAll('[data-event-type]').forEach((item) => {
+          const scenarioAllows = item.id !== 'alert-history-event' || ['alert', 'concern-sent', 'claimed'].includes(currentWatchScenario);
+          item.hidden = !scenarioAllows || (button.dataset.filter !== 'all' && item.dataset.eventType !== button.dataset.filter);
+        });
+      }
+      if (button.dataset.sensitivity) {
+        const descriptions = { sensitive: 'Sensitive alerts sooner when activity is quieter than usual.', balanced: 'Balanced uses your usual rhythm and avoids unnecessary alerts.', relaxed: 'Relaxed allows longer quiet periods before raising concern.' };
+        document.querySelectorAll('[data-sensitivity]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+        document.getElementById('sensitivity-description').textContent = descriptions[button.dataset.sensitivity];
+      }
+      const action = button.dataset.action;
+      if (action === 'open-setup') openDialog(setupDialog, button);
+      if (action === 'close-dialog') closeDialog(button.closest('dialog'));
+      if (action === 'toggle-disclosure') toggleDisclosure(button);
+      if (action === 'toggle-person') {
+        toggleDisclosure(button);
+        button.textContent = button.getAttribute('aria-expanded') === 'true' ? 'Hide details' : 'View details';
+      }
+      if (action === 'send-concern') {
+        simulateSimpleDialog(
+          'Send concern to Min?',
+          'This asks Min to open Keep Contact and confirm they are safe. It is only available because an alert is active.',
+          button,
+          'send-concern'
+        );
+      }
+      if (['edit-checkin-task', 'remove-checkin-task'].includes(action)) pendingCheckinTaskId = button.dataset.taskId || 'morning';
+      if (action === 'view-alert') {
+        const response = document.getElementById('watch-alert-response');
+        document.getElementById('watch-feedback').textContent = `Demo alert: ${document.getElementById('watch-alert-response-copy').textContent}`;
+        response.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        response.focus({ preventScroll: true });
+      }
+      if (action === 'claim-alert') {
+        renderWatchScenario('claimed');
+        document.getElementById('watch-feedback').textContent = 'Demo: you are now shown as the person contacting Min. No safety confirmation has been recorded.';
+        document.getElementById('watch-alert-response').focus();
+      }
+      if (action === 'confirm-safe') {
+        renderWatchScenario('resolved');
+        document.getElementById('watch-feedback').textContent = 'Demo: Min was marked externally confirmed safe. This does not become Min’s own routine activity evidence.';
+        showToast('Demo alert resolved.');
+      }
+      if (action === 'retry-watch') {
+        renderWatchScenario('loading');
+        setTimeout(() => { renderWatchScenario('normal'); showToast('Demo status refreshed.'); }, 700);
+      }
+      if (action === 'add-emergency-contact') openEmergencyItemDialog('contact', 'add', null, button);
+      if (action === 'edit-emergency-contact') openEmergencyItemDialog('contact', 'edit', button.dataset.id, button);
+      if (action === 'remove-emergency-contact') requestEmergencyRemoval('contact', button.dataset.id, button);
+      if (action === 'add-emergency-address') openEmergencyItemDialog('address', 'add', null, button);
+      if (action === 'edit-emergency-address') openEmergencyItemDialog('address', 'edit', button.dataset.id, button);
+      if (action === 'remove-emergency-address') requestEmergencyRemoval('address', button.dataset.id, button);
+      if (action === 'toggle-emergency-address') {
+        const address = emergencyAddresses.find((item) => item.id === button.dataset.id);
+        if (address) { address.revealed = !address.revealed; renderEmergencyAddresses(); }
+      }
+      if (action === 'setup-next') {
+        if (setupStep === 1) { setupStep = 2; renderSetupStep(); }
+        else if (setupStep === 2) { runAutomaticCheck(); setupStep = 3; renderSetupStep(); }
+        else completeSetup();
+      }
+      if (action === 'setup-back' && setupStep > 1) { setupStep -= 1; renderSetupStep(); }
+      if (action === 'toggle-permission') {
+        const permission = platformContent[selectedPlatform].permissions.find((item) => item.key === button.dataset.permission);
+        if (permission && !permission.unavailable) {
+          permission.granted = !permission.granted;
+          document.getElementById('readiness-live').textContent = permission.granted ? `${permission.title} allowed.` : `${permission.title} turned off.`;
+          renderPermissionList();
+          document.getElementById('setup-next').textContent = hasFullProtection() ? 'Check this phone' : 'Continue with limited protection';
+          document.querySelector(`[data-permission="${permission.key}"]`)?.focus();
+        }
+      }
+      if (action === 'fix-setup') { setupStep = 2; renderSetupStep(); }
+      if (action === 'save-routine') {
+        const feedback = document.getElementById('routine-feedback');
+        feedback.textContent = 'Saving your selected routine…';
+        button.disabled = true;
+        setTimeout(() => {
+          button.disabled = false;
+          if (routineResult === 'success') {
+            feedback.textContent = 'Saved. Your selected routine is stored; the current effective estimate remains a separate adaptive result.';
+            showToast('Demo routine saved.');
+          } else {
+            feedback.textContent = 'Could not save. Your previous saved routine is still active. Choose Retry when the connection returns.';
+            button.textContent = 'Retry save';
+            showToast('Demo save failed; previous routine kept.');
+          }
+        }, 650);
+      }
+      if (action === 'open-invite') simulateSimpleDialog('Invite a trusted person', 'Choose a Circle member or send a verified invitation.', button, 'invite');
+      if (prototypeActionDialogs[action]) simulateSimpleDialog(prototypeActionDialogs[action][0], prototypeActionDialogs[action][1], button, action);
+      if (action === 'confirm-simple') {
+        closeDialog(simpleDialog);
+        let message = {
+          invite: 'Demo invitation prepared.', pattern: 'Demo safety check-in practice started.',
+          'create-circle': 'Demo Circle created.', 'rename-circle': 'Demo name saved.', 'move-circle': 'Demo assignment saved.',
+          'share-circle': 'Demo link copied.', 'show-circle-qr': 'Demo QR preview closed.', 'scan-circle-qr': 'Demo scan result: invitation is valid.',
+          'manage-guardians': 'Demo responsibilities opened.', 'scan-sync': 'Demo device-link scan started.',
+          'sign-out': 'Demo only: account remains signed in.', 'repair-push': 'Demo repair finished with Limited delivery.',
+          'check-update': 'Demo check: 0.5.25 is current.', 'clear-pattern': 'Demo only: pattern was not removed.',
+          'remove-emergency': 'Demo emergency item removed.',
+          'add-checkin-task': 'Demo: a scheduled check-in was added for Mei under your Guardian responsibility.',
+          'edit-checkin-task': 'Demo: Mei’s scheduled check-in time was updated.',
+          'remove-checkin-task': 'Demo: Mei’s scheduled check-in was removed. Circle membership is unchanged.',
+          'complete-own-checkin': 'Demo: your safety check-in flow opened. The task is not complete until your explicit confirmation succeeds.',
+          'send-concern': 'Demo: concern request accepted by the server. Notification delivery and self-confirmation remain unknown.'
+        }[simpleAction] || 'Demo account state updated.';
+        if (simpleAction === 'remove-emergency') message = removePendingEmergencyItem();
+        if (simpleAction === 'send-concern') renderWatchScenario('concern-sent');
+        if (simpleAction === 'add-checkin-task') {
+          const time = document.getElementById('invite-email').value.trim() || '18:00';
+          document.getElementById('mei-added-checkin-task').hidden = false;
+          document.getElementById('mei-added-checkin-schedule').textContent = `Daily · ${time} · Active`;
+        }
+        if (simpleAction === 'edit-checkin-task') {
+          const time = document.getElementById('invite-email').value.trim() || (pendingCheckinTaskId === 'added' ? '18:00' : '09:00');
+          document.getElementById(pendingCheckinTaskId === 'added' ? 'mei-added-checkin-schedule' : 'mei-checkin-schedule').textContent = `Daily · ${time} · Active`;
+        }
+        if (simpleAction === 'remove-checkin-task') {
+          document.getElementById(pendingCheckinTaskId === 'added' ? 'mei-added-checkin-task' : 'mei-checkin-task').hidden = true;
+        }
+        if (['add-checkin-task', 'edit-checkin-task', 'remove-checkin-task', 'complete-own-checkin', 'send-concern'].includes(simpleAction)) {
+          document.getElementById('watch-feedback').textContent = message;
+        }
+        if (['invite', 'scan-circle-qr'].includes(simpleAction)) {
+          message = {
+            accepted: 'Demo invitation accepted. Monitoring direction still needs confirmation.',
+            invalid: 'Demo invitation is invalid. Ask the sender for a new code.',
+            'already-member': 'Demo result: you are already a member of this Circle.',
+            'handoff-failed': 'Demo handoff failed between app surfaces. Copy the link and retry in the installed app.'
+          }[inviteResult];
+        }
+        document.getElementById('update-feedback').textContent = simpleAction === 'check-update' ? message : document.getElementById('update-feedback').textContent;
+        showToast(message);
+      }
+      if (action === 'confirm-leave') simulateSimpleDialog('Leave Family Circle?', 'Leaving stops reciprocal routine visibility.', button, 'leave');
+      if (action === 'delete-account') simulateSimpleDialog('Delete account?', 'This destructive action requires verification.', button, 'delete');
+      if (action === 'edit-name') showToast('Name editing dialog.');
+      if (action === 'practice-pattern' || action === 'change-pattern') {
+        simulateSimpleDialog('Safety check-in setup', 'This is a separate task in Me. Practice or change your intentional check-in method without repeating phone setup.', button, 'pattern');
+      }
+    });
+
+    document.addEventListener('change', (event) => {
+      const control = event.target;
+      if (control.dataset.action === 'toggle-monitoring') showToast(control.checked ? 'Demo: this Circle is reciprocal.' : 'Demo: monitoring is now one-way.');
+      if (control.dataset.action === 'toggle-sharing') showToast(control.checked ? 'Demo: routine timestamps are shared.' : 'Demo: your routine timestamps are hidden.');
+      if (control.id === 'allow-emergency-gps') {
+        document.getElementById('emergency-gps-feedback').textContent = control.checked
+          ? 'Demo consent on for this device. The phone may still require location permission during a crisis.'
+          : 'Off on this device. Keep Contact will not request this device GPS for crisis disclosure.';
+        showToast(control.checked ? 'Demo emergency GPS consent on.' : 'Demo emergency GPS consent off.');
+      }
+    });
+
+    document.getElementById('emergency-item-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      saveEmergencyItem();
+    });
+
+    const dockBtn = document.getElementById('sos-dock-button');
+    dockBtn.addEventListener('pointerdown', beginSosHold);
+    dockBtn.addEventListener('pointerup', cancelSosHold);
+    dockBtn.addEventListener('pointercancel', cancelSosHold);
+    dockBtn.addEventListener('pointerleave', cancelSosHold);
+    renderEmergencyContacts();
+    renderEmergencyAddresses();
+    renderWatchScenario('normal');
+
+    let currentLang = 'en';
+        const dict = {
+      zh: {
+        "Keep Contact": "守护连线",
+        "Watch": "守护",
+        "Routine": "作息",
+        "Circles": "守护圈",
+        "Me": "我的",
+        "SOS": "SOS",
+        "Status": "当前状态",
+        "Current safety overview and alerts": "实时安全连接与警报概览",
+        "No active alerts right now": "当前暂无紧急警报",
+        "2 contacts active · 1 signal limited": "2 位亲友连线正常 · 1 人信号受限",
+        "Last refreshed · 2 min ago": "最新刷新 · 2 分钟前",
+        "Your check-in is due": "平安确认已到期",
+        "Due now · arranged by Min": "请及时确认平安 · 由 Min 安排",
+        "Check in": "确认平安",
+        "0 alerts": "0 警报",
+        "Active Status": "运行状态",
+        "2 current": "2 人连线",
+        "People Connected": "连线亲友",
+        "Limited": "守护受限",
+        "This device": "本机状态",
+        "Notifications": "通知权限",
+        "Recent alerts, check-ins, and evidence": "最新求助警报、打卡与安全感知记录",
+        "Live": "实时连线",
+        "Phone activity available": "检测到手机日常使用",
+        "Min · Android phone · 5 min ago. Evidence is current.": "Min · 手机设备 · 5 分钟前。感知信号良好。",
+        "Evidence": "感知",
+        "Trusted": "已验证可信",
+        "Manual check-in received": "收到手动平安打卡",
+        "You checked in from your iPad · 18 min ago.": "您在 iPad 上完成了平安确认 · 18 分钟前。",
+        "Evidence is limited": "连线信号受限提示",
+        "John's phone has not refreshed background evidence for 1 hour. No alert is active.": "John 的手机 1 小时内未刷新后台信号。当前未触发警报。",
+        "Not proof of danger": "非危险凭证",
+        "Concern alert opened": "触发关心问候",
+        "Min · needs someone to review the latest evidence.": "Min · 需要回应最新的平安确认。",
+        "Needs action": "需要关注",
+        "Everyone's Status": "亲友与守护圈连线状态",
+        "Live evidence grouped by Circle & Community": "按守护圈与社区归类的实时感知状态",
+        "1 limited": "1 人信号受限",
+        "Warm Family Circle": "温馨家庭圈",
+        "Reciprocal": "双向守护",
+        "Min · Daughter": "Min · 女儿",
+        "Phone activity · 5 min ago": "日常手机使用感知 · 5 分钟前",
+        "Current": "连线正常",
+        "View details": "查看详情",
+        "Hide details": "收起详情",
+        "View alert": "查看警报",
+        "Monitoring direction": "守护方向",
+        "Reciprocal · watch each other": "双向互关 · 相互守护",
+        "Device status": "设备状态",
+        "Android phone · active 5 min ago": "Android 手机 · 5 分钟前活跃",
+        "John · Friend": "John · 朋友",
+        "Manual check-in · 1 hr ago": "手动打卡确认 · 1 小时前",
+        "You watch John": "单向守护 John",
+        "Device coverage": "设备覆盖",
+        "iPhone web app · opened 1 hr ago": "iPhone Web 应用 · 1 小时前使用",
+        "Home Circle": "贴心亲友圈",
+        "Ward Care": "监护守护",
+        "Mei · Mother": "Mei · 母亲",
+        "Movement available · 12 min ago": "律动运动感知 · 12 分钟前",
+        "Morning 09:00 Active": "早晨 09:00 定时打卡中",
+        "You watch Mei · Home Circle": "您守护 Mei · 贴心亲友圈",
+        "Contributing devices": "关联设备状态",
+        "Android phone · last seen 12 min ago · movement and phone activity available": "Android 手机 · 12 分钟前上线 · 动作与手机感知正常",
+        "Privacy": "隐私与数据共享",
+        "Routine timestamps are shared with this Circle; raw motion and app content stay private.": "仅与该守护圈共享作息时间戳；原始运动数据与应用内容严格保密。",
+        "Check-in arrangement": "定时打卡安排",
+        "Ward": "被守护人",
+        "Guardian": "监护人",
+        "You can arrange scheduled check-ins because you are Mei's Guardian. Circle membership alone does not allow this.": "由于您是 Mei 的监护人，您可以为其设定定时打卡计划。普通圈子成员无此权限。",
+        "Morning check-in": "早晨平安打卡",
+        "Daily · 09:00 · Active": "每天 · 09:00 · 已启用",
+        "Evening check-in": "傍晚平安打卡",
+        "Daily · 18:00 · Active": "每天 · 18:00 · 已启用",
+        "Edit": "编辑",
+        "Remove": "移除",
+        "Add task": "添加打卡任务",
+        "Oakland Care Community": "奥克兰社区守护网络",
+        "Escalation Network": "升级响应网络",
+        "Escalation support ready": "紧急升级响应已就绪",
+        "12 circles connected · crisis details shared only when assigned": "连线 12 个互助圈 · 仅在紧急分配时共享救援信息",
+        "Ready": "已就绪",
+        "Min needs someone to contact her": "Min 需要有人与其联络确认",
+        "No responder has claimed this alert.": "暂无响应者接管此警报。",
+        "Send concern": "发送关心问候",
+        "I'll contact them": "我来联络处理",
+        "Confirm safe": "确认已安全平安",
+        "Your routine": "守护作息设置",
+        "Set quiet expectations without turning daily life into a fixed timer.": "设定温和的日常生活节奏，无需死板定时。",
+        "Sleep & Morning Grace": "夜间休息与晨间缓冲",
+        "Quiet window and wake-up buffer": "设定静谧防护与起床缓冲时段",
+        "Active": "生效中",
+        "Sleep window": "夜间休息时间段",
+        "We wait through sleep and a short morning grace period before judging quiet time.": "在夜间休息与晨间缓冲期内，系统会自动保持静谧防护，不产生误报。",
+        "Starts": "入睡时间",
+        "Wake time": "起床时间",
+        "Morning grace": "晨间缓冲时长",
+        "30 minutes": "30 分钟",
+        "45 minutes": "45 分钟",
+        "60 minutes": "60 分钟",
+        "Alert Sensitivity": "守护灵敏度",
+        "Adaptive rhythm estimation": "根据日常作息智能推断灵敏度",
+        "Adaptive": "智能自适应",
+        "Sensitive": "高灵敏",
+        "Balanced": "标准均衡",
+        "Relaxed": "宽松温和",
+        "Balanced uses your usual rhythm and avoids unnecessary alerts.": "标准均衡模式会学习您的日常生活节奏，有效减少无谓打扰。",
+        "Current effective estimate: about 3 hours.": "当前有效推断阈值：约 3 小时。",
+        "This can adapt as your routine changes. Sensitive alerts sooner; Relaxed allows longer quiet periods.": "推断阈值会随您的作息变化自动调整。高灵敏模式预警更快，宽松模式允许更长安静时段。",
+        "Timezone & Privacy": "时区与授权设置",
+        "Routine location and timestamp sharing": "作息时间戳共享与时区校准",
+        "Routine timezone": "守护作息所在时区",
+        "Shanghai (UTC+8)": "上海 (UTC+8)",
+        "Dhaka (UTC+6)": "达卡 (UTC+6)",
+        "Los Angeles (UTC-8)": "洛杉矶 (UTC-8)",
+        "Share routine timestamps with approved Circles": "向授权的守护圈共享作息时间戳",
+        "This shares evidence type and time, not phone content. Your saved choice is separate from the current adaptive estimate.": "仅共享感知类型与发生时间，绝不泄露手机应用内容。您的设置与自适应推断相互独立。",
+        "Save routine": "保存作息设置",
+        "Circles & Community": "亲友守护圈与社区",
+        "Trusted people, clear responsibilities, and visible privacy boundaries.": "信任亲友、清晰责任与透明隐私边界。",
+        "Small reciprocal groups for daily care": "日常互相关怀的亲密小圈子",
+        "+ Create": "+ 新建",
+        "3 members · You watch each other · routine timestamps visible": "3 位成员 · 双向互关守护 · 作息时间戳可见",
+        "View members": "查看成员列表",
+        "Alma · Admin": "Alma · 管理员",
+        "Last trusted evidence 12 min ago": "最新可信信号 12 分钟前",
+        "Last trusted evidence 5 min ago": "最新可信信号 5 分钟前",
+        "Coverage limited · 1 hr ago": "守护信号受限 · 1 小时前",
+        "You watch each other": "开启双向互关守护",
+        "Turn this off to make the direction one-way for this Circle.": "关闭此开关可将该守护圈调整为单向守护。",
+        "Share routine timestamps": "共享作息时间戳",
+        "Members see evidence type and time, never phone content.": "圈内成员仅能查看信号类型与时间，无法查看手机使用细节。",
+        "Invite member": "邀请新成员",
+        "Share link": "分享加入链接",
+        "Community": "互助社区",
+        "Emergency escalation networks": "紧急升级响应互助网络",
+        "12 circles connected · Escalation ready": "已连线 12 个互助圈 · 紧急升级已就绪",
+        "View escalation rules": "查看升级响应规则",
+        "Show QR code": "显示二维码",
+        "Scan QR code": "扫描二维码",
+        "Responsibilities": "守护责任",
+        "Guardian and Ward roles": "监护人与被守护人角色设置",
+        "Manage": "管理角色",
+        "Min · Guardian": "Min · 监护人",
+        "Receives your crisis alerts · 1 assigned check-in task": "接收您的紧急求助警报 · 设定了 1 项打卡任务",
+        "Mei · Ward": "Mei · 被守护人",
+        "You receive Mei's assigned alerts": "您接收 Mei 的紧急求助与打卡警报",
+        "Guardian and Ward responsibilities are separate from emergency contacts and Circle membership.": "监护人与被守护人职责与紧急联络人及普通圈子成员相互独立。",
+        "Account": "账号信息",
+        "Profile and care role": "个人资料与关怀角色",
+        "alma.ai@example.com": "alma.ai@example.com",
+        "Care relationships are set in each Circle": "关怀关系在各个守护圈内分别指定",
+        "One Circle can look after you while you look after someone in another.": "您可以在一个守护圈中被关怀，同时在另一个圈子中守护他人。",
+        "Link device": "关联新设备",
+        "Sign out": "退出登录",
+        "Safety Check-in": "安全确认",
+        "Intentional confirmation pattern": "主动确认平安的安全手势",
+        "Set": "已设置",
+        "Your pattern is an intentional check-in method, not a passive sensor.": "安全手势是您主动确认平安的验证手段，非被动传感器。",
+        "Practice": "练习手势",
+        "Change pattern": "更改手势",
+        "Clear pattern": "清除手势",
+        "This Device": "本机守护",
+        "Active platform protection readiness": "本机平台防护与后台连线状态",
+        "This Device · Active Guard": "本机设备 · 后台防护中",
+        "Readiness below reflects the current platform only. Other linked devices are separate.": "下方就绪状态仅反映当前设备。其他已关联设备独立运行。",
+        "Allowed": "已允许",
+        "Phone activity": "日常手机感知",
+        "Notices ordinary use without reading content": "感知日常常规使用，绝不读取隐私内容",
+        "Movement": "律动运动感知",
+        "Notices movement without using precise location": "感知日常活动，无需调用精确 GPS",
+        "Background protection": "后台持续防护",
+        "May pause when the app is closed": "应用关闭时后台防护可能受阻",
+        "Review phone setup": "检查设备设置",
+        "Repair notification delivery": "修复通知推送送达",
+        "Linked Devices": "已关联设备",
+        "Cross-platform connected hardware": "多设备防护与同步状态",
+        "Link": "关联",
+        "This Pixel 6": "本机 Pixel 6",
+        "Android native · v0.5.25 · seen just now": "Android 原生版 · v0.5.25 · 刚刚在线",
+        "Alma's iPad": "Alma 的 iPad",
+        "iOS native · v0.5.25 · seen 18 min ago": "iOS 原生版 · v0.5.25 · 18 分钟前在线",
+        "Each device has separate signal and notification readiness.": "每台设备具备独立的信号与通知就绪状态。",
+        "Emergency Contacts": "紧急联络人",
+        "Authorized crisis responders": "触发 SOS 时接收求助的主备联络人",
+        "+ Add": "+ 添加",
+        "People who may receive your crisis information. One contact is Primary.": "危机触发时接收救助信息的联络人，主联络人优先接通。",
+        "Emergency Addresses": "紧急静态地址",
+        "Saved reference locations": "救援参考地址（非实时 GPS 追踪）",
+        "Static reference addresses — not your current GPS.": "静态救助参考地址 — 非实时 GPS 追踪。",
+        "Emergency GPS": "紧急 GPS 授权",
+        "Crisis location sharing consent": "极度危机状态下的地理位置共享",
+        "Device setting": "设备设置",
+        "Allow this device's GPS when emergency information must be shared": "允许在触发紧急求助时共享本机 GPS 位置",
+        "Only during an active crisis, for authorized Circle responders and verified emergency contacts. This does not grant the phone location permission or track you continuously.": "仅在紧急求助生效期间，向授权的圈内响应者及验证的紧急联络人共享。绝不持续追踪位置。",
+        "Preferences & Updates": "偏好设置与系统更新",
+        "Language, theme, and version": "语言选择、界面外观与版本检查",
+        "Language": "语言设置",
+        "Theme": "界面主题",
+        "Check for updates": "检查软件更新",
+        "Delete account": "注销账号",
+        "HOLD FOR SOS": "按住以发送 SOS",
+        "Keep holding for 1.4 seconds to send SOS to the server. Delivery is confirmed separately.": "请保持按住 1.4 秒发送求助信息。送达回执将单独确认。",
+        "All": "全部",
+        "Alerts": "警报",
+        "Check-ins": "打卡",
+        "System": "系统",
+        "No notifications in this category.": "该分类下暂无通知记录。"
+}
+    };
+
+        function setLanguage(lang) {
+      currentLang = lang;
+      document.querySelectorAll('[data-lang-choice]').forEach(btn => {
+        btn.setAttribute('aria-pressed', String(btn.dataset.langChoice === lang));
+      });
+
+      // 1. Walk all text nodes
+      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+      let node;
+      while (node = walk.nextNode()) {
+        const raw = node.nodeValue;
+        const trimmed = raw.trim();
+        if (!trimmed) continue;
+
+        if (lang === 'zh') {
+          if (!node.originalEn) node.originalEn = raw;
+          if (dict.zh[trimmed]) {
+            node.nodeValue = raw.replace(trimmed, dict.zh[trimmed]);
+          } else {
+            // Check if any dict key is contained in trimmed
+            for (const [en, zh] of Object.entries(dict.zh)) {
+              if (en.length > 2 && trimmed === en) {
+                node.nodeValue = raw.replace(en, zh);
+                break;
+              }
+            }
+          }
+        } else {
+          if (node.originalEn) {
+            node.nodeValue = node.originalEn;
+          }
+        }
+      }
+
+      // 2. Translate options and placeholders
+      document.querySelectorAll('option, input[placeholder], [aria-label]').forEach((el) => {
+        if (el.tagName === 'OPTION') {
+          const trimmed = el.textContent.trim();
+          if (lang === 'zh') {
+            if (!el.originalEn) el.originalEn = el.textContent;
+            if (dict.zh[trimmed]) el.textContent = dict.zh[trimmed];
+          } else if (el.originalEn) {
+            el.textContent = el.originalEn;
+          }
+        }
+        if (el.placeholder) {
+          const trimmed = el.placeholder.trim();
+          if (lang === 'zh') {
+            if (!el.originalEnPlaceholder) el.originalEnPlaceholder = el.placeholder;
+            if (dict.zh[trimmed]) el.placeholder = dict.zh[trimmed];
+          } else if (el.originalEnPlaceholder) {
+            el.placeholder = el.originalEnPlaceholder;
+          }
+        }
+      });
+    }
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-lang-choice]');
+      if (btn) setLanguage(btn.dataset.langChoice);
+    });
+
+  </script>
+</body>
+</html>

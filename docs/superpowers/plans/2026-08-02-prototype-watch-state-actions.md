@@ -33,15 +33,15 @@
 - Consumes: the existing HTML string, the Watch screen slice, and the inline-script parser.
 - Produces: executable expectations for `getWatchActionState(scenario)` and structural expectations for task ownership.
 
-- [ ] **Step 1: Replace the old Watch ordering test**
+- [x] **Step 1: Replace the old Watch ordering test**
 
 Assert the order `watch-action-summary → watch-own-checkin → watch-people-list → activity-history`, while allowing the conditional top action to be hidden. Assert `id="checkin-tasks"` is absent.
 
-- [ ] **Step 2: Replace the old routine action contract**
+- [x] **Step 2: Replace the old routine action contract**
 
 Extract ordinary members and the Ward separately. Assert ordinary person details lack `ask-checkin`, `send-concern`, `add-checkin-task`, `edit-checkin-task`, and `remove-checkin-task`. Assert only `person-mei` has `data-responsibility="ward"`, `Check-in arrangement`, and the three scheduled-task action destinations.
 
-- [ ] **Step 3: Add scenario and state assertions**
+- [x] **Step 3: Add scenario and state assertions**
 
 Execute the real pure function and require these exact results:
 
@@ -70,7 +70,7 @@ assert.deepEqual(getWatchActionState('claimed'), {
 
 Assert the external toolbar contains `task` and `concern-sent`; the alert response contains `send-concern`, `claim-alert`, and `confirm-safe`; and the routine person cards contain no concern action.
 
-- [ ] **Step 4: Run the contract and verify RED**
+- [x] **Step 4: Run the contract and verify RED**
 
 Run: `node Prototype/prototype.test.mjs`
 
@@ -88,7 +88,7 @@ Expected: FAIL because `checkin-tasks` still exists, every expanded person still
 - Consumes: existing `button`, `card`, `row`, `person-detail`, `state-feedback`, and delegated `data-action` patterns.
 - Produces: `#watch-own-checkin`, `data-responsibility="ward"`, and `add-checkin-task` / `edit-checkin-task` / `remove-checkin-task` destinations.
 
-- [ ] **Step 1: Add the conditional top Check in action**
+- [x] **Step 1: Add the conditional top Check in action**
 
 Insert a compact hidden container after `#watch-action-summary`:
 
@@ -104,15 +104,15 @@ Insert a compact hidden container after `#watch-action-summary`:
 
 Remove the complete `#checkin-tasks` card and its empty state, task list, and feedback region.
 
-- [ ] **Step 2: Remove ordinary ad-hoc check-in controls**
+- [x] **Step 2: Remove ordinary ad-hoc check-in controls**
 
 Delete all three `ask-checkin` buttons. Min and John retain only monitoring, device, and evidence details.
 
-- [ ] **Step 3: Mark Mei as the demonstrated Ward**
+- [x] **Step 3: Mark Mei as the demonstrated Ward**
 
 Set `data-responsibility="ward"` on `#person-mei`. Add a `Check-in arrangement` block inside Mei's details with one existing daily task (`Daily · 09:00 · Active`) plus visible `Edit` and `Remove` buttons, followed by `Add task`.
 
-- [ ] **Step 4: Implement responsibility action feedback**
+- [x] **Step 4: Implement responsibility action feedback**
 
 Use the existing simple dialog:
 
@@ -121,7 +121,7 @@ Use the existing simple dialog:
 - `remove-checkin-task`: require confirmation before reporting Demo removal.
 - `complete-own-checkin`: open the existing safety check-in flow language and report only that the user started their own explicit confirmation.
 
-- [ ] **Step 5: Run the contract**
+- [x] **Step 5: Run the contract**
 
 Run: `node Prototype/prototype.test.mjs`
 
@@ -139,7 +139,7 @@ Expected: responsibility-placement assertions pass; alert-state assertions remai
 - Consumes: `renderWatchScenario(scenario)`, `simulateSimpleDialog()`, `#watch-alert-response`, and `#watch-feedback`.
 - Produces: the exact `getWatchActionState(scenario)` return shape from Task 1, plus `send-concern`, `claim-alert`, and `confirm-safe` behavior.
 
-- [ ] **Step 1: Add missing prototype controls and alert buttons**
+- [x] **Step 1: Add missing prototype controls and alert buttons**
 
 Add toolbar scenarios `task` and `concern-sent`. Add `#watch-concern-action` before `#watch-claim-action` inside the alert response:
 
@@ -148,11 +148,11 @@ Add toolbar scenarios `task` and `concern-sent`. Add `#watch-concern-action` bef
   type="button" data-action="send-concern">Send concern</button>
 ```
 
-- [ ] **Step 2: Replace the state mapper**
+- [x] **Step 2: Replace the state mapper**
 
 Implement the exact five-field state objects asserted in Task 1. All unlisted states, including `limited`, `resolved`, `loading`, and `error`, hide alert actions and the personal task unless explicitly mapped.
 
-- [ ] **Step 3: Render each alert state truthfully**
+- [x] **Step 3: Render each alert state truthfully**
 
 - `alert`: copy says a possible false alarm has not been checked; show `Send concern` and `I'll contact them`.
 - `concern-sent`: copy says `Concern sent · waiting for Min to confirm`; hide concern and retain `I'll contact them`.
@@ -160,7 +160,7 @@ Implement the exact five-field state objects asserted in Task 1. All unlisted st
 - `resolved`: remove the response card and crisis actions.
 - `task`: show `#watch-own-checkin`, leave the routine status neutral, and do not imply an alert.
 
-- [ ] **Step 4: Implement concern confirmation**
+- [x] **Step 4: Implement concern confirmation**
 
 `send-concern` opens a consequence dialog with:
 
@@ -170,11 +170,11 @@ This asks Min to open Keep Contact and confirm they are safe. It is only availab
 
 On confirmation, switch to `concern-sent` and announce only that the demo request was accepted; delivery and self-confirmation remain unknown. `claim-alert` must work from both `alert` and `concern-sent`.
 
-- [ ] **Step 5: Remove obsolete handlers and copy**
+- [x] **Step 5: Remove obsolete handlers and copy**
 
 Delete `ask-checkin`, `complete-task`, `task-feedback`, `task-list`, and `task-summary-badge` logic. Keep `Send concern` only in the alert response and its confirm-dialog mapping.
 
-- [ ] **Step 6: Run the contract and verify GREEN**
+- [x] **Step 6: Run the contract and verify GREEN**
 
 Run: `node Prototype/prototype.test.mjs`
 
@@ -193,7 +193,7 @@ Expected: all checks pass, inline JavaScript parses, IDs remain unique, and ever
 - Consumes: the completed prototype, targeted contract output, and source inspection.
 - Produces: QA and Brain evidence that supersedes the earlier generic manual check-in rule.
 
-- [ ] **Step 1: Run fresh verification**
+- [x] **Step 1: Run fresh verification**
 
 Run:
 
@@ -204,7 +204,7 @@ git diff --check
 
 Strictly decode every changed text file as UTF-8, reject U+FFFD, verify unique IDs and parseable inline JavaScript, and scan the Watch surface to prove concern appears only inside `#watch-alert-response`.
 
-- [ ] **Step 2: Record the corrected rule**
+- [x] **Step 2: Record the corrected rule**
 
 Update QA and Brain truth with:
 
@@ -215,6 +215,6 @@ Update QA and Brain truth with:
 - active alert exposes concern first without blocking direct contact claiming;
 - production remains unchanged and needs a separate governed repair.
 
-- [ ] **Step 3: Preserve the shared visible artifact**
+- [x] **Step 3: Preserve the shared visible artifact**
 
 Do not stage or commit the shared untracked `Prototype/` directory automatically. Record the exact changed HTML path and SHA-256, then hand it back for refresh and manual visual inspection because the selected local `file://` browser surface cannot be controlled.
