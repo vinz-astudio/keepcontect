@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { EmergencyInfoCard } from '@/features/profile/EmergencyInfoCard'
 import { GuardiansCard } from '@/features/guardians/GuardiansCard'
@@ -354,9 +355,16 @@ export function HomeScreen() {
       setGmResolved(true) // 角色已判定 → 触发上方 onboarding 检查 effect
     })
 
-    // Request geolocation permission early to prevent SOS latency/blocks
+    // Request geolocation permission early to prevent SOS latency/blocks.
+    //
+    // Web only. Inside the native shell the WebView's origin is `localhost`, so
+    // this prompt reads "localhost would like to use your location" — which
+    // looks like a phishing attempt during onboarding, and asks for the same
+    // permission the native layer already requests properly with the purpose
+    // string from Info.plist. Two prompts for one capability, the ugly one
+    // first.
     try {
-      if ('geolocation' in navigator) {
+      if (!Capacitor.isNativePlatform() && 'geolocation' in navigator) {
         if (navigator.permissions && typeof navigator.permissions.query === 'function') {
           navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
             if (result.state === 'prompt') {
