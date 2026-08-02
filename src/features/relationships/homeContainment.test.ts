@@ -5,6 +5,7 @@ import path from 'node:path'
 describe('Home Containment & SafeAway Gating Contracts', () => {
   const homeScreenPath = path.resolve('src/features/relationships/HomeScreen.tsx')
   const i18nPath = path.resolve('src/lib/i18n.tsx')
+  const uiModePath = path.resolve('src/lib/uiMode.ts')
 
   it('asserts SafeAwayBar import and render are both absent from HomeScreen during Gate 1', () => {
     const homeScreenSource = fs.readFileSync(homeScreenPath, 'utf8')
@@ -15,6 +16,27 @@ describe('Home Containment & SafeAway Gating Contracts', () => {
 
     expect(hasSafeAwayBarImport).toBe(false) // FAIL: SafeAwayBar is imported in current HomeScreen
     expect(hasSafeAwayBarRender).toBe(false) // FAIL: SafeAwayBar is rendered in current HomeScreen
+  })
+
+  it('composes the approved Prototype screens without a user-facing UI mode switch', () => {
+    const homeScreenSource = fs.readFileSync(homeScreenPath, 'utf8')
+
+    expect(homeScreenSource).toContain('<AppShell')
+    expect(homeScreenSource).toContain('<WatchScreen')
+    expect(homeScreenSource).toContain('<RoutineScreen')
+    expect(homeScreenSource).toContain('<CirclesScreen')
+    expect(homeScreenSource).toContain('<MeScreen')
+    expect(homeScreenSource).not.toContain('useUiMode')
+    expect(homeScreenSource).not.toContain('ui-mode-switcher')
+    expect(homeScreenSource).not.toContain('spatial-v2')
+    expect(homeScreenSource).not.toContain('<TabBar')
+  })
+
+  it('keeps legacy embedded cards on the sole approved Prototype mode', () => {
+    const uiModeSource = fs.readFileSync(uiModePath, 'utf8')
+    expect(uiModeSource).not.toContain('localStorage')
+    expect(uiModeSource).not.toContain("'classic'")
+    expect(uiModeSource).toContain("return 'v2'")
   })
 
   it('asserts live.safe Chinese and English translations explicitly state local plan and server monitoring remains active', () => {

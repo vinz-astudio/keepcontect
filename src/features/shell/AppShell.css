@@ -6,6 +6,7 @@
   width: 100%;
   min-width: 0;
   height: 100dvh;
+  min-height: 100dvh;
   overflow: hidden;
   background: var(--mesh);
   color: var(--ink);
@@ -26,6 +27,7 @@
   font-size: clamp(1.35rem, 4vw, 1.48rem);
   font-weight: 600;
   letter-spacing: -0.024em;
+  white-space: nowrap;
 }
 
 .app-shell__user {
@@ -33,6 +35,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex-shrink: 0;
   color: var(--muted);
 }
 

@@ -5,6 +5,7 @@ import { EmergencyInfoCard } from '@/features/profile/EmergencyInfoCard'
 import { GuardiansCard } from '@/features/guardians/GuardiansCard'
 import { RoutineSettings } from '@/features/baseline/RoutineSettings'
 import { CheckinTasksCard } from '@/features/tasks/CheckinTasksCard'
+import { listMyTasks } from '@/features/tasks/api'
 import { PassiveSignalCard } from '@/features/passive/PassiveSignalCard'
 import { PassivePingBoot } from '@/features/passive/PassivePingBoot'
 import { OnboardingWizard } from '@/features/passive/OnboardingWizard'
@@ -13,8 +14,7 @@ import { LivenessProvider, useLivenessContext } from '@/features/baseline/Livene
 import '@/features/baseline/LivenessCard.css'
 import { AlertOverlay } from '@/features/baseline/AlertOverlay'
 import { NotificationsCard } from '@/features/alerts/NotificationsCard'
-import { TabBar, type Tab } from '@/features/nav/TabBar'
-import { listMyNotifications } from '@/features/alerts/api'
+import { listMyNotifications, listOpenAlerts } from '@/features/alerts/api'
 import { dispatchSos } from '@/features/alerts/sosDispatch'
 import { subscribeAlertSignals, subscribeGroupStatusSignals } from '@/features/alerts/realtime'
 import { setBadge } from '@/lib/badge'
@@ -49,9 +49,7 @@ import { StatusBoard } from '@/features/relationships/StatusBoard'
 import { QRModal } from '@/features/relationships/QRModal'
 import { ApkUpgradeNotice } from '@/features/install/ApkUpgradeNotice'
 import { EditableName } from '@/features/common/EditableName'
-import { Icon } from '@/features/common/Icon'
 import { deleteMyAccount, setDisplayName } from '@/features/profile/profileApi'
-
 import { becomeGuardianByCode } from '@/features/guardians/api'
 import {
   buildInviteUrl,
@@ -62,13 +60,20 @@ import {
 } from '@/features/invites/inviteLink'
 import { LangToggle, translate, useI18n } from '@/lib/i18n'
 import { ThemeToggle } from '@/lib/theme'
-import { useUiMode } from '@/lib/uiMode'
+import { ensurePushSubscription } from '@/features/push/pushApi'
+import { AppShell } from '@/features/shell/AppShell'
+import type { PrimaryTab } from '@/features/shell/appShellState'
+import { WatchScreen } from '@/features/watch/WatchScreen'
+import { RoutineScreen } from '@/features/routine/RoutineScreen'
+import { CirclesScreen } from '@/features/circles/CirclesScreen'
+import { MeScreen } from '@/features/me/MeScreen'
 import {
-  ensurePushSubscription,
-  getPushStatus,
-  type PushStatus,
-} from '@/features/push/pushApi'
-import { getPushPromptPlacement } from '@/features/push/pushPrompt'
+  PrototypeBadge,
+  PrototypeCard,
+  PrototypeDisclosure,
+  PrototypeIcon,
+  PrototypeRow,
+} from '@/features/prototype/PrototypeUI'
 import './HomeScreen.css'
 
 async function joinByInvite(inv: Invite): Promise<string> {
@@ -84,158 +89,97 @@ async function joinByInvite(inv: Invite): Promise<string> {
   return translate('invite.joined.guardian')
 }
 
-interface ProfileSectionProps {
-  setIsScanning: (val: boolean) => void
-  signOut: () => Promise<void>
-}
-
-function ProfileSection({ setIsScanning, signOut }: ProfileSectionProps) {
+function AccountCard({ onScan, signOut }: { onScan: () => void; signOut: () => Promise<void> }) {
   const { user } = useAuth()
   const { t, lang } = useI18n()
-  const [uiMode, setUiMode] = useUiMode()
-  const { startSetup, startPractice } = useLivenessContext()
-
-  const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported')
-  const showPushSettings = getPushPromptPlacement({
-    status: pushStatus,
-    platform: getPlatform(),
-    standalone: false,
-    dismissed: false,
-  }).profile
-
-  useEffect(() => {
-    void getPushStatus().then(setPushStatus)
-  }, [])
-
   return (
-    <section className="card">
-      <h2 className="card__title">
-        <Icon name="user" />
-        {t('tab.profile')}
-      </h2>
-      <p className="profile__name">
-        {t('profile.title')}：
-        <EditableName
-          value={
-            (user?.user_metadata?.display_name as string | undefined) ??
-            user?.email ??
-            ''
-          }
-          canEdit
-          onSave={async (next) => {
-            await setDisplayName(next)
-          }}
-        />
-      </p>
-      <p className="muted">{t('profile.desc')}</p>
-
-      {showPushSettings && (
-        <div className="profile__notice">
-          <strong>{t('push.enable')}</strong>
-          <p>{t('push.denied.profile')}</p>
-        </div>
-      )}
-
-      {/* Scan to Sync (Only on mobile devices) */}
+    <PrototypeCard>
+      <PrototypeRow
+        icon="person"
+        title={<EditableName value={(user?.user_metadata?.display_name as string | undefined) ?? user?.email ?? ''} canEdit onSave={setDisplayName} />}
+        subtitle={user?.email ?? ''}
+      />
       {(getPlatform() === 'android' || getPlatform() === 'ios') && (
-        <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem' }}>
-          <button
-            className="profile__scan-action"
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 16px',
-              background: 'var(--bg)',
-              border: '1px solid var(--line)',
-              borderRadius: 'var(--r-md)',
-              cursor: 'pointer',
-              color: 'var(--fg)',
-              transition: 'all 0.2s ease',
-            }}
-            onClick={() => setIsScanning(true)}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)' }}>
-                <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
-                <path d="M7 12h10M12 7v10" />
-              </svg>
-              <span style={{ fontWeight: '600', fontSize: '0.92rem' }}>
-                {lang === 'zh' ? '扫码同步登录新设备' : 'Scan to Sync Login'}
-              </span>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ opacity: 0.5 }}>
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </button>
-        </div>
+        <PrototypeRow
+          icon="qr_code_scanner"
+          title={lang === 'zh' ? '同步登录新设备' : 'Sync sign-in to a new device'}
+          trailing={<button type="button" className="prototype-button prototype-button--ghost" onClick={onScan}>{lang === 'zh' ? '扫描' : 'Scan'}</button>}
+        />
       )}
-
-      {/* Unlock Pattern Configuration */}
-      <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem' }}>
-        <div className="liveness__row" style={{ marginTop: 0 }}>
-          <span className="liveness__rowlabel">{t('live.pattern')}</span>
-          <div className="liveness__seg">
-            <button onClick={startSetup}>{t('live.setPattern')}</button>
-            <button onClick={startPractice}>{t('live.practice')}</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Dual-UI Safety Mode Switcher */}
-      <div className="ui-mode-switcher-card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <strong style={{ fontSize: '0.88rem', color: 'var(--fg)' }}>
-            {lang === 'zh' ? '界面视觉风格通道' : 'UI Interface Style Channel'}
-          </strong>
-          <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600 }}>
-            {uiMode === 'v2' ? 'v0.5.25 (V2 空间新版)' : 'v0.5.24 (经典原版)'}
-          </span>
-        </div>
-        <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--fg-muted)', lineHeight: '1.4' }}>
-          {lang === 'zh'
-            ? '保留安全回退通道：可随时在 0.5.25 极简空间新版与 0.5.24 经典双层卡片之间无缝切换。'
-            : 'Safety Channel: Seamlessly toggle between 0.5.25 V2 Spatial UI and 0.5.24 Classic UI.'}
-        </p>
-        <div className="ui-mode-switcher-options">
+      <PrototypeDisclosure label={lang === 'zh' ? '账户操作' : 'Account actions'}>
+        <div className="home-prototype__danger-actions">
+          <button type="button" className="prototype-button prototype-button--ghost" onClick={() => void signOut()}>{t('header.signout')}</button>
           <button
-            className={`ui-mode-btn ${uiMode === 'v2' ? 'active' : ''}`}
-            onClick={() => setUiMode('v2')}
+            type="button"
+            className="prototype-button home-prototype__danger"
+            onClick={() => {
+              const message = lang === 'zh'
+                ? '确定要注销账号并永久删除所有个人数据吗？此操作无法恢复。'
+                : 'Delete your account and all personal data permanently? This cannot be undone.'
+              if (window.confirm(message)) void deleteMyAccount()
+            }}
           >
-            ✨ {lang === 'zh' ? '0.5.25 空间新版' : '0.5.25 V2 Spatial'}
-          </button>
-          <button
-            className={`ui-mode-btn ${uiMode === 'classic' ? 'active' : ''}`}
-            onClick={() => setUiMode('classic')}
-          >
-            🛡️ {lang === 'zh' ? '0.5.24 经典原版' : '0.5.24 Classic'}
+            {lang === 'zh' ? '删除账户与全部数据' : 'Delete account and all data'}
           </button>
         </div>
+      </PrototypeDisclosure>
+    </PrototypeCard>
+  )
+}
+
+function SafetyCheckinCard() {
+  const { startSetup, startPractice } = useLivenessContext()
+  const { t, lang } = useI18n()
+  return (
+    <PrototypeCard>
+      <PrototypeRow icon="pattern" title={t('live.pattern')} subtitle={lang === 'zh' ? '用于本人安全确认与解除误报。' : 'Used to confirm you are safe and clear a false alarm.'} />
+      <div className="home-prototype__button-row">
+        <button type="button" className="prototype-button prototype-button--ghost" onClick={startSetup}>{t('live.setPattern')}</button>
+        <button type="button" className="prototype-button prototype-button--ghost" onClick={startPractice}>{t('live.practice')}</button>
       </div>
+    </PrototypeCard>
+  )
+}
 
-      <div className="profile__actions" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--line)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+function LinkedDevicesCard({ onScan }: { onScan: () => void }) {
+  const { lang } = useI18n()
+  return (
+    <PrototypeCard compact>
+      <PrototypeRow
+        icon="devices"
+        title={lang === 'zh' ? '设备登录同步' : 'Device sign-in sync'}
+        subtitle={lang === 'zh' ? '当前版本可通过一次性二维码安全登录新设备；设备清单仍由后台维护。' : 'Use a one-time QR code to sign in another device. The device inventory remains backend-managed in this version.'}
+        trailing={<button type="button" className="prototype-button prototype-button--ghost" onClick={onScan}>{lang === 'zh' ? '扫描' : 'Scan'}</button>}
+      />
+    </PrototypeCard>
+  )
+}
 
-        <button className="profile__danger-action" onClick={() => void signOut()}>
-          {t('header.signout')}
-        </button>
+function EmergencyGpsCard() {
+  const { lang } = useI18n()
+  return (
+    <PrototypeCard tone="limited" compact>
+      <label className="home-prototype__consent">
+        <input type="checkbox" disabled />
+        <span>
+          <strong>{lang === 'zh' ? '紧急情况发生时允许调用设备 GPS' : 'Allow device GPS during an emergency'}</strong>
+          <small>{lang === 'zh' ? '此项只代表用户授权；最后位置由后台处理。当前版本尚未启用可靠的授权保存，因此不会假装已开启。' : 'This is consent only; last locations are handled in the backend. Reliable consent persistence is not enabled in this version, so the control cannot pretend to be active.'}</small>
+        </span>
+      </label>
+    </PrototypeCard>
+  )
+}
 
-        <button
-          className="profile__danger-action"
-          style={{ background: 'transparent', color: 'var(--danger)', border: '1px solid var(--danger)', fontSize: '0.82rem' }}
-          onClick={async () => {
-            const confirmMsg = lang === 'zh'
-              ? '⚠️ 确定要注销账号并删除所有个人数据吗？\n\n此操作将彻底清空您在本应用中的个人档案、被动监测记录及紧急联系人关联，且不可恢复！'
-              : '⚠️ Are you sure you want to delete your account and all personal data?\n\nThis action will permanently erase your profile, signal records, and emergency contact relationships. This cannot be undone!'
-            if (window.confirm(confirmMsg)) {
-              await deleteMyAccount()
-            }
-          }}
-        >
-          {lang === 'zh' ? '注销账号并清空全部数据' : 'Delete Account & All Data'}
-        </button>
-      </div>
-    </section>
+function PreferencesCard({ isGm }: { isGm: boolean }) {
+  const { lang } = useI18n()
+  return (
+    <div className="home-prototype__stack">
+      <PrototypeCard compact>
+        <PrototypeRow icon="language" title={lang === 'zh' ? '语言' : 'Language'} trailing={<LangToggle className="prototype-button prototype-button--ghost" />} />
+        <PrototypeRow icon="contrast" title={lang === 'zh' ? '外观' : 'Appearance'} trailing={<ThemeToggle className="prototype-button prototype-button--ghost" />} />
+      </PrototypeCard>
+      <UpdatesCard isGm={isGm} />
+    </div>
   )
 }
 
@@ -248,8 +192,23 @@ export function HomeScreen() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
+  const [scanningJoin, setScanningJoin] = useState(false)
+  const [newCommunity, setNewCommunity] = useState('')
+  const [newGroup, setNewGroup] = useState('')
+  const [newGroupCommunity, setNewGroupCommunity] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
+  const [openBoard, setOpenBoard] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<PrimaryTab>('watch')
+  const [gmOpen, setGmOpen] = useState(false)
+  const [isGm, setIsGm] = useState(false)
+  const [unread, setUnread] = useState(0)
+  const [ownTaskCount, setOwnTaskCount] = useState(0)
+  const [activeAlertCount, setActiveAlertCount] = useState(0)
+  const [sosBusy, setSosBusy] = useState(false)
+  const [qrTarget, setQrTarget] = useState<{ url: string; name: string } | null>(null)
+  const [onboardingCompleted, setOnboardingCompleted] = useState(true)
+  const [gmResolved, setGmResolved] = useState(false)
 
-  // Mobile Scan QR sync handler
   async function handleQrScan(data: string) {
     setIsScanning(false)
     if (!data.startsWith('keepcontact://sync?token=')) {
@@ -257,757 +216,264 @@ export function HomeScreen() {
       return
     }
     const targetToken = data.replace('keepcontact://sync?token=', '')
-    toast(t('profile.scan.success'), 'info')
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        toast(t('err.load'), 'danger')
-        return
-      }
-
-      // Obtain a one-time OTP via the sync-auth edge function.
-      // We do NOT fall back to broadcasting raw access/refresh tokens — if the
-      // edge function is unavailable the scan fails loudly instead.
-      const { data: funcData, error: funcError } = await supabase.functions.invoke('sync-auth')
-      if (funcError || !funcData?.email || !funcData?.otp) {
-        console.error('sync-auth edge function failed:', funcError)
-        toast(t('profile.scan.failed'), 'danger')
-        return
-      }
-
-      const payload = {
-        email: funcData.email,
-        otp: funcData.otp,
-      }
-
-      const channel = supabase.channel(`scan2sync:${targetToken}`, {
-        config: { broadcast: { self: false } }
-      })
+      if (!session) throw new Error(t('err.load'))
+      const { data: payload, error: syncError } = await supabase.functions.invoke('sync-auth')
+      if (syncError || !payload?.email || !payload?.otp) throw syncError ?? new Error('sync-auth unavailable')
+      const channel = supabase.channel(`scan2sync:${targetToken}`, { config: { broadcast: { self: false } } })
       channel.subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.send({
-            type: 'broadcast',
-            event: 'sync',
-            payload
-          })
-          toast(t('profile.scan.success'), 'ok')
-          setTimeout(() => {
-            void supabase.removeChannel(channel)
-          }, 2000)
-        }
+        if (status !== 'SUBSCRIBED') return
+        await channel.send({ type: 'broadcast', event: 'sync', payload: { email: payload.email, otp: payload.otp } })
+        toast(t('profile.scan.success'), 'ok')
+        window.setTimeout(() => void supabase.removeChannel(channel), 2000)
       })
-    } catch (err) {
-      console.error('Scan sync broadcast failed:', err)
-      toast(t('profile.scan.failed'), 'danger')
-    }
-  }
-
-  const [newCommunity, setNewCommunity] = useState('')
-  const [newGroup, setNewGroup] = useState('')
-  const [newGroupCommunity, setNewGroupCommunity] = useState<string>('')
-  const [notice, setNotice] = useState<string | null>(null)
-  const [openBoard, setOpenBoard] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('home')
-  const [uiMode] = useUiMode()
-  const [isGm, setIsGm] = useState(false)
-  const [unread, setUnread] = useState(0)
-  const [sosBusy, setSosBusy] = useState(false)
-  const [qrTarget, setQrTarget] = useState<{ url: string; name: string } | null>(null)
-  const [scanningJoin, setScanningJoin] = useState(false)
-  // 引导完成标记按用户+角色隔离(F3):默认不弹,等 uid+角色都判定后再决定(见下方 effect)
-  const [onboardingCompleted, setOnboardingCompleted] = useState(true)
-  const [gmResolved, setGmResolved] = useState(false)
-
-  // uid 或角色任一晚到都能触发(auto-login/会话恢复时 user 在挂载后才就绪,不能闭包捕获)
-  useEffect(() => {
-    if (!gmResolved || !user?.id) return
-    setOnboardingCompleted(checkAndMigrateOnboarding(user.id, isGm))
-  }, [gmResolved, isGm, user?.id])
-
-  // 未读数提到顶层：任何 tab 都更新 App 图标角标 + 底部"通知"页红点
-  const refreshUnread = useCallback(async () => {
-    try {
-      const list = await listMyNotifications()
-      const u = list.filter((n) => !n.read_at).length
-      setUnread(u)
-      setBadge(u)
     } catch {
-      /* 忽略 */
-    }
-  }, [])
-
-  useEffect(() => {
-    void refreshUnread()
-    const tmr = window.setInterval(() => void refreshUnread(), 30_000)
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void refreshUnread()
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    let unsubscribe: (() => void) | undefined
-    void subscribeAlertSignals(refreshUnread).then((fn) => {
-      unsubscribe = fn
-    })
-    return () => {
-      window.clearInterval(tmr)
-      document.removeEventListener('visibilitychange', onVisible)
-      unsubscribe?.()
-    }
-  }, [refreshUnread])
-
-  async function doSos() {
-    if (sosBusy) return
-    setSosBusy(true)
-    toast(t('sos.sending'), 'info')
-    try {
-      await dispatchSos()
-      toast(t('sos.sent'), 'danger')
-      await refresh()
-      void refreshUnread()
-    } catch (err) {
-      toast(err instanceof Error ? err.message : t('sos.failed'), 'danger')
-    } finally {
-      setSosBusy(false)
+      toast(t('profile.scan.failed'), 'danger')
     }
   }
 
   const refresh = useCallback(async () => {
     setError(null)
     try {
-      const [c, g] = await Promise.all([listMyCommunities(), listMyGroups()])
-      setCommunities(c)
-      setGroups(g)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败')
+      const [nextCommunities, nextGroups] = await Promise.all([listMyCommunities(), listMyGroups()])
+      setCommunities(nextCommunities)
+      setGroups(nextGroups)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : translate('err.load'))
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => {
-    void ensurePushSubscription() // 已授权过的设备登录后静默续订推送
-    void reportClient() // 上报客户端版本/平台(供运营查看)
-    void amIGm().then((gm) => {
-      setIsGm(gm) // GM 才显示 GM 页
-      setGmResolved(true) // 角色已判定 → 触发上方 onboarding 检查 effect
-    })
-
-    // Request geolocation permission early to prevent SOS latency/blocks.
-    //
-    // Web only. Inside the native shell the WebView's origin is `localhost`, so
-    // this prompt reads "localhost would like to use your location" — which
-    // looks like a phishing attempt during onboarding, and asks for the same
-    // permission the native layer already requests properly with the purpose
-    // string from Info.plist. Two prompts for one capability, the ugly one
-    // first.
-    try {
-      if (!Capacitor.isNativePlatform() && 'geolocation' in navigator) {
-        if (navigator.permissions && typeof navigator.permissions.query === 'function') {
-          navigator.permissions.query({ name: 'geolocation' as PermissionName }).then((result) => {
-            if (result.state === 'prompt') {
-              navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 2000 })
-            }
-          }).catch(() => {
-            navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 2000 })
-          })
-        } else {
-          navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 2000 })
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to check/prompt early geolocation:', err)
-    }
+  const refreshWatchMeta = useCallback(async () => {
+    const [notifications, tasks, alerts] = await Promise.all([
+      listMyNotifications().catch(() => []),
+      listMyTasks().catch(() => []),
+      listOpenAlerts().catch(() => []),
+    ])
+    const nextUnread = notifications.filter((item) => !item.read_at).length
+    setUnread(nextUnread)
+    setOwnTaskCount(tasks.length)
+    setActiveAlertCount(alerts.length)
+    setBadge(nextUnread)
   }, [])
 
   useEffect(() => {
-    if (tab === 'circles') void refresh()
-  }, [refresh, tab])
+    if (!gmResolved || !user?.id) return
+    setOnboardingCompleted(checkAndMigrateOnboarding(user.id, isGm))
+  }, [gmResolved, isGm, user?.id])
 
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined
-    let pending = false
-    const scheduleRefresh = () => {
-      if (pending) return
-      pending = true
-      window.setTimeout(() => {
-        pending = false
-        void refresh()
-      }, 500)
+    void ensurePushSubscription()
+    void reportClient()
+    void amIGm().then((gm) => { setIsGm(gm); setGmResolved(true) })
+    void refresh()
+    void refreshWatchMeta()
+    if (!Capacitor.isNativePlatform() && 'geolocation' in navigator) {
+      navigator.permissions?.query({ name: 'geolocation' as PermissionName }).then((permission) => {
+        if (permission.state === 'prompt') navigator.geolocation.getCurrentPosition(() => undefined, () => undefined, { timeout: 2000 })
+      }).catch(() => undefined)
     }
-    void subscribeGroupStatusSignals(scheduleRefresh).then((fn) => {
-      unsubscribe = fn
-    })
-    const timer = window.setInterval(() => void refresh(), 60_000)
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') void refresh()
-    }
+  }, [refresh, refreshWatchMeta])
+
+  useEffect(() => {
+    const refreshAll = () => { void refresh(); void refreshWatchMeta() }
+    const timer = window.setInterval(refreshAll, 60_000)
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshAll() }
     document.addEventListener('visibilitychange', onVisible)
+    let stopAlerts: (() => void) | undefined
+    let stopGroups: (() => void) | undefined
+    void subscribeAlertSignals(refreshAll).then((stop) => { stopAlerts = stop })
+    void subscribeGroupStatusSignals(refreshAll).then((stop) => { stopGroups = stop })
     return () => {
-      unsubscribe?.()
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
+      stopAlerts?.()
+      stopGroups?.()
     }
-  }, [refresh])
+  }, [refresh, refreshWatchMeta])
 
-  // 邀请链接自动加入：打开链接 →（登录后）自动完成加入
   useEffect(() => {
-    const inv = takePendingInvite()
-    if (!inv) return
-    joinByInvite(inv)
-      .then((msg) => {
-        setNotice(msg)
-        void refresh()
-      })
-      .catch((e) =>
-        setError(
-          translate('invite.joinFail', {
-            msg: e instanceof Error ? e.message : '',
-          }),
-        ),
-      )
+    const invite = takePendingInvite()
+    if (!invite) return
+    joinByInvite(invite).then((message) => { setNotice(message); void refresh() }).catch((caught) => setError(caught instanceof Error ? caught.message : translate('err.load')))
   }, [refresh])
 
-  async function onShare(inv: Invite, name: string) {
-    const r = await shareInvite(inv.kind, inv.code, name)
-    if (r.status === 'copied') setNotice(t('invite.copied'))
-    else if (r.status === 'manual') setNotice(t('invite.manual', { url: r.url }))
-  }
-
-  function onShowQR(inv: Invite, name: string) {
-    const url = buildInviteUrl(inv.kind, inv.code)
-    setQrTarget({ url, name })
-  }
-
-  async function handleJoinScan(data: string) {
-    setScanningJoin(false)
-    // Could be a keepcontact:// sync link or an invite link
-    if (data.startsWith('keepcontact://sync?token=')) {
-      // Accidentally scanned a sync QR — ignore for join flow
-      toast(t('invite.invalid'), 'danger')
-      return
-    }
-    const inv = parseInviteText(data)
-    if (!inv) {
-      toast(t('invite.invalid'), 'danger')
-      return
-    }
-    run(async () => {
-      const msg = await joinByInvite(inv)
-      setNotice(msg)
-    })
-  }
-
-  async function run(fn: () => Promise<unknown>) {
+  async function run(operation: () => Promise<unknown>) {
     setBusy(true)
     setError(null)
     try {
-      await fn()
+      await operation()
       await refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '操作失败')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : translate('err.op'))
     } finally {
       setBusy(false)
     }
   }
 
+  async function doSos() {
+    if (sosBusy) return
+    setSosBusy(true)
+    try {
+      await dispatchSos()
+      toast(t('sos.sent'), 'danger')
+      await refreshWatchMeta()
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : t('sos.failed'), 'danger')
+    } finally {
+      setSosBusy(false)
+    }
+  }
+
+  async function onShare(invite: Invite, name: string) {
+    const result = await shareInvite(invite.kind, invite.code, name)
+    if (result.status === 'copied') setNotice(t('invite.copied'))
+    else if (result.status === 'manual') setNotice(t('invite.manual', { url: result.url }))
+  }
+
+  function onShowQr(invite: Invite, name: string) {
+    setQrTarget({ url: buildInviteUrl(invite.kind, invite.code), name })
+  }
+
+  async function handleJoinScan(data: string) {
+    setScanningJoin(false)
+    const invite = parseInviteText(data)
+    if (!invite) {
+      toast(t('invite.invalid'), 'danger')
+      return
+    }
+    await run(async () => setNotice(await joinByInvite(invite)))
+  }
+
+  const communityCards = (
+    <div className="home-prototype__stack">
+      {loading ? <PrototypeCard compact>{t('home.loading')}</PrototypeCard> : communities.map((community) => (
+        <PrototypeCard key={community.id} compact>
+          <PrototypeRow
+            icon="diversity_3"
+            title={<EditableName value={community.name} canEdit={community.created_by === user?.id} onSave={async (name) => { await renameCommunity(community.id, name); await refresh() }} />}
+            trailing={<PrototypeBadge tone="ready">{lang === 'zh' ? '社群' : 'Community'}</PrototypeBadge>}
+          />
+          <div className="home-prototype__button-row">
+            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => void onShare({ kind: 'community', code: community.invite_code }, community.name)}>{t('share.invite')}</button>
+            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => onShowQr({ kind: 'community', code: community.invite_code }, community.name)}><PrototypeIcon name="qr_code_2" />{t('qr.show')}</button>
+            {community.created_by === user?.id && <button type="button" className="prototype-button home-prototype__danger" disabled={busy} onClick={() => { if (window.confirm(t('admin.delete.confirm.community'))) void run(() => deleteCommunity(community.id)) }}>{t('admin.delete')}</button>}
+          </div>
+        </PrototypeCard>
+      ))}
+      <PrototypeCard compact className="home-prototype__create-row">
+        <input value={newCommunity} onChange={(event) => setNewCommunity(event.target.value)} placeholder={t('comm.new.ph')} />
+        <button type="button" className="prototype-button prototype-button--primary" disabled={busy || !newCommunity.trim()} onClick={() => void run(async () => { await createCommunity(newCommunity.trim()); setNewCommunity('') })}>{t('comm.create')}</button>
+      </PrototypeCard>
+    </div>
+  )
+
+  const circleCards = (
+    <div className="home-prototype__stack">
+      {loading ? <PrototypeCard compact>{t('home.loading')}</PrototypeCard> : groups.map(({ group, monitored, watching, role }) => (
+        <PrototypeCard key={group.id} compact>
+          <PrototypeRow
+            icon="groups"
+            title={<EditableName value={group.name} canEdit={group.created_by === user?.id} onSave={async (name) => { await renameGroup(group.id, name); await refresh() }} />}
+            subtitle={role === 'admin' ? t('group.admin') : undefined}
+            trailing={<button type="button" className="prototype-button prototype-button--ghost" onClick={() => setOpenBoard(openBoard === group.id ? null : group.id)}>{openBoard === group.id ? t('board.hide') : t('board.show')}</button>}
+          />
+          <div className="home-prototype__button-row">
+            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => void onShare({ kind: 'group', code: group.invite_code }, group.name)}>{t('share.invite')}</button>
+            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => onShowQr({ kind: 'group', code: group.invite_code }, group.name)}><PrototypeIcon name="qr_code_2" />{t('qr.show')}</button>
+            <button type="button" className="prototype-button home-prototype__danger" disabled={busy} onClick={() => { if (window.confirm(t('group.leave.confirm'))) void run(() => leaveGroup(group.id)) }}>{t('group.leave')}</button>
+            {group.created_by === user?.id && <button type="button" className="prototype-button home-prototype__danger" disabled={busy} onClick={() => { if (window.confirm(t('admin.delete.confirm.group'))) void run(() => deleteGroup(group.id)) }}>{t('admin.delete')}</button>}
+          </div>
+          {group.created_by === user?.id && (
+            <label className="home-prototype__select-row">{t('group.community')}<select value={group.community_id ?? ''} disabled={busy} onChange={(event) => void run(() => setGroupCommunity(group.id, event.target.value || null))}><option value="">{t('group.standalone')}</option>{communities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}</select></label>
+          )}
+          <div className="home-prototype__toggle-row">
+            <label><input type="checkbox" checked={monitored} disabled={busy} onChange={(event) => void run(() => setMonitoringDirection(group.id, { monitored: event.target.checked }))} />{t('group.monitored')}</label>
+            <label><input type="checkbox" checked={watching} disabled={busy} onChange={(event) => void run(() => setMonitoringDirection(group.id, { watching: event.target.checked }))} />{t('group.watching')}</label>
+          </div>
+          {openBoard === group.id && <GroupBoard groupId={group.id} mode="group" />}
+        </PrototypeCard>
+      ))}
+      <PrototypeCard compact className="home-prototype__create-row">
+        <input value={newGroup} onChange={(event) => setNewGroup(event.target.value)} placeholder={t('group.new.ph')} />
+        <select value={newGroupCommunity} onChange={(event) => setNewGroupCommunity(event.target.value)}><option value="">{t('group.standalone')}</option>{communities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}</select>
+        <button type="button" className="prototype-button prototype-button--primary" disabled={busy || !newGroup.trim()} onClick={() => void run(async () => { await createGroup(newGroup.trim(), newGroupCommunity || null); setNewGroup('') })}>{t('comm.create')}</button>
+      </PrototypeCard>
+    </div>
+  )
+
+  const screen = gmOpen && isGm ? (
+    <GMScreen active onBack={() => setGmOpen(false)} />
+  ) : activeTab === 'watch' ? (
+    <WatchScreen
+      title={activeAlertCount > 0 ? (lang === 'zh' ? '有人需要确认' : 'Someone needs confirmation') : (lang === 'zh' ? '一切都在正常运作' : 'Everything looks steady')}
+      subtitle={activeAlertCount > 0 ? (lang === 'zh' ? `${activeAlertCount} 个告警正在处理中` : `${activeAlertCount} active alert${activeAlertCount === 1 ? '' : 's'}`) : (lang === 'zh' ? 'Keep Contact 会安静留意真正值得关注的变化。' : 'Keep Contact stays quiet until something actually needs attention.')}
+      isGm={isGm}
+      hasOwnTask={ownTaskCount > 0}
+      hasActiveAlert={activeAlertCount > 0}
+      summary={<PrototypeCard compact><PrototypeRow icon="radar" title={lang === 'zh' ? `${groups.length} 个关照圈正在连接` : `${groups.length} circle${groups.length === 1 ? '' : 's'} connected`} subtitle={lang === 'zh' ? '下方保留每个人的真实活动时间与告警状态。' : 'Real activity timing and alert state remain visible below.'} /></PrototypeCard>}
+      ownTask={<CheckinTasksCard />}
+      gmTools={<><strong>{lang === 'zh' ? '管理工具' : 'Manager tools'}</strong><p>{lang === 'zh' ? '查看成员、版本与运营状态。' : 'Review members, versions, and operational status.'}</p><button type="button" className="prototype-button prototype-button--primary" onClick={() => setGmOpen(true)}>{lang === 'zh' ? '进入' : 'Open'}</button></>}
+      notifications={<div className="home-prototype__stack"><ApkUpgradeNotice /><NotificationsCard onChanged={refreshWatchMeta} /></div>}
+      people={<StatusBoard />}
+      alertResponse={<p>{lang === 'zh' ? 'Concern 只会在真实告警发生后出现，用来先确认是否误报。' : 'Concern is available only after a real alert, to check whether it may be a false alarm.'}</p>}
+      labels={{ gm: lang === 'zh' ? '管理员工具' : 'Manager tools', notifications: lang === 'zh' ? '通知' : 'Notifications', people: lang === 'zh' ? '大家的状态' : "Everyone's status", alert: lang === 'zh' ? '需要处理' : 'Needs action' }}
+    />
+  ) : activeTab === 'routine' ? (
+    <RoutineScreen title={lang === 'zh' ? '日常与节奏' : 'Routine & rhythm'} subtitle={lang === 'zh' ? '调整系统如何理解你的正常生活。' : 'Tune how Keep Contact understands your normal day.'}><RoutineSettings /></RoutineScreen>
+  ) : activeTab === 'circles' ? (
+    <CirclesScreen
+      title={lang === 'zh' ? '关照圈' : 'Circles'}
+      subtitle={lang === 'zh' ? '关系、社群与特别责任各自清楚分开。' : 'Keep relationships, communities, and special responsibilities distinct.'}
+      circles={circleCards}
+      community={communityCards}
+      responsibilities={<div className="home-prototype__stack"><PrototypeCard compact><PrototypeRow icon="qr_code_scanner" title={t('scan.join')} subtitle={t('scan.join.desc')} trailing={<button type="button" className="prototype-button prototype-button--ghost" onClick={() => setScanningJoin(true)}>{lang === 'zh' ? '扫描' : 'Scan'}</button>} /></PrototypeCard><GuardiansCard /></div>}
+      labels={{ circles: lang === 'zh' ? '群组' : 'Circles', community: lang === 'zh' ? '社群' : 'Community', responsibilities: lang === 'zh' ? '特别关照与责任' : 'Responsibilities' }}
+    />
+  ) : (
+    <MeScreen
+      title={lang === 'zh' ? '我' : 'Me'}
+      subtitle={lang === 'zh' ? '账户、设备与紧急资料都在这里。' : 'Your account, devices, and emergency information.'}
+      account={<AccountCard onScan={() => setIsScanning(true)} signOut={signOut} />}
+      safetyCheckin={<SafetyCheckinCard />}
+      thisDevice={<PassiveSignalCard />}
+      linkedDevices={<LinkedDevicesCard onScan={() => setIsScanning(true)} />}
+      emergencyContacts={<EmergencyInfoCard section="contact" />}
+      emergencyAddresses={<EmergencyInfoCard section="address" />}
+      emergencyGps={<EmergencyGpsCard />}
+      preferencesUpdates={<PreferencesCard isGm={isGm} />}
+      labels={{ account: lang === 'zh' ? '账户' : 'Account', safetyCheckin: lang === 'zh' ? '安全确认' : 'Safety check-in', thisDevice: lang === 'zh' ? '这台设备' : 'This device', linkedDevices: lang === 'zh' ? '已连接设备' : 'Linked devices', emergencyContacts: lang === 'zh' ? '紧急联络人' : 'Emergency contacts', emergencyAddresses: lang === 'zh' ? '紧急地址与医疗备注' : 'Emergency address & medical notes', emergencyGps: lang === 'zh' ? '紧急 GPS' : 'Emergency GPS', preferencesUpdates: lang === 'zh' ? '偏好与更新' : 'Preferences & updates' }}
+    />
+  )
+
   return (
     <LivenessProvider>
-    <div className={`home home--${tab}`}>
-      <PassivePingBoot />
-      <AlertOverlay />
-      <ToastHost />
-
-      <div className="home__body">
-        <header className="home__header">
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span className="home__logo" aria-hidden>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="4" fill="currentColor" />
-              </svg>
-            </span>
-            <span className="home__appname">Keep Contact</span>
-          </div>
-          <div className="home__headerbtns">
-            <ThemeToggle className="home__signout" />
-            <LangToggle className="home__signout" />
-          </div>
-        </header>
-
-        <div className="home__hello">
-          <span className="home__hello-text">
-            {t('home.hello')}
-            {(user?.user_metadata?.display_name as string | undefined) ?? user?.email}
-          </span>
-          <span className={`home__hello-badge ${isGm ? 'is-gm' : ''}`}>
-            {isGm ? (lang === 'zh' ? '守护者 (GM)' : 'Caregiver (GM)') : (lang === 'zh' ? '被守护者' : 'Care Recipient')}
-          </span>
-        </div>
-
-        {error && <p className="home__error">{error}</p>}
-        {notice && <p className="home__notice">{notice}</p>}
-
-        <ApkUpgradeNotice />
-
-        <main className={`home__page ${uiMode === 'v2' ? 'spatial-v2-container' : ''}`}>
-          <div className={`dashboard-grid ${tab !== 'home' ? 'home__tab-content--hidden' : ''} ${uiMode === 'v2' ? 'spatial-v2-mode' : ''}`}>
-            {uiMode === 'v2' ? (
-              /* 0.5.25 V2 空间极简模式：Notifications 置顶，随后紧跟 StatusBoard 与 CheckinTasks */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-                <NotificationsCard onChanged={refreshUnread} />
-                <StatusBoard />
-                <CheckinTasksCard />
-                {isGm && (
-                  <section className="card" style={{ border: '1px solid var(--accent-line)', background: 'var(--accent-soft)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-                          <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
-                          <path d="M9 12l2 2 4-4" />
-                        </svg>
-                        <div>
-                          <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', color: 'var(--fg)' }}>
-                            {lang === 'zh' ? '管理员控制台' : 'Manager Console'}
-                          </h3>
-                          <p className="muted" style={{ margin: 0, fontSize: '0.8rem', lineHeight: '1.4' }}>
-                            {lang === 'zh' ? '管理本群组成员状态及客户端版本' : 'Manage member statuses and client versions'}
-                          </p>
-                        </div>
-                      </div>
-                      <button 
-                        className="share" 
-                        onClick={() => setTab('gm')}
-                        style={{ background: 'var(--accent)', color: 'var(--bg)', border: 'none', cursor: 'pointer' }}
-                      >
-                        {lang === 'zh' ? '进入' : 'Enter'}
-                      </button>
-                    </div>
-                  </section>
-                )}
-              </div>
-            ) : (
-              /* 0.5.24 经典原版双栏模式 */
-              <>
-                <div className="dashboard-grid__col1">
-                  <NotificationsCard onChanged={refreshUnread} />
-                </div>
-                <div className="dashboard-grid__col2">
-                  <StatusBoard />
-                  <CheckinTasksCard />
-                  {isGm && (
-                    <section className="card" style={{ border: '1px solid var(--accent-line)', background: 'var(--accent-soft)', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)', flexShrink: 0 }}>
-                            <path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z" />
-                            <path d="M9 12l2 2 4-4" />
-                          </svg>
-                          <div>
-                            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', color: 'var(--fg)' }}>
-                              {lang === 'zh' ? '管理员控制台' : 'Manager Console'}
-                            </h3>
-                            <p className="muted" style={{ margin: 0, fontSize: '0.8rem', lineHeight: '1.4' }}>
-                              {lang === 'zh' ? '管理本群组成员状态及客户端版本' : 'Manage member statuses and client versions'}
-                            </p>
-                          </div>
-                        </div>
-                        <button 
-                          className="share" 
-                          onClick={() => setTab('gm')}
-                          style={{ background: 'var(--accent)', color: 'var(--bg)', border: 'none', cursor: 'pointer' }}
-                        >
-                          {lang === 'zh' ? '进入' : 'Enter'}
-                        </button>
-                      </div>
-                    </section>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-
-          <div className={tab !== 'routine' ? 'home__tab-content--hidden' : ''}>
-            <RoutineSettings />
-          </div>
-
-          {isGm && (
-            <div className={tab !== 'gm' ? 'home__tab-content--hidden' : ''}>
-              <GMScreen active={tab === 'gm'} onBack={() => setTab('home')} />
-            </div>
-          )}
-
-          <div className={`profile-grid ${tab !== 'profile' ? 'home__tab-content--hidden' : ''}`}>
-            <div className="profile-grid__col1">
-              <ProfileSection setIsScanning={setIsScanning} signOut={signOut} />
-              <EmergencyInfoCard />
-            </div>
-            <div className="profile-grid__col2">
-              <UpdatesCard isGm={isGm} />
-              <PassiveSignalCard />
-            </div>
-          </div>
-
-          <div className={`circles-grid ${tab !== 'circles' ? 'home__tab-content--hidden' : ''}`}>
-            <div className="circles-grid__col1">
-              {/* 加入：扫码加入 */}
-              <section className="card">
-                <h2 className="card__title">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)' }}>
-                    <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
-                    <path d="M7 12h10M12 7v10" />
-                  </svg>
-                  {t('scan.join')}
-                </h2>
-                <p className="muted">{t('scan.join.desc')}</p>
-                <button
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    background: 'var(--bg)',
-                    border: '1px solid var(--line)',
-                    borderRadius: 'var(--r-md)',
-                    cursor: 'pointer',
-                    color: 'var(--fg)',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onClick={() => setScanningJoin(true)}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: 'var(--accent)' }}>
-                      <path d="M3 7V5a2 2 0 0 1 2-2h2m10 0h2a2 2 0 0 1 2 2v2m0 10v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
-                      <path d="M7 12h10M12 7v10" />
-                    </svg>
-                    <span style={{ fontWeight: '600', fontSize: '0.92rem' }}>
-                      {t('scan.join')}
-                    </span>
-                  </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ opacity: 0.5 }}>
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </button>
-              </section>
-
-              {/* Communities */}
-              <section className="card">
-                <h2 className="card__title">
-                  <Icon name="community" />
-                  {t('comm.title')}
-                </h2>
-                {loading ? (
-                  <p className="muted">{t('home.loading')}</p>
-                ) : communities.length === 0 ? (
-                  <p className="muted">{t('comm.empty')}</p>
-                ) : (
-                  <ul className="list">
-                    {communities.map((c) => (
-                      <li key={c.id} className="list__item list__item--group">
-                        <div className="list__row1">
-                          <EditableName
-                            value={c.name}
-                            canEdit={c.created_by === user?.id}
-                            onSave={async (next) => {
-                              await renameCommunity(c.id, next)
-                              await refresh()
-                            }}
-                          />
-                        </div>
-                        <div className="list__row2" style={{ gap: '6px' }}>
-                          <button
-                            className="share"
-                            onClick={() =>
-                              void onShare({ kind: 'community', code: c.invite_code }, c.name)
-                            }
-                          >
-                            {t('share.invite')}
-                          </button>
-                          <button
-                            className="share"
-                            title={t('qr.show')}
-                            onClick={() => onShowQR({ kind: 'community', code: c.invite_code }, c.name)}
-                            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <rect x="3" y="3" width="7" height="7"/>
-                              <rect x="14" y="3" width="7" height="7"/>
-                              <rect x="3" y="14" width="7" height="7"/>
-                              <rect x="14" y="14" width="3" height="3"/>
-                              <rect x="19" y="14" width="2" height="2"/>
-                              <rect x="14" y="19" width="2" height="2"/>
-                              <rect x="19" y="19" width="2" height="2"/>
-                            </svg>
-                            {t('qr.show')}
-                          </button>
-                          {c.created_by === user?.id && (
-                            <button
-                              className="leave"
-                              disabled={busy}
-                              onClick={() => {
-                                if (window.confirm(t('admin.delete.confirm.community'))) {
-                                  run(() => deleteCommunity(c.id))
-                                }
-                              }}
-                            >
-                              {t('admin.delete')}
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="row">
-                  <input
-                    value={newCommunity}
-                    onChange={(e) => setNewCommunity(e.target.value)}
-                    placeholder={t('comm.new.ph')}
-                  />
-                  <button
-                    disabled={busy || !newCommunity.trim()}
-                    onClick={() =>
-                      run(async () => {
-                        await createCommunity(newCommunity.trim())
-                        setNewCommunity('')
-                      })
-                    }
-                  >
-                    {t('comm.create')}
-                  </button>
-                </div>
-              </section>
-            </div>
-
-            <div className="circles-grid__col2">
-              {/* Groups */}
-              <section className="card">
-                <h2 className="card__title">
-                  <Icon name="group" />
-                  {t('group.title')}
-                </h2>
-                {loading ? (
-                  <p className="muted">{t('home.loading')}</p>
-                ) : groups.length === 0 ? (
-                  <p className="muted">{t('group.empty')}</p>
-                ) : (
-                  <ul className="list">
-                    {groups.map(({ group, monitored, watching, role }) => (
-                      <li key={group.id} className="list__item list__item--group">
-                        <div className="list__row1">
-                          <EditableName
-                            value={group.name}
-                            canEdit={group.created_by === user?.id}
-                            onSave={async (next) => {
-                              await renameGroup(group.id, next)
-                              await refresh()
-                            }}
-                          />
-                          <button
-                            className="leave"
-                            disabled={busy}
-                            onClick={() => {
-                              if (window.confirm(t('group.leave.confirm'))) {
-                                run(() => leaveGroup(group.id))
-                              }
-                            }}
-                          >
-                            {t('group.leave')}
-                          </button>
-                        </div>
-
-                        <div className="list__row2" style={{ gap: '6px' }}>
-                          <button
-                            className="share"
-                            onClick={() =>
-                              void onShare(
-                                { kind: 'group', code: group.invite_code },
-                                group.name,
-                              )
-                            }
-                          >
-                            {t('share.invite')}
-                          </button>
-                          <button
-                            className="share"
-                            title={t('qr.show')}
-                            onClick={() => onShowQR({ kind: 'group', code: group.invite_code }, group.name)}
-                            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <rect x="3" y="3" width="7" height="7"/>
-                              <rect x="14" y="3" width="7" height="7"/>
-                              <rect x="3" y="14" width="7" height="7"/>
-                              <rect x="14" y="14" width="3" height="3"/>
-                              <rect x="19" y="14" width="2" height="2"/>
-                              <rect x="14" y="19" width="2" height="2"/>
-                              <rect x="19" y="19" width="2" height="2"/>
-                            </svg>
-                            {t('qr.show')}
-                          </button>
-                          {group.created_by === user?.id && (
-                            <button
-                              className="leave"
-                              disabled={busy}
-                              onClick={() => {
-                                if (window.confirm(t('admin.delete.confirm.group'))) {
-                                  run(() => deleteGroup(group.id))
-                                }
-                              }}
-                            >
-                              {t('admin.delete')}
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="list__row2" style={{ marginTop: '2px', justifyContent: 'space-between', width: '100%' }}>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <span className="role">{role === 'admin' ? t('group.admin') : ''}</span>
-                            {group.created_by === user?.id && (
-                              <label className="toggle" style={{ margin: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                {t('group.community')}
-                                <select
-                                  value={group.community_id ?? ''}
-                                  disabled={busy}
-                                  onChange={(e) =>
-                                    run(() =>
-                                      setGroupCommunity(group.id, e.target.value || null),
-                                    )
-                                  }
-                                >
-                                  <option value="">{t('group.standalone')}</option>
-                                  {communities.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                      {c.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                            )}
-                          </div>
-                          <button
-                            className="share"
-                            disabled={busy}
-                            onClick={() =>
-                              setOpenBoard(openBoard === group.id ? null : group.id)
-                            }
-                          >
-                            {openBoard === group.id ? t('board.hide') : t('board.show')}
-                          </button>
-                        </div>
-
-                        <div className="list__row2" style={{ marginTop: '6px', borderTop: '1px dashed var(--line)', paddingTop: '6px', gap: '1rem', width: '100%' }}>
-                          <label className="toggle">
-                            <input
-                              type="checkbox"
-                              checked={monitored}
-                              disabled={busy}
-                              onChange={(e) =>
-                                run(() =>
-                                  setMonitoringDirection(group.id, {
-                                    monitored: e.target.checked,
-                                  }),
-                                )
-                              }
-                            />
-                            {t('group.monitored')}
-                          </label>
-                          <label className="toggle">
-                            <input
-                              type="checkbox"
-                              checked={watching}
-                              disabled={busy}
-                              onChange={(e) =>
-                                run(() =>
-                                  setMonitoringDirection(group.id, {
-                                    watching: e.target.checked,
-                                  }),
-                                )
-                              }
-                            />
-                            {t('group.watching')}
-                          </label>
-                        </div>
-                        {openBoard === group.id && <GroupBoard groupId={group.id} mode="group" />}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="row">
-                  <input
-                    value={newGroup}
-                    onChange={(e) => setNewGroup(e.target.value)}
-                    placeholder={t('group.new.ph')}
-                  />
-                  <select
-                    value={newGroupCommunity}
-                    onChange={(e) => setNewGroupCommunity(e.target.value)}
-                  >
-                    <option value="">{t('group.standalone')}</option>
-                    {communities.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {t('group.belong', { name: c.name })}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    disabled={busy || !newGroup.trim()}
-                    onClick={() =>
-                      run(async () => {
-                        await createGroup(newGroup.trim(), newGroupCommunity || null)
-                        setNewGroup('')
-                      })
-                    }
-                  >
-                    {t('comm.create')}
-                  </button>
-                </div>
-              </section>
-
-              {/* Guardians – moved to bottom */}
-              <GuardiansCard />
-            </div>
-          </div>
-        </main>
+      <div className="home home-prototype">
+        <PassivePingBoot />
+        <AlertOverlay />
+        <ToastHost />
+        {error && <p className="home-prototype__floating-message is-error">{error}</p>}
+        {notice && <p className="home-prototype__floating-message">{notice}</p>}
+        {!onboardingCompleted ? (
+          <OnboardingWizard isGm={isGm} onComplete={() => { if (user?.id) saveOnboardingCompleted(user.id, isGm); setOnboardingCompleted(true) }} />
+        ) : (
+          <AppShell
+            activeTab={activeTab}
+            onTabChange={(tab) => { setGmOpen(false); setActiveTab(tab) }}
+            onSos={doSos}
+            displayName={(user?.user_metadata?.display_name as string | undefined) ?? user?.email ?? ''}
+            unreadCount={unread}
+            sosBusy={sosBusy}
+          >
+            {screen}
+          </AppShell>
+        )}
+        {isScanning && <ScanSyncModal onClose={() => setIsScanning(false)} onScan={handleQrScan} />}
+        {scanningJoin && <ScanSyncModal onClose={() => setScanningJoin(false)} onScan={handleJoinScan} />}
+        {qrTarget && <QRModal url={qrTarget.url} title={qrTarget.name} onClose={() => setQrTarget(null)} />}
       </div>
-
-      <TabBar
-        active={tab}
-        onChange={setTab}
-        onSos={() => void doSos()}
-        sosBusy={sosBusy}
-        alerts={unread}
-        isGm={isGm}
-      />
-      {isScanning && (
-        <ScanSyncModal
-          onClose={() => setIsScanning(false)}
-          onScan={handleQrScan}
-        />
-      )}
-      {scanningJoin && (
-        <ScanSyncModal
-          onClose={() => setScanningJoin(false)}
-          onScan={handleJoinScan}
-        />
-      )}
-      {qrTarget && (
-        <QRModal
-          url={qrTarget.url}
-          title={qrTarget.name}
-          onClose={() => setQrTarget(null)}
-        />
-      )}
-      {!onboardingCompleted && (
-        <OnboardingWizard
-          isGm={isGm}
-          onComplete={() => {
-            if (user?.id) saveOnboardingCompleted(user.id, isGm)
-            setOnboardingCompleted(true)
-          }}
-        />
-      )}
-    </div>
     </LivenessProvider>
   )
 }

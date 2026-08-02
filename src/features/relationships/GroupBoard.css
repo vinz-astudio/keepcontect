@@ -187,3 +187,15 @@
   gap: 6px;
 }
 
+.board__people {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.person-card-v2__status .prototype-icon {
+  font-size: 14px;
+}
+
