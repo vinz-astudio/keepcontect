@@ -45,7 +45,19 @@ import org.json.JSONObject;
 public class NotifyWorker extends Worker {
     private static final String TAG = "KeepContactPassive";
     private static final String WORK_NAME = "kc-notify-poll";
-    private static final String CHANNEL_ID = "kc_alerts";
+    // Bumped from "kc_alerts": a channel's importance and sound are frozen at
+    // creation, so an install that already has the old channel can never be
+    // raised to the settings below. A new id is the only way to reach existing
+    // devices — observed 2026-08-01, when a concern landed on the lock screen
+    // silently and without waking the screen.
+    private static final String CHANNEL_ID = "kc_alerts_v2";
+
+    /** Kinds addressed to the subject themselves — the ones whose whole purpose
+     *  is to get a locked phone's owner to unlock and check in before the alert
+     *  escalates to other people. Mirrors src/features/push/alertPushKinds.ts. */
+    private static boolean isSelfAddressed(String kind) {
+        return "concern".equals(kind) || "self".equals(kind);
+    }
     private static final String PREFS = "keep_contact_passive";
     private static final String KEY_SINCE = "notify_since";
 
@@ -140,7 +152,7 @@ public class NotifyWorker extends Worker {
                 String kind = n.optString("kind", "");
                 JSONObject params = n.optJSONObject("params");
                 String body = renderBody(kind, params, n.optString("body", ""));
-                postNotification(context, id, body);
+                postNotification(context, id, body, kind);
                 String createdAt = n.optString("created_at", "");
                 if (createdAt.compareTo(latest) > 0) latest = createdAt;
             }
@@ -168,10 +180,23 @@ public class NotifyWorker extends Worker {
         channel.setDescription(isZh()
             ? "异常沉默、关心确认与报平安任务的提醒"
             : "Unusual-silence, concern, and check-in task alerts");
+        // Spelled out rather than left to the default: some OEM ROMs give a
+        // channel no sound unless it asks, and this is the alert someone is
+        // meant to be woken by.
+        channel.setSound(
+            android.media.RingtoneManager.getDefaultUri(
+                android.media.RingtoneManager.TYPE_NOTIFICATION),
+            new android.media.AudioAttributes.Builder()
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                .build());
+        channel.enableVibration(true);
+        channel.enableLights(true);
+        channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
         manager.createNotificationChannel(channel);
     }
 
-    private static void postNotification(Context context, String id, String body) {
+    private static void postNotification(Context context, String id, String body, String kind) {
         Intent launch = context.getPackageManager()
             .getLaunchIntentForPackage(context.getPackageName());
         if (launch == null) return;
@@ -188,6 +213,21 @@ public class NotifyWorker extends Worker {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pending);
+
+        if (isSelfAddressed(kind)) {
+            // A plain high-priority notification lands on the lock screen
+            // silently and leaves the screen dark — observed 2026-08-01, where
+            // the concern was only found after pressing the power button. A
+            // full-screen intent is the one mechanism Android gives an app to
+            // turn the screen on, and it is the honest description of what this
+            // notification is: the subject must act before the alert escalates
+            // to other people. Reserved for concern/self so that ordinary
+            // updates never take over the screen.
+            builder
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setFullScreenIntent(pending, true);
+        }
         try {
             // Tagged with the notification row id, matching the tag push-dispatch
             // puts on the alert push, so a poll that finds the same row still

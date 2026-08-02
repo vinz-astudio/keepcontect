@@ -96,6 +96,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets a concern turn a locked screen on, the way an alarm does. Android 14
+         grants this only to calling/alarm apps by default; elsewhere the
+         notification simply degrades to a normal lock-screen entry. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Passive sensing and background survival permissions -->

@@ -320,7 +320,7 @@ Deno.serve(async () => {
   // Fetch FCM tokens for the recipients
   const { data: fcmRows } = await supabase
     .from('push_tokens')
-    .select('token, user_id')
+    .select('token, user_id, platform')
     .in('user_id', recipientIds)
   const fcmRowsByUser = new Map<string, NonNullable<typeof fcmRows>>()
   for (const row of fcmRows ?? []) {
@@ -400,10 +400,20 @@ Deno.serve(async () => {
       }
     }
 
-    // 2. Attempt FCM delivery
-    const alertBody = SELF_ADDRESSED_KINDS.has(n.kind) ? n.body : null
+    // 2. Attempt FCM delivery.
+    //
+    // The right envelope differs by platform, and it is not a matter of taste:
+    //
+    // - Android can be woken from Doze by a high-priority data message, and only
+    //   a notification the app draws itself may carry a full-screen intent —
+    //   the one mechanism that actually lights a locked screen. So Android stays
+    //   on the content-free tickle and renders locally.
+    // - iOS cannot be woken at all once the user swipes the app away, so its
+    //   only reliable path is a notification the system draws from the payload.
+    const selfAddressed = SELF_ADDRESSED_KINDS.has(n.kind)
     if (fcmEnabled && fcmAccessTokenVal && sa) {
       for (const row of recipientFcmRows) {
+        const alertBody = selfAddressed && row.platform === 'ios' ? n.body : null
         const result = await sendTickle(sa, fcmAccessTokenVal, row.token, alertBody, n.id)
         if (result === 'sent') {
           fcmSuccessCount++
