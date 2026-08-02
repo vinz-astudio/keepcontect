@@ -10,7 +10,7 @@ Replace the prototype's single emergency-contact row and single masked-address b
 
 1. Emergency contacts that the user can add, edit, remove, and mark Primary.
 2. Saved emergency addresses that the user can add, edit, and remove as static reference places.
-3. Per-device last locations that are read-only evidence, qualified by time, freshness, accuracy, and uncertainty.
+3. One simple permission control on the current device that lets the crisis workflow request this device's GPS when emergency information needs to be disclosed.
 
 The design must never present a saved address as the user's current location or imply that a device location proves the user is beside that device.
 
@@ -33,21 +33,21 @@ The design must never present a saved address as the user's current location or 
 - Address details remain masked until the user explicitly reveals them in the prototype.
 - Add/edit fields are label, street address, and access note. Remove uses a destructive confirmation.
 
-### Device last locations
+### Current-device emergency GPS permission
 
-- This is a separate read-only section; it has no Add, Edit, or Remove actions.
-- Cards are sorted by most recent credible interaction.
-- Each card shows device name, platform, last interaction time, last location time, accuracy, and Fresh/Stale/Unavailable.
-- Coordinates or street-level detail remain masked outside an active crisis demo.
-- Copy explicitly says: this is the device's last reported position, not proof of the person's location.
+- The Me page does not show a list of last device locations; location collection and comparison are background crisis responsibilities.
+- The current device exposes one checkbox: allow Keep Contact to request this device's GPS when emergency information needs to be shared.
+- Permission is per device because operating-system location authorization and device availability are device-local. A linked device must be configured on that device.
+- The checkbox grants purpose-limited app consent; it does not imply the operating-system permission is currently granted or that a location is continuously collected.
+- Supporting copy says the location is requested only for an active crisis disclosure, may be unavailable or inaccurate, and does not prove the person is beside the device.
 
 ## Crisis Disclosure Contract
 
-- Routine Me-page viewing keeps device locations and saved addresses protected.
-- Prototype disclosure is labelled Demo and framed as an active-crisis view.
-- Disclosure copy names the audience as authorized Circle responders and verified emergency contacts, not an undefined public community.
-- Responders compare contact coverage, saved reference places, device freshness, and accuracy before choosing where to send help.
-- The UI does not automatically recommend a device or claim the user is at a location.
+- Routine Me-page viewing does not request or display device GPS; saved addresses remain protected.
+- When the checkbox is enabled and an active crisis requires emergency-information disclosure, the background workflow may request this device's GPS.
+- The crisis payload—not the routine Me page—must qualify each device result with device identity, interaction time, location time, freshness, accuracy, and unavailable/error state.
+- Disclosure is limited to authorized Circle responders and verified emergency contacts, not an undefined public community.
+- Responders may compare contact coverage, saved reference places, and qualified device results; the system does not automatically assert which device is beside the user.
 
 Production implementation requires a separate privacy/data-model decision covering consent, retention, recipient authorization, revocation, audit logs, stale thresholds, location accuracy, and cross-device identity. This prototype does not authorize runtime collection or disclosure.
 
@@ -55,11 +55,11 @@ Production implementation requires a separate privacy/data-model decision coveri
 
 - A dedicated emergency-item dialog handles contact and address Add/Edit.
 - Form title, fields, and confirmation label adapt to the selected item type and mode.
-- Prototype data lives in small in-memory arrays and is re-rendered into semantic list containers.
+- Prototype contact and address data lives in small in-memory arrays and is re-rendered into semantic list containers.
 - Add and edit update the relevant list and announce a Demo result through the existing toast/live-region pattern.
 - Remove opens a confirmation dialog, updates only prototype state, and leaves at least one example recoverable on page reload.
 - Primary selection is exclusive across contacts; selecting a new Primary demotes the previous one.
-- Device-location cards are rendered from a fixed prototype scenario model and cannot be mutated by user controls.
+- The current-device GPS checkbox updates only Demo consent state and never fabricates a successful location lookup.
 
 ## Visual System
 
@@ -80,13 +80,13 @@ Production implementation requires a separate privacy/data-model decision coveri
 
 The dependency-free prototype test must fail before implementation and then require:
 
-- Separate containers for emergency contacts, saved addresses, and device last locations.
+- Separate containers for emergency contacts and saved addresses, plus one current-device emergency GPS permission control.
 - Add/Edit/Remove actions for contacts and addresses.
 - Exclusive Primary contact semantics.
-- No mutation actions on device-location cards.
-- Device name, interaction time, location time, accuracy, freshness, and uncertainty copy.
-- Protected-by-default saved addresses and device positions.
-- Active-crisis disclosure limited to authorized responders and labelled Demo.
+- No last-location list or GPS value in the routine Me page.
+- Per-device, purpose-limited consent copy that does not claim operating-system permission or continuous tracking.
+- Protected-by-default saved addresses and no routine device-position disclosure.
+- Active-crisis disclosure limited to authorized responders; background device results remain qualified by time, accuracy, freshness, and uncertainty.
 - Parseable inline JavaScript, unique IDs, and balanced dialogs.
 
 ## Acceptance Boundary
