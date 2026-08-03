@@ -46,6 +46,28 @@
   font-size: 0.78rem;
 }
 
+.home-prototype__action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.home-prototype__action-grid .prototype-button {
+  gap: 6px;
+  min-height: 38px;
+  padding-inline: 10px;
+  font-size: 0.78rem;
+  justify-content: center;
+}
+
+.home-prototype__privacy-text {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .home-prototype__danger {
   border-color: color-mix(in srgb, var(--danger) 34%, var(--line));
   background: var(--danger-soft);

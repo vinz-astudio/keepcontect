@@ -354,12 +354,30 @@ export function HomeScreen() {
           <PrototypeRow
             icon="diversity_3"
             title={<EditableName value={community.name} canEdit={community.created_by === user?.id} onSave={async (name) => { await renameCommunity(community.id, name); await refresh() }} />}
+            subtitle={lang === 'zh' ? '阶梯响应网络 · 仅在危机分配时分享细节' : 'Escalation network · crisis details shared only when assigned'}
             trailing={<PrototypeBadge tone="ready">{lang === 'zh' ? '社群' : 'Community'}</PrototypeBadge>}
           />
-          <div className="home-prototype__button-row">
-            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => void onShare({ kind: 'community', code: community.invite_code }, community.name)}>{t('share.invite')}</button>
-            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => onShowQr({ kind: 'community', code: community.invite_code }, community.name)}><PrototypeIcon name="qr_code_2" />{t('qr.show')}</button>
-            {community.created_by === user?.id && <button type="button" className="prototype-button home-prototype__danger" disabled={busy} onClick={() => { if (window.confirm(t('admin.delete.confirm.community'))) void run(() => deleteCommunity(community.id)) }}>{t('admin.delete')}</button>}
+          <PrototypeDisclosure label={lang === 'zh' ? '谁能看到什么' : 'Who can see what'}>
+            <p className="home-prototype__privacy-text">
+              {lang === 'zh'
+                ? '社群响应者只能看到分配给他们的告警和最低必要的处理信息。日常活动和作息时间戳只保留在你的关照圈内。'
+                : 'Community responders see an assigned alert and the minimum information needed to act. Routine evidence stays inside your Circle.'}
+            </p>
+          </PrototypeDisclosure>
+          <div className="home-prototype__action-grid">
+            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => void onShare({ kind: 'community', code: community.invite_code }, community.name)}>
+              <PrototypeIcon name="person_add" />
+              {t('share.invite')}
+            </button>
+            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => onShowQr({ kind: 'community', code: community.invite_code }, community.name)}>
+              <PrototypeIcon name="qr_code_2" />
+              {t('qr.show')}
+            </button>
+            {community.created_by === user?.id && (
+              <button type="button" className="prototype-button home-prototype__danger" disabled={busy} onClick={() => { if (window.confirm(t('admin.delete.confirm.community'))) void run(() => deleteCommunity(community.id)) }}>
+                {t('admin.delete')}
+              </button>
+            )}
           </div>
         </PrototypeCard>
       ))}
@@ -377,28 +395,62 @@ export function HomeScreen() {
           <PrototypeRow
             icon="groups"
             title={<EditableName value={group.name} canEdit={group.created_by === user?.id} onSave={async (name) => { await renameGroup(group.id, name); await refresh() }} />}
-            subtitle={role === 'admin' ? t('group.admin') : undefined}
-            trailing={<button type="button" className="prototype-button prototype-button--ghost" onClick={() => setOpenBoard(openBoard === group.id ? null : group.id)}>{openBoard === group.id ? t('board.hide') : t('board.show')}</button>}
+            subtitle={lang === 'zh'
+              ? `${role === 'admin' ? '管理员 · ' : ''}${monitored && watching ? '双向关照 · 时间戳共享' : monitored ? '对方关照你' : watching ? '你关照对方' : '单向'}`
+              : `${role === 'admin' ? 'Admin · ' : ''}${monitored && watching ? 'Reciprocal care' : 'One-way care'}`
+            }
+            trailing={<PrototypeBadge tone={monitored && watching ? 'ready' : 'limited'}>{monitored && watching ? (lang === 'zh' ? '双向' : 'Reciprocal') : (lang === 'zh' ? '单向' : 'One-way')}</PrototypeBadge>}
           />
-          <div className="home-prototype__button-row">
-            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => void onShare({ kind: 'group', code: group.invite_code }, group.name)}>{t('share.invite')}</button>
-            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => onShowQr({ kind: 'group', code: group.invite_code }, group.name)}><PrototypeIcon name="qr_code_2" />{t('qr.show')}</button>
-            <button type="button" className="prototype-button home-prototype__danger" disabled={busy} onClick={() => { if (window.confirm(t('group.leave.confirm'))) void run(() => leaveGroup(group.id)) }}>{t('group.leave')}</button>
-            {group.created_by === user?.id && <button type="button" className="prototype-button home-prototype__danger" disabled={busy} onClick={() => { if (window.confirm(t('admin.delete.confirm.group'))) void run(() => deleteGroup(group.id)) }}>{t('admin.delete')}</button>}
+
+          <PrototypeDisclosure label={lang === 'zh' ? '查看成员与权限' : 'View members & settings'}>
+            <GroupBoard groupId={group.id} mode="group" />
+            <div className="home-prototype__toggle-row">
+              <label>
+                <input type="checkbox" checked={monitored} disabled={busy} onChange={(event) => void run(() => setMonitoringDirection(group.id, { monitored: event.target.checked }))} />
+                {t('group.monitored')}
+              </label>
+              <label>
+                <input type="checkbox" checked={watching} disabled={busy} onChange={(event) => void run(() => setMonitoringDirection(group.id, { watching: event.target.checked }))} />
+                {t('group.watching')}
+              </label>
+            </div>
+            {group.created_by === user?.id && (
+              <label className="home-prototype__select-row">
+                {t('group.community')}
+                <select value={group.community_id ?? ''} disabled={busy} onChange={(event) => void run(() => setGroupCommunity(group.id, event.target.value || null))}>
+                  <option value="">{t('group.standalone')}</option>
+                  {communities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}
+                </select>
+              </label>
+            )}
+          </PrototypeDisclosure>
+
+          <div className="home-prototype__action-grid">
+            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => void onShare({ kind: 'group', code: group.invite_code }, group.name)}>
+              <PrototypeIcon name="person_add" />
+              {t('share.invite')}
+            </button>
+            <button type="button" className="prototype-button prototype-button--ghost" onClick={() => onShowQr({ kind: 'group', code: group.invite_code }, group.name)}>
+              <PrototypeIcon name="qr_code_2" />
+              {t('qr.show')}
+            </button>
+            <button type="button" className="prototype-button home-prototype__danger" disabled={busy} onClick={() => { if (window.confirm(t('group.leave.confirm'))) void run(() => leaveGroup(group.id)) }}>
+              {t('group.leave')}
+            </button>
+            {group.created_by === user?.id && (
+              <button type="button" className="prototype-button home-prototype__danger" disabled={busy} onClick={() => { if (window.confirm(t('admin.delete.confirm.group'))) void run(() => deleteGroup(group.id)) }}>
+                {t('admin.delete')}
+              </button>
+            )}
           </div>
-          {group.created_by === user?.id && (
-            <label className="home-prototype__select-row">{t('group.community')}<select value={group.community_id ?? ''} disabled={busy} onChange={(event) => void run(() => setGroupCommunity(group.id, event.target.value || null))}><option value="">{t('group.standalone')}</option>{communities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}</select></label>
-          )}
-          <div className="home-prototype__toggle-row">
-            <label><input type="checkbox" checked={monitored} disabled={busy} onChange={(event) => void run(() => setMonitoringDirection(group.id, { monitored: event.target.checked }))} />{t('group.monitored')}</label>
-            <label><input type="checkbox" checked={watching} disabled={busy} onChange={(event) => void run(() => setMonitoringDirection(group.id, { watching: event.target.checked }))} />{t('group.watching')}</label>
-          </div>
-          {openBoard === group.id && <GroupBoard groupId={group.id} mode="group" />}
         </PrototypeCard>
       ))}
       <PrototypeCard compact className="home-prototype__create-row">
         <input value={newGroup} onChange={(event) => setNewGroup(event.target.value)} placeholder={t('group.new.ph')} />
-        <select value={newGroupCommunity} onChange={(event) => setNewGroupCommunity(event.target.value)}><option value="">{t('group.standalone')}</option>{communities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}</select>
+        <select value={newGroupCommunity} onChange={(event) => setNewGroupCommunity(event.target.value)}>
+          <option value="">{t('group.standalone')}</option>
+          {communities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}
+        </select>
         <button type="button" className="prototype-button prototype-button--primary" disabled={busy || !newGroup.trim()} onClick={() => void run(async () => { await createGroup(newGroup.trim(), newGroupCommunity || null); setNewGroup('') })}>{t('comm.create')}</button>
       </PrototypeCard>
     </div>
