@@ -463,6 +463,20 @@ export function PassiveSignalCard() {
 
   const availableSensors = getAvailableSensors()
 
+  /**
+   * The Android section above already renders these three, each wired to its
+   * own permission prompt and status line. The generic list below then rendered
+   * every supported sensor again, so an Android user got two checkboxes for the
+   * same setting — both writing the same `kc.sensor.*` key, so they even
+   * disagreed visually until the card re-rendered.
+   *
+   * The dedicated controls win because they carry the permission handling; the
+   * generic list keeps whatever the platform section does not cover.
+   */
+  const SECTION_OWNED_SENSORS = ['app_activity', 'motion', 'phone_charger']
+  const isDuplicatedBySection = (key: string) =>
+    android === 'native' && SECTION_OWNED_SENSORS.includes(key)
+
   return (
     <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       {/* 1. Header with Title */}
@@ -486,7 +500,7 @@ export function PassiveSignalCard() {
             : 'Toggle behaviors you want to monitor. Disabled options will not trigger auto check-in.'}
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {availableSensors.filter(s => s.supported).map((sensor) => {
+          {availableSensors.filter(s => s.supported && !isDuplicatedBySection(s.key)).map((sensor) => {
             const isEnabled = isSensorEnabled(sensor.key)
             return (
               <label

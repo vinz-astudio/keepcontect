@@ -45,6 +45,16 @@ jobs:
       - name: Sync Capacitor iOS project
         run: npx cap sync ios
 
+      # Installers live in release-artifacts/ and only reach dist/ during the
+      # web build, so nothing should have been synced in. This asserts it: this
+      # workflow previously had no protection at all and shipped a 120 MB IPA
+      # whose real content was 1.2 MB. See release-artifacts/README.md.
+      - name: Guard against installers in the iOS bundle
+        run: |
+          node scripts/assert-no-installers.mjs
+          echo "iOS web assets:"
+          du -sh ios/App/App/public
+
       # The app's own version string is the single source of truth; the build
       # number just has to be unique and monotonic, which the run number is.
       - name: Resolve version

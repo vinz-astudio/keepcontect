@@ -224,10 +224,90 @@
   }
 }
 
+/* Breakpoint scale for the whole app. Six ad-hoc values (360/390/430/720/768/
+   1024) had accumulated across files; these four are the ones to reach for.
+
+     ≤430px   compact phone
+     ≥720px   tablet portrait
+     ≥1024px  tablet landscape / laptop
+     ≥1440px  large desktop
+
+   The shell used to clamp to 540px from 720px upward, which is why every wide
+   screen showed a phone-width strip down the middle. The content grids
+   (dashboard/routine/circles/profile) already switch to two columns at 768px —
+   they simply never had the room. Widening the shell is what lets them work. */
 @media (min-width: 720px) {
   .app-shell {
-    width: min(100%, 540px);
+    /* `flex: 1` on the base rule means `flex-basis: 0` plus grow, and that
+       beats `width` — the shell stretched to the full 1440px viewport no
+       matter what width was set here. Growth has to be given up for the cap
+       to mean anything. */
+    flex: 0 1 auto;
+    width: min(100%, 760px);
     margin: 0 auto;
     border-inline: 1px solid var(--line);
+  }
+
+  .app-shell__scroll {
+    padding-inline: 24px;
+  }
+
+  /* A floating pill stretched edge to edge looks wrong once the shell is wider
+     than a thumb's reach, and the reach argument stops applying on a tablet. */
+  .app-shell__nav {
+    right: auto;
+    left: 50%;
+    width: min(100%, 480px);
+    transform: translateX(-50%);
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-shell {
+    width: min(100%, 1120px);
+  }
+
+  .app-shell__scroll {
+    padding-inline: 32px;
+  }
+}
+
+/* Past this the limit is reading comfort, not screen space: a card whose text
+   runs the full width of a 27" display is harder to read, not easier. */
+@media (min-width: 1440px) {
+  .app-shell {
+    width: min(100%, 1240px);
+  }
+}
+
+/* Two columns from tablet landscape up.
+ *
+ * Every tab is a vertical stack of self-contained sections, so they can simply
+ * flow into columns — no per-tab grid definitions to write and keep in sync,
+ * and a new section added to any screen participates automatically.
+ *
+ * `break-inside: avoid` is what keeps a card from being sliced in half across
+ * the column boundary; without it the flow splits cards mid-content and the
+ * result is worse than a single column.
+ */
+@media (min-width: 1024px) {
+  .watch-screen,
+  .circles-screen,
+  .routine-screen,
+  .me-screen {
+    column-count: 2;
+    column-gap: 24px;
+  }
+
+  .watch-screen > *,
+  .circles-screen > *,
+  .routine-screen > *,
+  .me-screen > * {
+    break-inside: avoid;
+    /* Columns lay children out as inline-level boxes; without this the top
+       margin of the first item in each column collapses differently and the
+       two columns start at visibly different heights. */
+    display: block;
+    margin-bottom: 20px;
   }
 }

@@ -104,7 +104,6 @@ if (existsSync(gradlePath)) {
 // 6. Build Web app
 console.log('\n6. Building Web application...')
 run('npm run build')
-run('node scripts/clean-tauri-dist.js')
 
 // 7. Sync and Build Android APK
 console.log('\n7. Syncing and building Android APK...')
@@ -112,6 +111,10 @@ const gradlewPath = join(root, 'android', process.platform === 'win32' ? 'gradle
 if (existsSync(gradlewPath)) {
   try {
     run('npx cap sync android')
+    // After the sync, not before: cleaning first only ever removed the previous
+    // run's leftovers, which is exactly how this pipeline could ship a bloated
+    // APK without anyone noticing. See release-artifacts/README.md.
+    run('node scripts/assert-no-installers.mjs')
     const gradlew = process.platform === 'win32' ? `"${gradlewPath}"` : './gradlew'
     run(`${gradlew} assembleRelease --console=plain`, { cwd: join(root, 'android') })
     

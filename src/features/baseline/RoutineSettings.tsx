@@ -10,6 +10,9 @@ import {
   saveSleepWindowSafe,
   clearSleepWindowSafe,
   updateRoutineProfileSafe,
+  detectTimezone,
+  getServerTimezone,
+  setServerTimezone,
 } from '@/features/baseline/settingsApi'
 import { useI18n } from '@/lib/i18n'
 import type { Sensitivity } from '@/features/baseline/types'
@@ -25,16 +28,52 @@ import {
 } from '@/features/prototype/PrototypeUI'
 import './LivenessCard.css'
 
-const COMMON_TIMEZONES = [
-  { value: 'Asia/Shanghai', label: 'Asia/Shanghai (UTC+8 中国/北京)' },
-  { value: 'Asia/Kuala_Lumpur', label: 'Asia/Kuala_Lumpur (UTC+8 吉隆坡)' },
-  { value: 'Asia/Singapore', label: 'Asia/Singapore (UTC+8 新加坡)' },
-  { value: 'Asia/Tokyo', label: 'Asia/Tokyo (UTC+9 东京)' },
-  { value: 'Europe/London', label: 'Europe/London (UTC+0 伦敦)' },
-  { value: 'America/New_York', label: 'America/New_York (UTC-5 纽约)' },
-  { value: 'America/Los_Angeles', label: 'America/Los_Angeles (UTC-8 洛杉矶)' },
-  { value: 'UTC', label: 'UTC (标准协调时间)' },
+/**
+ * 兜底时区列表:只在引擎没有 `Intl.supportedValuesOf` 时才用。
+ *
+ * 这里曾经是**唯一**的列表,只有 8 项,不含 Asia/Thimphu —— 于是不丹用户的
+ * `value` 匹配不到任何 option,浏览器退回显示第一项,界面上写着
+ * "Asia/Shanghai" 而实际时区是 Asia/Thimphu,而且列表里根本没有正确选项可选。
+ */
+const FALLBACK_TIMEZONES = [
+  'Asia/Thimphu',
+  'Asia/Shanghai',
+  'Asia/Kuala_Lumpur',
+  'Asia/Singapore',
+  'Asia/Tokyo',
+  'Europe/London',
+  'America/New_York',
+  'America/Los_Angeles',
+  'UTC',
 ]
+
+/** 当前时区相对 UTC 的偏移,给选项加一个人看得懂的后缀。 */
+function timezoneOffsetLabel(tz: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      timeZoneName: 'shortOffset',
+    }).formatToParts(new Date())
+    const name = parts.find((p) => p.type === 'timeZoneName')?.value
+    return name ? ` (${name})` : ''
+  } catch {
+    return ''
+  }
+}
+
+function listTimezones(detected: string): string[] {
+  let zones: string[] = []
+  try {
+    const supported = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] })
+      .supportedValuesOf
+    if (typeof supported === 'function') zones = supported('timeZone')
+  } catch {
+    /* 老引擎:走兜底 */
+  }
+  if (zones.length === 0) zones = FALLBACK_TIMEZONES
+  // 检测到的时区必须在列表里,否则 select 会显示成完全不相干的第一项。
+  return zones.includes(detected) ? zones : [detected, ...zones]
+}
 
 export function RoutineSettings() {
   const { t, lang } = useI18n()
@@ -47,10 +86,37 @@ export function RoutineSettings() {
   const [consentDataSharing, setConsentDataSharing] = useState(false)
   const [statusKey, setStatusKey] = useState(0)
 
-  // Manual timezone selection
-  const [selectedTimezone, setSelectedTimezone] = useState<string>(
-    Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai'
-  )
+  // Timezone. Auto-detection is the source of truth and is what the alert
+  // engine actually uses; this control only exists to override it.
+  const detectedTimezone = detectTimezone()
+  const [timezoneOptions] = useState<string[]>(() => listTimezones(detectedTimezone))
+  const [selectedTimezone, setSelectedTimezone] = useState<string>(detectedTimezone)
+  const [isSavingTimezone, setIsSavingTimezone] = useState(false)
+
+  /**
+   * Writes the choice to `user_settings.timezone`. The previous version only
+   * moved local state and then claimed success in a toast, so the sleep window
+   * kept being evaluated against the detected zone no matter what was picked.
+   */
+  const chooseTimezone = async (tz: string) => {
+    const previous = selectedTimezone
+    setSelectedTimezone(tz)
+    setIsSavingTimezone(true)
+    try {
+      await setServerTimezone(tz)
+      toast(lang === 'zh' ? `时区已保存为 ${tz}` : `Timezone saved as ${tz}`, 'ok')
+    } catch (err) {
+      setSelectedTimezone(previous)
+      toast(
+        lang === 'zh'
+          ? `时区保存失败:${err instanceof Error ? err.message : String(err)}`
+          : `Could not save timezone: ${err instanceof Error ? err.message : String(err)}`,
+        'danger',
+      )
+    } finally {
+      setIsSavingTimezone(false)
+    }
+  }
 
   // The value binding is elided because nothing renders it — the setter is
   // still called on load and on save, so the state is written and never read.
@@ -71,6 +137,15 @@ export function RoutineSettings() {
     void getServerSensitivity()
       .then((s) => {
         if (s) setServerSensitivity(s)
+      })
+      .catch(() => {})
+
+    // Show what the server actually stores, not what this device detects: if a
+    // previous override is in effect the two differ, and displaying the
+    // detected value would misreport which zone the alert maths is using.
+    void getServerTimezone()
+      .then((tz) => {
+        if (tz) setSelectedTimezone(tz)
       })
       .catch(() => {})
 
@@ -291,14 +366,14 @@ export function RoutineSettings() {
             <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{lang === 'zh' ? '设置时区' : 'Timezone'}</span>
             <select
               value={selectedTimezone}
-              onChange={(e) => {
-                setSelectedTimezone(e.target.value)
-                toast(lang === 'zh' ? `已切换时区为 ${e.target.value}` : `Timezone changed to ${e.target.value}`, 'ok')
-              }}
+              disabled={isSavingTimezone}
+              onChange={(e) => void chooseTimezone(e.target.value)}
             >
-              {COMMON_TIMEZONES.map((tz) => (
-                <option key={tz.value} value={tz.value}>
-                  {tz.label}
+              {timezoneOptions.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                  {timezoneOffsetLabel(tz)}
+                  {tz === detectedTimezone ? (lang === 'zh' ? ' · 自动检测' : ' · detected') : ''}
                 </option>
               ))}
             </select>

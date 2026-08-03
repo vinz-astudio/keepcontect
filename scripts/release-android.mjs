@@ -50,14 +50,11 @@ console.log(`→ APP_VERSION & version.json = ${versionName} (${apkFileName})`)
 // 2) 构建 Web 产物并同步进原生工程
 run('npm run build')
 run('npx cap sync android')
-// Must run *after* the sync, not before. `public/` is the web distribution
-// directory, so Vite copies the desktop installers and previous APKs straight
-// into `dist/`, and `cap sync` then copies `dist/` into the native assets —
-// putting every installer inside the APK being built. Cleaning first only
-// cleared the previous build's leftovers and was a no-op for this one, which
-// is how a 4.7 MB APK became 167 MB once public/desktop held a fresh 92 MB of
-// NSIS + MSI.
-run('node scripts/clean-tauri-dist.js')
+// Installers no longer live in public/, so nothing should have been copied in.
+// This asserts it rather than cleaning up afterwards: the previous approach
+// relied on each pipeline remembering to clean, and 3 of its 5 call sites were
+// wrong — which is how a 4.7 MB APK shipped at 167 MB.
+run('node scripts/assert-no-installers.mjs')
 
 // 3) 构建发布签名 APK 及 Google Play App Bundle (.aab)
 const gradlew =
@@ -67,25 +64,28 @@ const gradlew =
 run(`${gradlew} assembleRelease bundleRelease --console=plain`, { cwd: join(root, 'android') })
 
 // 4) 复制成带版本号的文件名 keep-contact-v${versionName}.apk (同时保留 keep-contact.apk 静态别名供兼容)
+// 产物落在 release-artifacts/,不是 public/。放进 public/ 会被 Vite 拷进
+// dist/、再被 cap sync 拷进原生 app bundle —— APK 会把自己装进自己。
+// 见 release-artifacts/README.md。
 const built = join(root, 'android/app/build/outputs/apk/release/app-release.apk')
 const asset = join(root, `android/app/build/outputs/apk/release/${apkFileName}`)
-const publicVersionedAsset = join(root, `public/${apkFileName}`)
-const publicLegacyAsset = join(root, 'public/keep-contact.apk')
+const artifactVersioned = join(root, `release-artifacts/${apkFileName}`)
+const artifactLegacy = join(root, 'release-artifacts/keep-contact.apk')
 
 copyFileSync(built, asset)
-copyFileSync(built, publicVersionedAsset)
-copyFileSync(built, publicLegacyAsset)
-console.log(`✓ 已成功复制 APK 至: ${publicVersionedAsset} 和 ${publicLegacyAsset}`)
+copyFileSync(built, artifactVersioned)
+copyFileSync(built, artifactLegacy)
+console.log(`✓ 已成功复制 APK 至: ${artifactVersioned} 和 ${artifactLegacy}`)
 
 // 4b) 复制 Google Play 上架专用产物 .aab
 const builtAab = join(root, 'android/app/build/outputs/bundle/release/app-release.aab')
 if (existsSync(builtAab)) {
   const aabFileName = `keep-contact-v${versionName}.aab`
-  const publicAab = join(root, `public/${aabFileName}`)
-  const publicLegacyAab = join(root, 'public/keep-contact.aab')
-  copyFileSync(builtAab, publicAab)
-  copyFileSync(builtAab, publicLegacyAab)
-  console.log(`✓ 已成功导出 Google Play 上架包 (.aab) 至: ${publicAab}`)
+  const artifactAab = join(root, `release-artifacts/${aabFileName}`)
+  const artifactLegacyAab = join(root, 'release-artifacts/keep-contact.aab')
+  copyFileSync(builtAab, artifactAab)
+  copyFileSync(builtAab, artifactLegacyAab)
+  console.log(`✓ 已成功导出 Google Play 上架包 (.aab) 至: ${artifactAab}`)
 }
 
 console.log('正在同步 released 版本记录...')

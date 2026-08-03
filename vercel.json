@@ -1,4 +1,7 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "//buildCommand": "The web deploy is the ONLY build that ships installers. Plain `npm run build` deliberately leaves them out so that `cap sync` cannot copy them into an APK or IPA — see release-artifacts/README.md.",
+  "buildCommand": "npm run build:web",
   "headers": [
     {
       "source": "/sw.js",

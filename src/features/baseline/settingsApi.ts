@@ -92,8 +92,62 @@ export async function setServerPatternHash(hash: string): Promise<void> {
   if (error) throw error
 }
 
+/**
+ * 手动时区覆盖标记(按设备)。
+ *
+ * 自动检测是主路径,手动只是附带 —— 但两者会打架:`syncServerTimezone` 每次
+ * 启动都跑,会把用户手选的时区盖回系统检测值。所以手选时记一个标记,让自动
+ * 同步让位;清掉标记就回到自动。
+ */
+const TZ_MANUAL_KEY = 'kc.timezone.manual'
+
+export function isTimezoneManual(): boolean {
+  try {
+    return localStorage.getItem(TZ_MANUAL_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function detectTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
+
+/** 读服务器当前生效的时区(可能是自动检测写入的,也可能是手动覆盖的)。 */
+export async function getServerTimezone(): Promise<string | null> {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) return null
+  const { data, error } = await (supabase
+    .from('user_settings')
+    .select('timezone')
+    .eq('user_id', uid)
+    .maybeSingle() as any)
+  if (error) throw error
+  return data?.timezone || null
+}
+
+/** 手动设置时区。写服务器 —— 告警的睡眠窗按它换算,不写等于没设。 */
+export async function setServerTimezone(tz: string): Promise<void> {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) throw new Error('未登录')
+  const { error } = await supabase
+    .from('user_settings')
+    .update({ timezone: tz } as any)
+    .eq('user_id', uid)
+  if (error) throw error
+  try {
+    localStorage.setItem(TZ_MANUAL_KEY, tz === detectTimezone() ? 'false' : 'true')
+  } catch {
+    /* localStorage 不可用时,下次启动会被自动检测盖回,可接受 */
+  }
+}
+
 /** 检测并同步本地浏览器时区到服务器 */
 export async function syncServerTimezone(): Promise<void> {
+  // 用户明确手选过就不覆盖。否则自动同步会在下次启动悄悄推翻他的选择。
+  if (isTimezoneManual()) return
   const { data: u } = await supabase.auth.getUser()
   const uid = u.user?.id
   if (!uid) return

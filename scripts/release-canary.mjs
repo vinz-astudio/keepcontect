@@ -135,13 +135,15 @@ commitVersionBump(versionName)
 
 console.log('\nBuilding Web application...')
 run('npm run build')
-run('node scripts/clean-tauri-dist.js')
 
 mkdirSync(releaseDir, { recursive: true })
 const assets = []
 
 console.log('\nBuilding Android APK...')
 run('npx cap sync android')
+// After the sync, not before: cleaning first only ever removed the previous
+// run's leftovers. See release-artifacts/README.md.
+run('node scripts/assert-no-installers.mjs')
 const gradlewPath = join(root, 'android', process.platform === 'win32' ? 'gradlew.bat' : 'gradlew')
 const gradlew = process.platform === 'win32' ? `"${gradlewPath}"` : './gradlew'
 run(`${gradlew} assembleRelease --console=plain`, { cwd: join(root, 'android') })
