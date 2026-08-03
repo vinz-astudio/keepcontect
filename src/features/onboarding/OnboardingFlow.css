@@ -1,9 +1,15 @@
 .onboarding-flow {
   width: min(100%, 520px);
   min-height: 100dvh;
+  max-height: 100dvh;
   margin: 0 auto;
-  padding: max(20px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+  padding: max(16px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
   color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .onboarding-flow__header,
@@ -43,7 +49,11 @@
 .onboarding-flow__hero,
 .onboarding-flow__content,
 .onboarding-flow__result {
-  padding-top: clamp(54px, 12vh, 108px);
+  padding-top: clamp(16px, 4vh, 48px);
+  padding-bottom: clamp(16px, 3vh, 32px);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .onboarding-flow__hero-icon,
@@ -76,23 +86,23 @@
 .onboarding-flow h1 {
   max-width: 440px;
   margin: 0;
-  font-size: clamp(2rem, 9vw, 3.2rem);
-  line-height: 1.04;
-  letter-spacing: -0.05em;
+  font-size: clamp(1.4rem, 6vw, 2.3rem);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
 }
 
 .onboarding-flow h1 + p,
 .onboarding-flow__hero > p:last-of-type,
 .onboarding-flow__content > p:last-of-type,
 .onboarding-flow__result > p {
-  margin: 16px 0 24px;
+  margin: 10px 0 16px;
   color: var(--muted);
-  font-size: 0.94rem;
-  line-height: 1.7;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .onboarding-flow__value-card {
-  margin: 28px 0 22px;
+  margin: 16px 0 16px;
 }
 
 .onboarding-flow__primary {

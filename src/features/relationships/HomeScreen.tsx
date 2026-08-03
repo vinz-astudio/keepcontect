@@ -429,7 +429,8 @@ export function HomeScreen() {
       subtitle={lang === 'zh' ? '关系、社群与特别责任各自清楚分开。' : 'Keep relationships, communities, and special responsibilities distinct.'}
       circles={circleCards}
       community={communityCards}
-      responsibilities={<div className="home-prototype__stack"><PrototypeCard compact><PrototypeRow icon="qr_code_scanner" title={t('scan.join')} subtitle={t('scan.join.desc')} trailing={<button type="button" className="prototype-button prototype-button--ghost" onClick={() => setScanningJoin(true)}>{lang === 'zh' ? '扫描' : 'Scan'}</button>} /></PrototypeCard><GuardiansCard /></div>}
+      responsibilities={<div className="home-prototype__stack"><GuardiansCard /></div>}
+      onScanJoin={() => setScanningJoin(true)}
       labels={{ circles: lang === 'zh' ? '群组' : 'Circles', community: lang === 'zh' ? '社群' : 'Community', responsibilities: lang === 'zh' ? '特别关照与责任' : 'Responsibilities' }}
     />
   ) : (
