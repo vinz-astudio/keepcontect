@@ -9,6 +9,8 @@ export function CirclesScreen({
   community,
   responsibilities,
   onScanJoin,
+  onCreateGroup,
+  onCreateCommunity,
   labels,
 }: {
   title: string
@@ -17,6 +19,8 @@ export function CirclesScreen({
   community: ReactNode
   responsibilities: ReactNode
   onScanJoin?: () => void
+  onCreateGroup?: () => void
+  onCreateCommunity?: () => void
   labels?: Partial<Record<'circles' | 'community' | 'responsibilities', string>>
 }) {
   return (
@@ -39,8 +43,31 @@ export function CirclesScreen({
           )}
         </div>
       </header>
-      <PrototypeSection title={labels?.circles ?? 'Circles'}>{circles}</PrototypeSection>
-      <PrototypeSection title={labels?.community ?? 'Community'}>{community}</PrototypeSection>
+
+      <div className="circles-screen__section-wrap">
+        <div className="circles-screen__section-header">
+          <span>{labels?.circles ?? 'Circles'}</span>
+          {onCreateGroup && (
+            <button type="button" className="prototype-button prototype-button--ghost circles-screen__add-btn" onClick={onCreateGroup}>
+              + Create
+            </button>
+          )}
+        </div>
+        <PrototypeSection>{circles}</PrototypeSection>
+      </div>
+
+      <div className="circles-screen__section-wrap">
+        <div className="circles-screen__section-header">
+          <span>{labels?.community ?? 'Community'}</span>
+          {onCreateCommunity && (
+            <button type="button" className="prototype-button prototype-button--ghost circles-screen__add-btn" onClick={onCreateCommunity}>
+              + Create
+            </button>
+          )}
+        </div>
+        <PrototypeSection>{community}</PrototypeSection>
+      </div>
+
       <PrototypeSection title={labels?.responsibilities ?? 'Responsibilities'}>{responsibilities}</PrototypeSection>
     </div>
   )

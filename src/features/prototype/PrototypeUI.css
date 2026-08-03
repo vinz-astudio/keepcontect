@@ -262,8 +262,13 @@
 
 .prototype-button {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+  word-break: keep-all;
+  gap: 6px;
   min-height: 44px;
   padding: 0 16px;
   border: var(--surface-border);

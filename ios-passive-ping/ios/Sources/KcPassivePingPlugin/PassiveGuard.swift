@@ -67,6 +67,10 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     func resumeIfConfigured() {
         guard credentials() != nil else { return }
         arm()
+        // A HealthKit relaunch lands here: the observer query does not survive
+        // process death, so without this the very wake KC is trying to prove
+        // would be the last one it ever got.
+        HealthWake.shared.resume()
         flushRecord()
     }
 
@@ -85,6 +89,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
 
     func clear() {
         disarm()
+        HealthWake.shared.disable()
         // The cursor goes too: the next account to configure this install must
         // start from its own "now", not inherit the previous one's position.
         NotifyFeed.resetCursor()
@@ -229,7 +234,11 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     /// It also collapses what used to be two separate ideas — an "offline
     /// queue" and a "local record" — into one. A ping that failed to send and
     /// an observation that has not been asked for yet are the same thing.
-    func recordEvent(reason: String) {
+    /// `kind` is what the server records the ping as, and it is the only way to
+    /// tell later how a ping was produced: `reason` has never left the device,
+    /// so today every iOS ping arrives indistinguishable from every other one.
+    /// It defaults to `app` so existing callers keep their meaning.
+    func recordEvent(reason: String, kind: String = "app") {
         let now = Date()
         defaults.set(now.timeIntervalSince1970, forKey: Key.lastEventAt)
 
@@ -242,7 +251,8 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         append(entry: [
             "event_id": UUID().uuidString,
             "observed_at": now.timeIntervalSince1970,
-            "reason": reason
+            "reason": reason,
+            "kind": kind
         ])
         flushRecord()
     }
@@ -283,12 +293,15 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             send(
                 eventId: eventId,
                 observedAt: Date(timeIntervalSince1970: observedAt),
-                reason: entry["reason"] as? String ?? "unknown"
+                reason: entry["reason"] as? String ?? "unknown",
+                // Entries written by an earlier build carry no kind; they were
+                // all app-level observations, so that is the honest default.
+                kind: entry["kind"] as? String ?? "app"
             )
         }
     }
 
-    private func send(eventId: String, observedAt: Date, reason: String) {
+    private func send(eventId: String, observedAt: Date, reason: String, kind: String) {
         guard let (baseUrl, token) = credentials(),
               let url = URL(string: baseUrl + "/functions/v1/ping") else { return }
 
@@ -296,7 +309,11 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             "token": token,
             "event_id": eventId,
             "observed_at": Self.iso8601.string(from: observedAt),
-            "source": Self.pingSource
+            "source": Self.pingSource,
+            // An older server ignores this field, so a client that ships ahead
+            // of the function deploy degrades to the previous behaviour rather
+            // than failing.
+            "kind": kind
         ]
         guard let payload = try? JSONSerialization.data(withJSONObject: body) else { return }
 
@@ -318,7 +335,8 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             self.append(entry: [
                 "event_id": eventId,
                 "observed_at": observedAt.timeIntervalSince1970,
-                "reason": reason
+                "reason": reason,
+                "kind": kind
             ])
         }.resume()
     }

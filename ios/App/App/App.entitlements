@@ -7,5 +7,15 @@
 	     signing rather than failing quietly at runtime. -->
 	<key>aps-environment</key>
 	<string>production</string>
+	<!-- HealthKit as a wake source (KC-IOS-HEALTHWAKE-SPIKE-001). The plain
+	     capability alone lets the app read step data while it is running;
+	     background-delivery is the half that makes iOS relaunch a closed app
+	     when new samples arrive, which is the entire point here. Both keys must
+	     also be enabled on the App ID or signing fails — the Fastfile does that
+	     so a fresh CI run cannot silently produce a build with no wake. -->
+	<key>com.apple.developer.healthkit</key>
+	<true/>
+	<key>com.apple.developer.healthkit.background-delivery</key>
+	<true/>
 </dict>
 </plist>

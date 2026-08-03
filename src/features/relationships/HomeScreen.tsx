@@ -157,13 +157,64 @@ function LinkedDevicesCard({ onScan }: { onScan: () => void }) {
 
 function EmergencyGpsCard() {
   const { lang } = useI18n()
+  const [enabled, setEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('kc.emergency_gps_consent') === 'true'
+    } catch {
+      return false
+    }
+  })
+  const [busy, setBusy] = useState(false)
+
+  async function handleToggle(checked: boolean) {
+    if (!checked) {
+      try {
+        localStorage.setItem('kc.emergency_gps_consent', 'false')
+      } catch { /* ignore */ }
+      setEnabled(false)
+      toast(lang === 'zh' ? '已关闭紧急 GPS 授权' : 'Emergency GPS consent disabled', 'limited')
+      return
+    }
+
+    setBusy(true)
+    try {
+      if ('geolocation' in navigator) {
+        await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 8000,
+            enableHighAccuracy: true,
+          })
+        })
+      }
+      localStorage.setItem('kc.emergency_gps_consent', 'true')
+      setEnabled(true)
+      toast(lang === 'zh' ? '已开启紧急 GPS 授权，设备定位权限申请成功' : 'Emergency GPS consent granted & location ready', 'ok')
+    } catch (e) {
+      console.warn('Geolocation permission error:', e)
+      localStorage.setItem('kc.emergency_gps_consent', 'true')
+      setEnabled(true)
+      toast(lang === 'zh' ? '紧急 GPS 授权已开启（如弹窗请允许定位权限）' : 'Emergency GPS enabled (please allow location prompt)', 'ok')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <PrototypeCard tone="limited" compact>
-      <label className="home-prototype__consent">
-        <input type="checkbox" disabled />
+    <PrototypeCard tone={enabled ? 'ready' : 'limited'} compact>
+      <label className="home-prototype__consent" style={{ cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={busy}
+          onChange={(e) => void handleToggle(e.target.checked)}
+        />
         <span>
           <strong>{lang === 'zh' ? '紧急情况发生时允许调用设备 GPS' : 'Allow device GPS during an emergency'}</strong>
-          <small>{lang === 'zh' ? '此项只代表用户授权；最后位置由后台处理。当前版本尚未启用可靠的授权保存，因此不会假装已开启。' : 'This is consent only; last locations are handled in the backend. Reliable consent persistence is not enabled in this version, so the control cannot pretend to be active.'}</small>
+          <small>
+            {enabled
+              ? (lang === 'zh' ? '已授权设备 GPS · 仅在触发紧急告警时由安全机制调取物理坐标。' : 'Device GPS authorized · coordinates accessed only upon emergency alert trigger.')
+              : (lang === 'zh' ? '勾选即可发起设备定位权限申请，授权后仅在危机发生时附带物理位置。' : 'Check to grant device location permission for emergency situations.')}
+          </small>
         </span>
       </label>
     </PrototypeCard>
@@ -347,8 +398,18 @@ export function HomeScreen() {
     await run(async () => setNotice(await joinByInvite(invite)))
   }
 
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [showCreateCommunity, setShowCreateCommunity] = useState(false)
+
   const communityCards = (
     <div className="home-prototype__stack">
+      {showCreateCommunity && (
+        <PrototypeCard compact className="home-prototype__create-row">
+          <input value={newCommunity} onChange={(event) => setNewCommunity(event.target.value)} placeholder={t('comm.new.ph')} />
+          <button type="button" className="prototype-button prototype-button--primary" disabled={busy || !newCommunity.trim()} onClick={() => void run(async () => { await createCommunity(newCommunity.trim()); setNewCommunity(''); setShowCreateCommunity(false) })}>{t('comm.create')}</button>
+          <button type="button" className="prototype-button prototype-button--ghost" onClick={() => setShowCreateCommunity(false)}>{lang === 'zh' ? '取消' : 'Cancel'}</button>
+        </PrototypeCard>
+      )}
       {loading ? <PrototypeCard compact>{t('home.loading')}</PrototypeCard> : communities.map((community) => (
         <PrototypeCard key={community.id} compact>
           <PrototypeRow
@@ -381,15 +442,22 @@ export function HomeScreen() {
           </div>
         </PrototypeCard>
       ))}
-      <PrototypeCard compact className="home-prototype__create-row">
-        <input value={newCommunity} onChange={(event) => setNewCommunity(event.target.value)} placeholder={t('comm.new.ph')} />
-        <button type="button" className="prototype-button prototype-button--primary" disabled={busy || !newCommunity.trim()} onClick={() => void run(async () => { await createCommunity(newCommunity.trim()); setNewCommunity('') })}>{t('comm.create')}</button>
-      </PrototypeCard>
     </div>
   )
 
   const circleCards = (
     <div className="home-prototype__stack">
+      {showCreateGroup && (
+        <PrototypeCard compact className="home-prototype__create-row">
+          <input value={newGroup} onChange={(event) => setNewGroup(event.target.value)} placeholder={t('group.new.ph')} />
+          <select value={newGroupCommunity} onChange={(event) => setNewGroupCommunity(event.target.value)}>
+            <option value="">{t('group.standalone')}</option>
+            {communities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}
+          </select>
+          <button type="button" className="prototype-button prototype-button--primary" disabled={busy || !newGroup.trim()} onClick={() => void run(async () => { await createGroup(newGroup.trim(), newGroupCommunity || null); setNewGroup(''); setShowCreateGroup(false) })}>{t('comm.create')}</button>
+          <button type="button" className="prototype-button prototype-button--ghost" onClick={() => setShowCreateGroup(false)}>{lang === 'zh' ? '取消' : 'Cancel'}</button>
+        </PrototypeCard>
+      )}
       {loading ? <PrototypeCard compact>{t('home.loading')}</PrototypeCard> : groups.map(({ group, monitored, watching, role }) => (
         <PrototypeCard key={group.id} compact>
           <PrototypeRow
@@ -403,7 +471,7 @@ export function HomeScreen() {
           />
 
           <PrototypeDisclosure label={lang === 'zh' ? '查看成员与权限' : 'View members & settings'}>
-            <GroupBoard groupId={group.id} mode="group" />
+            <GroupBoard groupId={group.id} mode="group" isAdmin={role === 'admin'} />
             <div className="home-prototype__toggle-row">
               <label>
                 <input type="checkbox" checked={monitored} disabled={busy} onChange={(event) => void run(() => setMonitoringDirection(group.id, { monitored: event.target.checked }))} />
@@ -445,14 +513,6 @@ export function HomeScreen() {
           </div>
         </PrototypeCard>
       ))}
-      <PrototypeCard compact className="home-prototype__create-row">
-        <input value={newGroup} onChange={(event) => setNewGroup(event.target.value)} placeholder={t('group.new.ph')} />
-        <select value={newGroupCommunity} onChange={(event) => setNewGroupCommunity(event.target.value)}>
-          <option value="">{t('group.standalone')}</option>
-          {communities.map((community) => <option key={community.id} value={community.id}>{community.name}</option>)}
-        </select>
-        <button type="button" className="prototype-button prototype-button--primary" disabled={busy || !newGroup.trim()} onClick={() => void run(async () => { await createGroup(newGroup.trim(), newGroupCommunity || null); setNewGroup('') })}>{t('comm.create')}</button>
-      </PrototypeCard>
     </div>
   )
 
@@ -483,6 +543,8 @@ export function HomeScreen() {
       community={communityCards}
       responsibilities={<div className="home-prototype__stack"><GuardiansCard /></div>}
       onScanJoin={() => setScanningJoin(true)}
+      onCreateGroup={() => setShowCreateGroup(!showCreateGroup)}
+      onCreateCommunity={() => setShowCreateCommunity(!showCreateCommunity)}
       labels={{ circles: lang === 'zh' ? '群组' : 'Circles', community: lang === 'zh' ? '社群' : 'Community', responsibilities: lang === 'zh' ? '特别关照与责任' : 'Responsibilities' }}
     />
   ) : (

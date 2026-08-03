@@ -15,6 +15,13 @@ const cors = {
 }
 
 const eligibleSources = ['installed_pwa', 'tauri', 'capacitor', 'shortcut', 'manual', 'app']
+
+// What a passive collector is allowed to call its own observation. The database
+// also accepts 'manual_checkin', and that one is deliberately absent here: a
+// heartbeat token is not the user pressing "I'm OK", and letting a background
+// collector claim it would turn an automated ping into an answered alert.
+const eligibleKinds = ['app', 'steps', 'unlock']
+
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
 
 Deno.serve(async (req) => {
@@ -94,12 +101,23 @@ Deno.serve(async (req) => {
 
     const uid = row.user_id as string
 
+    // Older clients send no kind at all; they were all app-level observations,
+    // so that stays the default and those builds keep working unchanged.
+    const rawKind = body?.kind
+    if (rawKind !== undefined && (typeof rawKind !== 'string' || !eligibleKinds.includes(rawKind))) {
+      return new Response(JSON.stringify({ ok: false, reason: 'invalid kind' }), {
+        status: 400,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+    const kind = (rawKind as string | undefined) ?? 'app'
+
     const { data: status, error: pingError } = await supabase.rpc('record_behavior_ping_for_user', {
       _user_id: uid,
       _event_id: event_id,
       _observed_at: observed_at,
       _source: source,
-      _kind: 'app'
+      _kind: kind
     })
 
     if (pingError) {

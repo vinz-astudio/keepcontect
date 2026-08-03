@@ -78,6 +78,12 @@
 	<string>Keep Contact uses this only to restart its guardian if the app gets closed, so your circle can still tell you are fine. It never reads, stores, or sends your location, and it does not track your movements.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Keep Contact 需要使用摄像头扫描二维码，以加入守护圈或同步登录凭据。</string>
+	<!-- HealthKit is used as a wake source, not as a data source
+	     (KC-IOS-HEALTHWAKE-SPIKE-001). KC observes that new step data exists so
+	     iOS will relaunch it while it is closed; it never sends step counts or
+	     any other health data anywhere. Read-only, so no NSHealthUpdate string. -->
+	<key>NSHealthShareUsageDescription</key>
+	<string>Keep Contact checks that your phone has recorded recent movement, so your circle can tell you are fine without you having to open the app. Only the fact that you were active and the time is used — no health data ever leaves your phone.</string>
 	<!-- No custom cryptography; keeps TestFlight builds from stalling on the
 	     export-compliance question at every upload. -->
 	<key>ITSAppUsesNonExemptEncryption</key>

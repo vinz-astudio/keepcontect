@@ -77,6 +77,32 @@ platform :ios do
       keychain_password: "",
       force: true
     )
+    # The entitlements file asks for HealthKit, and a profile only carries a
+    # capability the App ID actually has — so without this the build fails at
+    # signing with a mismatch that reads like a certificate problem. Enabling it
+    # here rather than by hand in the portal keeps the requirement next to the
+    # entitlement that creates it. HealthKit is self-serve; nothing here needs
+    # Apple's approval.
+    begin
+      bundle_id = Spaceship::ConnectAPI::BundleId.find(APP_IDENTIFIER)
+      if bundle_id.nil?
+        UI.important("Bundle ID #{APP_IDENTIFIER} not found; leaving capabilities untouched")
+      else
+        existing = bundle_id.get_capabilities.map { |c| c.capability_type.to_s }
+        if existing.any? { |t| t.include?("HEALTHKIT") }
+          UI.message("HealthKit capability already enabled on #{APP_IDENTIFIER}")
+        else
+          bundle_id.create_capability(Spaceship::ConnectAPI::BundleIdCapability::Type::HEALTHKIT)
+          UI.success("Enabled HealthKit capability on #{APP_IDENTIFIER}")
+        end
+      end
+    rescue => e
+      # Not fatal on its own: if the capability really is missing, the signing
+      # step fails right after with a far clearer message than anything that
+      # could be guessed here.
+      UI.error("HealthKit capability check failed: #{e.message}")
+    end
+
     get_provisioning_profile(
       api_key: api_key,
       app_identifier: APP_IDENTIFIER,

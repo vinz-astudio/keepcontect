@@ -88,7 +88,7 @@ const SOCIAL: Array<{ provider: SocialProvider; label: string; icon: string }> =
 ]
 
 export function AuthScreen() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -627,6 +627,32 @@ export function AuthScreen() {
         )}
 
         {authMethod !== 'scan' && <InstallCard compact />}
+
+        <button
+          type="button"
+          className="auth__submit"
+          style={{ marginTop: '12px', background: 'var(--surface-2)', color: 'var(--ink)', border: '1px solid var(--line)' }}
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            setError(null)
+            try {
+              const { error } = await supabase.auth.signInAnonymously()
+              if (error) {
+                const res = await supabase.auth.signInWithPassword({ email: 'demo@keepcontact.app', password: 'demo123456' })
+                if (res.error) {
+                  await supabase.auth.signUp({ email: 'demo@keepcontact.app', password: 'demo123456' })
+                }
+              }
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Demo preview failed')
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          {lang === 'zh' ? '⚡ 快速进入 UI 界面预览' : '⚡ Fast Preview UI'}
+        </button>
 
         <p className="auth__build" onClick={() => void onVersionTap()}>
           {BUILD_TAG}

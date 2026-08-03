@@ -4,6 +4,15 @@ import { isSensorEnabled } from '@/features/signals/sensors'
 import { getClientId } from '@/lib/clientReport'
 import { APP_VERSION } from '@/lib/version'
 
+export interface HealthWakeStatus {
+  /** Device has HealthKit at all (an iPad does not). */
+  supported: boolean
+  /** The authorization sheet has been shown once on this install. */
+  asked: boolean
+  /** An observer query is registered right now. */
+  observing: boolean
+}
+
 export interface GuardStatus {
   enabled: boolean
   connectedAt: number
@@ -11,6 +20,8 @@ export interface GuardStatus {
   lastPingAt: number
   usageGranted?: boolean
   activityGranted?: boolean
+  /** iOS only, and absent on shells built before the HealthKit wake. */
+  health?: HealthWakeStatus
 }
 
 interface PassivePingPlugin {
@@ -39,6 +50,9 @@ interface PassivePingPlugin {
   openUsageStatsSettings(): Promise<void>
   isActivityRecognitionEnabled(): Promise<{ enabled: boolean }>
   requestActivityRecognitionPermission(): Promise<void>
+
+  // iOS only: HealthKit as a wake source (KC-IOS-HEALTHWAKE-SPIKE-001).
+  enableHealthWake(): Promise<{ granted: boolean }>
 }
 
 const PassivePing = registerPlugin<PassivePingPlugin>('PassivePing')
@@ -70,6 +84,12 @@ export async function configureNativePassivePing(
         appVersion: APP_VERSION,
         collectorContract: 'ios-passive-v1',
       })
+      // Every other iOS evidence source needs KC to already be running when the
+      // user does something, so a force-quit app goes silent until it is opened
+      // again. HealthKit is the one wake that can relaunch it. Asked for here
+      // rather than behind a settings toggle because a guard the user has to go
+      // find is a guard most users will never have.
+      await enableHealthWake()
       await PassivePing.pingApp()
       return
     }
@@ -91,6 +111,23 @@ export async function configureNativePassivePing(
     await PassivePing.pingApp()
   } catch {
     // Native bridge is best-effort; PWA ping URLs remain the fallback.
+  }
+}
+
+/**
+ * Shows the Health authorization sheet once and registers the HealthKit wake.
+ *
+ * Never throws: a shell built before this method exists rejects the call, and a
+ * user who refuses is a normal outcome. Either way KC carries on with the
+ * evidence sources it already has, so this must not be able to break sign-in.
+ */
+export async function enableHealthWake(): Promise<boolean> {
+  if (Capacitor.getPlatform() !== 'ios') return false
+  try {
+    const res = await PassivePing.enableHealthWake()
+    return !!res?.granted
+  } catch {
+    return false
   }
 }
 

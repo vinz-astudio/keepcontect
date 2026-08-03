@@ -34,6 +34,31 @@
   border-radius: 12px;
 }
 
+.circles-screen__section-wrap {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.circles-screen__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.circles-screen__add-btn {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 0.76rem;
+  border-radius: 8px;
+}
+
 .circles-screen__actions {
   display: flex;
   flex-wrap: wrap;

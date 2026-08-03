@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLivenessContext } from '@/features/baseline/LivenessProvider'
 import { useRoutineInsights } from '@/features/baseline/RoutineInsights'
 import { ActiveStatusBox } from '@/features/passive/ActiveStatusBox'
-import {
-  setSensitivity,
-} from '@/features/baseline/configStore'
+import { setSensitivity } from '@/features/baseline/configStore'
 import {
   getSleepWindow,
   getServerSensitivity,
@@ -20,7 +18,6 @@ import { getRoutineModeOptions, getRoutineModeSummary } from '@/features/baselin
 import { normalizeRoutineMode, type RoutineMode } from '@/features/baseline/routineMode'
 import { toast } from '@/lib/toast'
 import {
-  PrototypeBadge,
   PrototypeCard,
   PrototypeIcon,
   PrototypeRow,
@@ -28,11 +25,17 @@ import {
 } from '@/features/prototype/PrototypeUI'
 import './LivenessCard.css'
 
-/**
- * 作息/守望页。布局分两组(桌面左右两列、移动端上下堆叠):
- *  短期组:守护活跃度 + 当前守望状态 + 异常沉默判断依据 + 灵敏度。
- *  长期组:Routine block 内合并每周时间表 + 睡眠时间 + 作息模式 + 数据授权。
- */
+const COMMON_TIMEZONES = [
+  { value: 'Asia/Shanghai', label: 'Asia/Shanghai (UTC+8 中国/北京)' },
+  { value: 'Asia/Kuala_Lumpur', label: 'Asia/Kuala_Lumpur (UTC+8 吉隆坡)' },
+  { value: 'Asia/Singapore', label: 'Asia/Singapore (UTC+8 新加坡)' },
+  { value: 'Asia/Tokyo', label: 'Asia/Tokyo (UTC+9 东京)' },
+  { value: 'Europe/London', label: 'Europe/London (UTC+0 伦敦)' },
+  { value: 'America/New_York', label: 'America/New_York (UTC-5 纽约)' },
+  { value: 'America/Los_Angeles', label: 'America/Los_Angeles (UTC-8 洛杉矶)' },
+  { value: 'UTC', label: 'UTC (标准协调时间)' },
+]
+
 export function RoutineSettings() {
   const { t, lang } = useI18n()
   const { config, reload } = useLivenessContext()
@@ -44,15 +47,16 @@ export function RoutineSettings() {
   const [consentDataSharing, setConsentDataSharing] = useState(false)
   const [statusKey, setStatusKey] = useState(0)
 
-  // States to track actual server values and saving/dirty status (KCA-18)
+  // Manual timezone selection
+  const [selectedTimezone, setSelectedTimezone] = useState<string>(
+    Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai'
+  )
+
   const [serverSensitivity, setServerSensitivity] = useState<Sensitivity | null>(null)
   const [isSavingSensitivity, setIsSavingSensitivity] = useState(false)
-
   const [serverSleepWindow, setServerSleepWindow] = useState<{ start: string; end: string } | null>(null)
-
   const [serverRoutinePattern, setServerRoutinePattern] = useState<RoutineMode>('regular_9to5')
   const [isSavingRoutinePattern, setIsSavingRoutinePattern] = useState(false)
-
   const [serverConsentDataSharing, setServerConsentDataSharing] = useState<boolean>(false)
   const [isSavingConsent, setIsSavingConsent] = useState(false)
 
@@ -61,9 +65,7 @@ export function RoutineSettings() {
   useEffect(() => {
     void getServerSensitivity()
       .then((s) => {
-        if (s) {
-          setServerSensitivity(s)
-        }
+        if (s) setServerSensitivity(s)
       })
       .catch(() => {})
 
@@ -131,39 +133,6 @@ export function RoutineSettings() {
     setSleepBusy(false)
   }
 
-  // Dirty indicators and status texts (KCA-18)
-  const isSensitivityDirty = serverSensitivity !== null && config.sensitivity !== serverSensitivity
-  const sensitivityStatus = isSavingSensitivity
-    ? (lang === 'zh' ? ' (保存中...)' : ' (Saving...)')
-    : isSensitivityDirty
-      ? (lang === 'zh' ? ' (未保存更改)' : ' (Unsaved Changes)')
-      : (lang === 'zh' ? ' (已保存)' : ' (Saved)')
-
-  const isSleepDirty = serverSleepWindow === null
-    ? sleepOn
-    : (!sleepOn || sleepStart !== serverSleepWindow.start || sleepEnd !== serverSleepWindow.end)
-  const sleepStatus = sleepBusy
-    ? (lang === 'zh' ? ' (保存中...)' : ' (Saving...)')
-    : isSleepDirty
-      ? (lang === 'zh' ? ' (未保存更改)' : ' (Unsaved Changes)')
-      : (lang === 'zh' ? ' (已保存)' : ' (Saved)')
-
-  const isRoutinePatternDirty = routinePattern !== serverRoutinePattern
-  const routinePatternStatus = isSavingRoutinePattern
-    ? (lang === 'zh' ? ' (保存中...)' : ' (Saving...)')
-    : isRoutinePatternDirty
-      ? (lang === 'zh' ? ' (未保存更改)' : ' (Unsaved Changes)')
-      : (lang === 'zh' ? ' (已保存)' : ' (Saved)')
-
-  const isConsentDirty = consentDataSharing !== serverConsentDataSharing
-  const consentStatus = isSavingConsent
-    ? (lang === 'zh' ? ' (保存中...)' : ' (Saving...)')
-    : isConsentDirty
-      ? (lang === 'zh' ? ' (未保存更改)' : ' (Unsaved Changes)')
-      : (lang === 'zh' ? ' (已保存)' : ' (Saved)')
-
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-
   async function chooseSensitivity(next: Sensitivity) {
     if (isSavingSensitivity) return
     const previous = config.sensitivity
@@ -174,6 +143,7 @@ export function RoutineSettings() {
       setServerSensitivity(next)
       await reload()
       setStatusKey((key) => key + 1)
+      toast(lang === 'zh' ? '已更新灵敏度' : 'Sensitivity updated', 'ok')
     } else {
       setSensitivity(previous)
       toast(t('err.save'), 'danger')
@@ -229,9 +199,8 @@ export function RoutineSettings() {
             subtitle={sleepOn
               ? t('live.sleep.on', { start: sleepStart, end: sleepEnd })
               : t('live.sleep.disabled')}
-            trailing={<PrototypeBadge tone={isSleepDirty ? 'limited' : 'ready'}>{sleepStatus.replace(/[()]/g, '')}</PrototypeBadge>}
           />
-          <div className="routine-prototype-settings__time-row">
+          <div className="routine-prototype-settings__time-row" style={{ marginTop: 10 }}>
             <label>
               <span>{t('live.sleep.start')}</span>
               <input type="time" value={sleepStart} onChange={(event) => setSleepStart(event.target.value)} />
@@ -241,7 +210,7 @@ export function RoutineSettings() {
               <input type="time" value={sleepEnd} onChange={(event) => setSleepEnd(event.target.value)} />
             </label>
           </div>
-          <div className="routine-prototype-settings__actions">
+          <div className="routine-prototype-settings__actions" style={{ marginTop: 12 }}>
             <button className="prototype-button prototype-button--primary" disabled={sleepBusy} onClick={() => void saveSleep()}>
               {t('live.sleep.save')}
             </button>
@@ -280,7 +249,6 @@ export function RoutineSettings() {
               )
             })}
           </div>
-          <p className="routine-prototype-settings__feedback" aria-live="polite">{routinePatternStatus}</p>
         </PrototypeCard>
       </PrototypeSection>
 
@@ -291,7 +259,7 @@ export function RoutineSettings() {
         <PrototypeCard>
           <ActiveStatusBox statusLine={statusLine} serverLastAt={serverLastBehaviorAt} serverTruthRequired />
           {basisInner}
-          <div className="routine-prototype-settings__sensitivity" role="radiogroup" aria-label={t('live.sensitivity')}>
+          <div className="routine-prototype-settings__sensitivity" role="radiogroup" aria-label={t('live.sensitivity')} style={{ marginTop: 12 }}>
             {(['high', 'balanced', 'low'] as Sensitivity[]).map((sensitivity) => (
               <button
                 key={sensitivity}
@@ -306,17 +274,32 @@ export function RoutineSettings() {
               </button>
             ))}
           </div>
-          <p className="routine-prototype-settings__feedback" aria-live="polite">{sensitivityStatus}</p>
         </PrototypeCard>
       </PrototypeSection>
 
       <PrototypeSection
         title={lang === 'zh' ? '时区与隐私' : 'Timezone & Privacy'}
-        subtitle={lang === 'zh' ? '时区来自本机；共享选择与当前提醒估算分开处理。' : 'Timezone comes from this phone; sharing choices stay separate from the current alert estimate.'}
+        subtitle={lang === 'zh' ? '可手动切换时区；共享选择与当前提醒估算分开处理。' : 'Select timezone manually; sharing choices stay separate from alert estimates.'}
       >
         <PrototypeCard>
-          <PrototypeRow icon="globe" title={lang === 'zh' ? '本机时区' : 'This phone’s timezone'} subtitle={timezone} />
-          <label className="routine-prototype-settings__check">
+          <div className="home-prototype__select-row" style={{ marginTop: 0, marginBottom: 12 }}>
+            <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{lang === 'zh' ? '设置时区' : 'Timezone'}</span>
+            <select
+              value={selectedTimezone}
+              onChange={(e) => {
+                setSelectedTimezone(e.target.value)
+                toast(lang === 'zh' ? `已切换时区为 ${e.target.value}` : `Timezone changed to ${e.target.value}`, 'ok')
+              }}
+            >
+              {COMMON_TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>
+                  {tz.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <label className="routine-prototype-settings__check" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
             <input
               type="checkbox"
               checked={consentDataSharing}
@@ -330,7 +313,6 @@ export function RoutineSettings() {
                 : 'Shares activity frequency for cold-start improvement, never phone content.'}</small>
             </span>
           </label>
-          <p className="routine-prototype-settings__feedback" aria-live="polite">{consentStatus}</p>
         </PrototypeCard>
       </PrototypeSection>
     </div>

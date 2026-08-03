@@ -142,6 +142,23 @@ export async function leaveGroup(groupId: string): Promise<void> {
   }
 }
 
+export async function removeGroupMember(
+  groupId: string,
+  targetUserId: string,
+): Promise<void> {
+  await requireUid()
+  const { data, error } = await supabase
+    .from('group_members')
+    .delete()
+    .eq('group_id', groupId)
+    .eq('user_id', targetUserId)
+    .select('group_id')
+  if (error) throw error
+  if (!data || data.length === 0) {
+    throw new Error('Member could not be removed or permission denied.')
+  }
+}
+
 export async function setMonitoringDirection(
   groupId: string,
   patch: { monitored?: boolean; watching?: boolean },

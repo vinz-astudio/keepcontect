@@ -15,7 +15,8 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getGuardStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestNotificationPermission", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getFcmToken", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "consumeLaunchNotificationKind", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "consumeLaunchNotificationKind", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "enableHealthWake", returnType: CAPPluginReturnPromise)
     ]
 
     override public func load() {
@@ -48,7 +49,19 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func getGuardStatus(_ call: CAPPluginCall) {
-        call.resolve(PassiveGuard.shared.status())
+        var status = PassiveGuard.shared.status()
+        status["health"] = HealthWake.shared.status()
+        call.resolve(status)
+    }
+
+    /// Asks for step-count read access and registers the HealthKit wake
+    /// (KC-IOS-HEALTHWAKE-SPIKE-001). Resolves either way: a refused
+    /// authorization is a normal outcome, not an error, and KC keeps working
+    /// with the evidence sources it already has.
+    @objc func enableHealthWake(_ call: CAPPluginCall) {
+        HealthWake.shared.enable { granted in
+            call.resolve(["granted": granted])
+        }
     }
 
     @objc func requestNotificationPermission(_ call: CAPPluginCall) {

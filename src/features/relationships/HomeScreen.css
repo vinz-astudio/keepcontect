@@ -68,6 +68,16 @@
   line-height: 1.45;
 }
 
+/* Flatten nested cards inside RoutineSettings to eliminate card-inside-card visual clutter */
+.routine-prototype-settings .prototype-card .card,
+.routine-prototype-settings .prototype-card .spatial-v2-card {
+  box-shadow: none !important;
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
 .home-prototype__danger {
   border-color: color-mix(in srgb, var(--danger) 34%, var(--line));
   background: var(--danger-soft);

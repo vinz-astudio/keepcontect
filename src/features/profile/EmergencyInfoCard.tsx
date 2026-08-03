@@ -4,7 +4,7 @@ import {
   saveEmergencyInfo,
   type EmergencyInfoInput,
 } from '@/features/profile/emergencyApi'
-import { PrototypeBadge, PrototypeCard, PrototypeIcon, PrototypeRow } from '@/features/prototype/PrototypeUI'
+import { PrototypeBadge, PrototypeCard, PrototypeRow } from '@/features/prototype/PrototypeUI'
 import { useI18n } from '@/lib/i18n'
 
 export interface ContactCardItem {
@@ -228,8 +228,7 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
                 })
               }
             >
-              <PrototypeIcon name="add" />
-              <span>{lang === 'zh' ? '+ 添加联络人' : '+ Add'}</span>
+              <span>{lang === 'zh' ? '+ 添加' : '+ Add'}</span>
             </button>
           </div>
 
@@ -314,7 +313,6 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
                       className="prototype-button prototype-button--ghost"
                       onClick={() => setEditingContact(c)}
                     >
-                      <PrototypeIcon name="edit" />
                       {lang === 'zh' ? '编辑' : 'Edit'}
                     </button>
                     {!c.isPrimary && (
@@ -362,8 +360,7 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
                 })
               }
             >
-              <PrototypeIcon name="add" />
-              <span>{lang === 'zh' ? '+ 添加地址' : '+ Add'}</span>
+              <span>{lang === 'zh' ? '+ 添加' : '+ Add'}</span>
             </button>
           </div>
 
@@ -448,7 +445,6 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
                       className="prototype-button prototype-button--ghost"
                       onClick={() => setEditingAddress(a)}
                     >
-                      <PrototypeIcon name="edit" />
                       {lang === 'zh' ? '编辑' : 'Edit'}
                     </button>
                     {!a.isPrimary && (
