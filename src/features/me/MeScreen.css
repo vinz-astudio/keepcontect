@@ -67,3 +67,41 @@
   font-size: 0.74rem;
   line-height: 1.5;
 }
+
+/* Multi-card Emergency Info Styles */
+.emergency-info-card__header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.emergency-info-card__header-row strong {
+  font-size: 0.96rem;
+  color: var(--ink);
+}
+
+.emergency-info-card__header-row p {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.emergency-info-card__form-box {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.emergency-info-card__item {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-1);
+}
