@@ -1,0 +1,233 @@
+.app-shell {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: var(--mesh);
+  color: var(--ink);
+}
+
+.app-shell__header {
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: calc(48px + env(safe-area-inset-top, 0px));
+  padding: max(10px, env(safe-area-inset-top, 0px)) 16px 8px;
+}
+
+.app-shell__brand {
+  color: var(--ink);
+  font-size: clamp(1.35rem, 4vw, 1.48rem);
+  font-weight: 600;
+  letter-spacing: -0.024em;
+  white-space: nowrap;
+}
+
+.app-shell__user {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.app-shell__avatar {
+  display: grid;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.app-shell__user-name {
+  max-width: 128px;
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell__scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 0 16px calc(92px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.app-shell__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.app-shell__nav {
+  position: absolute;
+  right: 8px;
+  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  left: 8px;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr 1fr 1fr;
+  align-items: center;
+  min-height: 58px;
+  padding: 3px 4px;
+  border: var(--surface-border);
+  border-radius: 30px;
+  background: var(--nav-bg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+}
+
+.app-shell__nav-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 46px;
+  padding: 2px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--quiet);
+  font-size: clamp(0.64rem, 1.8vw, 0.7rem);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.app-shell__nav-button[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.app-shell__nav-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.app-shell__unread {
+  position: absolute;
+  top: -5px;
+  left: calc(100% - 2px);
+  display: grid;
+  min-width: 17px;
+  min-height: 17px;
+  padding: 0 4px;
+  place-items: center;
+  border: 2px solid var(--nav-bg);
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+.app-shell__sos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  width: 56px;
+  height: 56px;
+  margin-top: -16px;
+  border: 3px solid var(--nav-bg);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 6px 20px var(--danger-glow), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  user-select: none;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.app-shell__sos.is-holding {
+  transform: scale(0.92);
+}
+
+.app-shell__sos:disabled {
+  opacity: 0.58;
+}
+
+.app-shell__sos-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 24px 20px;
+  background: rgba(220, 38, 38, 0.96);
+  color: #fff;
+  text-align: center;
+}
+
+.app-shell__sos-overlay-icon {
+  margin-bottom: 12px;
+  font-size: 56px;
+}
+
+.app-shell__sos-overlay h2,
+.app-shell__sos-overlay p {
+  margin: 0;
+  color: #fff;
+}
+
+.app-shell__sos-overlay p {
+  margin-top: 4px;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.app-shell__sos-overlay progress {
+  width: min(280px, 80vw);
+  height: 10px;
+  margin: 18px 0 10px;
+  accent-color: #fff;
+}
+
+.app-shell__sos-overlay span {
+  font-size: 0.82rem;
+  opacity: 0.88;
+}
+
+@media (max-width: 430px) {
+  .app-shell__scroll {
+    padding-inline: 12px;
+  }
+
+  .app-shell__nav {
+    right: 4px;
+    bottom: max(6px, env(safe-area-inset-bottom, 0px));
+    left: 4px;
+    border-radius: 26px;
+  }
+}
+
+@media (min-width: 720px) {
+  .app-shell {
+    width: min(100%, 540px);
+    margin: 0 auto;
+    border-inline: 1px solid var(--line);
+  }
+}
