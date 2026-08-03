@@ -5,7 +5,6 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, '..');
 const roots = [
-  path.join(rootDir, 'dist'),
   path.join(rootDir, 'android/app/src/main/assets/public'),
   path.join(rootDir, 'ios/App/App/public'),
 ];
