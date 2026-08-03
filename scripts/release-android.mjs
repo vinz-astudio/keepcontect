@@ -49,8 +49,15 @@ console.log(`→ APP_VERSION & version.json = ${versionName} (${apkFileName})`)
 
 // 2) 构建 Web 产物并同步进原生工程
 run('npm run build')
-run('node scripts/clean-tauri-dist.js')
 run('npx cap sync android')
+// Must run *after* the sync, not before. `public/` is the web distribution
+// directory, so Vite copies the desktop installers and previous APKs straight
+// into `dist/`, and `cap sync` then copies `dist/` into the native assets —
+// putting every installer inside the APK being built. Cleaning first only
+// cleared the previous build's leftovers and was a no-op for this one, which
+// is how a 4.7 MB APK became 167 MB once public/desktop held a fresh 92 MB of
+// NSIS + MSI.
+run('node scripts/clean-tauri-dist.js')
 
 // 3) 构建发布签名 APK 及 Google Play App Bundle (.aab)
 const gradlew =

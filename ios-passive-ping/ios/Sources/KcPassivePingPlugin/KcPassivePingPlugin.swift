@@ -34,7 +34,12 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("token is required")
             return
         }
-        PassiveGuard.shared.configure(supabaseUrl: supabaseUrl, token: token)
+        PassiveGuard.shared.configure(
+            supabaseUrl: supabaseUrl,
+            token: token,
+            clientId: call.getString("clientId"),
+            appVersion: call.getString("appVersion")
+        )
         call.resolve()
     }
 

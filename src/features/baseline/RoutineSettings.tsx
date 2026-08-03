@@ -52,7 +52,12 @@ export function RoutineSettings() {
     Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai'
   )
 
-  const [serverSensitivity, setServerSensitivity] = useState<Sensitivity | null>(null)
+  // The value binding is elided because nothing renders it — the setter is
+  // still called on load and on save, so the state is written and never read.
+  // Left in place rather than removed: that looks like a display that moved
+  // during the prototype refactor, and deleting the writes would quietly change
+  // whatever is meant to come back.
+  const [, setServerSensitivity] = useState<Sensitivity | null>(null)
   const [isSavingSensitivity, setIsSavingSensitivity] = useState(false)
   const [serverSleepWindow, setServerSleepWindow] = useState<{ start: string; end: string } | null>(null)
   const [serverRoutinePattern, setServerRoutinePattern] = useState<RoutineMode>('regular_9to5')

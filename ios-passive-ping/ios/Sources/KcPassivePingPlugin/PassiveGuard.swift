@@ -37,6 +37,8 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     private enum Key {
         static let supabaseUrl = "kc.passive.supabaseUrl"
         static let token = "kc.passive.token"
+        static let clientId = "kc.passive.clientId"
+        static let appVersion = "kc.passive.appVersion"
         static let record = "kc.passive.record"
         static let lastRecordedAt = "kc.passive.lastRecordedAt"
         static let lastPingAt = "kc.passive.lastPingAt"
@@ -74,9 +76,14 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         flushRecord()
     }
 
-    func configure(supabaseUrl: String, token: String) {
+    func configure(supabaseUrl: String, token: String, clientId: String?, appVersion: String?) {
         defaults.set(supabaseUrl, forKey: Key.supabaseUrl)
         defaults.set(token, forKey: Key.token)
+        // Provenance for the multi-signal samples. The web layer has always sent
+        // these; iOS simply dropped them, which left every sample unable to say
+        // which install it came from.
+        if let clientId { defaults.set(clientId, forKey: Key.clientId) }
+        if let appVersion { defaults.set(appVersion, forKey: Key.appVersion) }
         if defaults.double(forKey: Key.connectedAt) == 0 {
             defaults.set(Date().timeIntervalSince1970, forKey: Key.connectedAt)
         }
@@ -93,7 +100,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         // The cursor goes too: the next account to configure this install must
         // start from its own "now", not inherit the previous one's position.
         NotifyFeed.resetCursor()
-        for key in [Key.supabaseUrl, Key.token, Key.record, Key.lastPingAt, Key.lastEventAt, Key.lastRecordedAt, Key.connectedAt] {
+        for key in [Key.supabaseUrl, Key.token, Key.clientId, Key.appVersion, Key.record, Key.lastPingAt, Key.lastEventAt, Key.lastRecordedAt, Key.connectedAt] {
             defaults.removeObject(forKey: key)
         }
     }
@@ -130,6 +137,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
                 queue: .main
             ) { [weak self] _ in
                 self?.recordEvent(reason: "unlock")
+                self?.captureSample(trigger: "unlock")
             }
         )
 
@@ -142,6 +150,12 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
                 queue: .main
             ) { [weak self] _ in
                 self?.recordEvent(reason: "foreground")
+                // The control case. A foreground sample is the only one taken
+                // while a human is provably present, so it is what every
+                // background sample has to be calibrated against — without it
+                // there is no reference for what "in use" looks like on this
+                // particular device.
+                self?.captureSample(trigger: "foreground")
             }
         )
 
@@ -196,7 +210,17 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         if unlocked {
             recordEvent(reason: "wake-sample")
         }
-        completion(unlocked)
+
+        // Sampled whether or not the device is unlocked, which is the opposite
+        // of how the ping above behaves and is deliberate. Lock state is only
+        // one of the readings; battery drain, the pasteboard counter and the
+        // step history describe the whole interval since the last wake and are
+        // just as readable through a locked screen. Answering "still locked"
+        // and collecting nothing would throw away the interval evidence at
+        // exactly the moments it is most needed.
+        captureSample(trigger: "push-wake") {
+            completion(unlocked)
+        }
     }
 
     // MARK: - CLLocationManagerDelegate
@@ -207,6 +231,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         // Any change here turns location into collection.
         // A relaunch by significant change is also a chance to hand over the record.
         flushRecord()
+        captureSample(trigger: "location-relaunch")
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
@@ -339,6 +364,53 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
                 "kind": kind
             ])
         }.resume()
+    }
+
+    // MARK: - Multi-signal sampling
+
+    /// Takes a full reading of everything that hints at the device having been
+    /// used, and posts it to the shadow endpoint.
+    ///
+    /// Kept entirely apart from the ping path above. A ping is safety evidence
+    /// and is queued, retried and reconciled; a sample is analysis material that
+    /// cannot refresh a heartbeat or touch an alert, so a failed upload is
+    /// simply dropped. Retrying it would add a second queue to reason about in
+    /// exchange for data we will have thousands of.
+    /// `completion` runs once the upload has actually finished, because the
+    /// caller is usually a background wake that must not tell iOS it is done
+    /// while a request is still in flight — the process would be suspended and
+    /// the sample lost.
+    func captureSample(trigger: String, completion: (() -> Void)? = nil) {
+        guard let (baseUrl, token) = credentials(),
+              let url = URL(string: baseUrl + "/functions/v1/device-sample") else {
+            completion?()
+            return
+        }
+
+        DeviceSampleCollector.shared.collect(trigger: trigger) { [weak self] sample in
+            guard let self else {
+                completion?()
+                return
+            }
+            var payload = sample.asPayload(
+                clientId: self.defaults.string(forKey: Key.clientId),
+                appVersion: self.defaults.string(forKey: Key.appVersion),
+                contract: "ios-passive-v1"
+            )
+            payload["token"] = token
+            guard let data = try? JSONSerialization.data(withJSONObject: payload) else {
+                completion?()
+                return
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+            request.httpBody = data
+            self.session.dataTask(with: request) { _, _, _ in
+                completion?()
+            }.resume()
+        }
     }
 
     // MARK: - Helpers

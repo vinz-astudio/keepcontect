@@ -82,6 +82,12 @@
 	     (KC-IOS-HEALTHWAKE-SPIKE-001). KC observes that new step data exists so
 	     iOS will relaunch it while it is closed; it never sends step counts or
 	     any other health data anywhere. Read-only, so no NSHealthUpdate string. -->
+	<!-- CoreMotion: step history, activity type and the brief accelerometer
+	     sample that tells a phone in a hand from one lying on a table. Missing
+	     this string is a hard crash the moment CMPedometer is touched, not a
+	     silent refusal. -->
+	<key>NSMotionUsageDescription</key>
+	<string>Keep Contact reads your phone's own step and movement history so your circle can tell you are fine without you opening the app. It never records where you go, and no movement data leaves your phone beyond a count.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Keep Contact checks that your phone has recorded recent movement, so your circle can tell you are fine without you having to open the app. Only the fact that you were active and the time is used — no health data ever leaves your phone.</string>
 	<!-- No custom cryptography; keeps TestFlight builds from stalling on the

@@ -112,6 +112,12 @@ final class HealthWake {
     /// distinction is in today.
     private func onWake() {
         PassiveGuard.shared.recordEvent(reason: "health-wake", kind: "steps")
+        // The wake fired because new step data exists, so movement is already
+        // implied. The sample is taken anyway for the signals movement cannot
+        // supply — whether the screen is unlocked right now, how hard the
+        // battery has been working, whether anything was copied. Motion says a
+        // body moved; those say a person was operating the device.
+        PassiveGuard.shared.captureSample(trigger: "health-wake")
     }
 
     /// Sign-out. The authorization itself is the user's to revoke in the Health

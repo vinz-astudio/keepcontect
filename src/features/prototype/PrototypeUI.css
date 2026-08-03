@@ -295,3 +295,48 @@
     transition: none;
   }
 }
+
+/* Press feedback.
+ *
+ * Apple's first rule of fluid interfaces is to respond on pointer-down rather
+ * than on release: the instant lag appears, the sense of direct manipulation
+ * "falls off a cliff". None of these primitives had an :active state at all,
+ * so every tap in the V2 UI stayed inert until the action itself finished — on
+ * a slow connection that reads as a dead button and gets tapped again, which
+ * for KC can mean a second alert action.
+ *
+ * touch-action kills the legacy ~300ms tap delay, and the platform tap
+ * highlight is suppressed because we are drawing our own, more precise cue.
+ */
+.prototype-button,
+.prototype-disclosure__button,
+.prototype-segmented__option {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 100ms ease-out, opacity 100ms ease-out;
+}
+
+.prototype-button:active,
+.prototype-disclosure__button:active,
+.prototype-segmented__option:active {
+  transform: scale(0.97);
+}
+
+/* Feedback is not decoration. With motion reduced the scale goes away, but a
+ * non-moving cue stays: dropping the response entirely would reintroduce
+ * exactly the deadness this block exists to fix.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .prototype-button,
+  .prototype-disclosure__button,
+  .prototype-segmented__option {
+    transition: opacity 100ms ease-out;
+  }
+
+  .prototype-button:active,
+  .prototype-disclosure__button:active,
+  .prototype-segmented__option:active {
+    transform: none;
+    opacity: 0.72;
+  }
+}

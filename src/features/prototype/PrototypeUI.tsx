@@ -36,7 +36,8 @@ export function PrototypeSection({
   children,
   className = '',
 }: {
-  title: string
+  /** Omit when the caller renders its own heading above the section. */
+  title?: string
   subtitle?: string
   action?: ReactNode
   children?: ReactNode
@@ -46,15 +47,23 @@ export function PrototypeSection({
   return (
     <section
       className={`prototype-section ${className}`.trim()}
-      aria-labelledby={headingId}
+      // Pointing at a heading that was never rendered leaves the section
+      // labelled by an empty string, which reads worse to a screen reader than
+      // having no label at all.
+      aria-labelledby={title ? headingId : undefined}
     >
-      <header className="prototype-section__header">
-        <div>
-          <h2 id={headingId} className="prototype-section__title">{title}</h2>
-          {subtitle && <p className="prototype-section__subtitle">{subtitle}</p>}
-        </div>
-        {action}
-      </header>
+      {/* Titleless sections exist so a screen can supply its own header row;
+          rendering the empty header anyway left a blank block of section
+          padding above the content. */}
+      {title && (
+        <header className="prototype-section__header">
+          <div>
+            <h2 id={headingId} className="prototype-section__title">{title}</h2>
+            {subtitle && <p className="prototype-section__subtitle">{subtitle}</p>}
+          </div>
+          {action}
+        </header>
+      )}
       {children}
     </section>
   )

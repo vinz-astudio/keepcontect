@@ -172,7 +172,10 @@ function EmergencyGpsCard() {
         localStorage.setItem('kc.emergency_gps_consent', 'false')
       } catch { /* ignore */ }
       setEnabled(false)
-      toast(lang === 'zh' ? '已关闭紧急 GPS 授权' : 'Emergency GPS consent disabled', 'limited')
+      // 'limited' is a PrototypeCard/Badge *tone*, not a ToastKind — the two
+      // vocabularies got crossed here. Turning a consent off is a state change,
+      // not a failure, so it reads as info.
+      toast(lang === 'zh' ? '已关闭紧急 GPS 授权' : 'Emergency GPS consent disabled', 'info')
       return
     }
 
@@ -248,7 +251,6 @@ export function HomeScreen() {
   const [newGroup, setNewGroup] = useState('')
   const [newGroupCommunity, setNewGroupCommunity] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
-  const [openBoard, setOpenBoard] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<PrimaryTab>('watch')
   const [gmOpen, setGmOpen] = useState(false)
   const [isGm, setIsGm] = useState(false)
