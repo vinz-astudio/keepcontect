@@ -90,6 +90,15 @@
 	<string>Keep Contact reads your phone's own step and movement history so your circle can tell you are fine without you opening the app. It never records where you go, and no movement data leaves your phone beyond a count.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Keep Contact checks that your phone has recorded recent movement, so your circle can tell you are fine without you having to open the app. Only the fact that you were active and the time is used — no health data ever leaves your phone.</string>
+	<!-- KC requests `toShare: []` and never writes health data. This string is
+	     here because App Store upload validation keys off the *entitlement*, not
+	     off which APIs are actually called: a build carrying the HealthKit
+	     entitlement is rejected without both strings even when the write half is
+	     never used. Omitting it cost a whole TestFlight build (run 30833103571,
+	     altool error 90683). The wording says plainly that nothing is written,
+	     rather than inventing a purpose that does not exist. -->
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Keep Contact never writes anything to Health. It only reads whether your phone recorded recent movement, so your circle can tell you are fine without you having to open the app.</string>
 	<!-- No custom cryptography; keeps TestFlight builds from stalling on the
 	     export-compliance question at every upload. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
