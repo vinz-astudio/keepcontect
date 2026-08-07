@@ -113,6 +113,51 @@ export function detectTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 }
 
+/**
+ * 紧急 GPS 同意 —— 账号级真相在服务器,本地只是给 SOS 路径用的快取。
+ *
+ * 之前它只存在 localStorage,重装即失、服务端不可见、换设备不跟随,而且**没有
+ * 任何代码读它** —— dispatchSos 无条件抓取并上传坐标。开关承诺了一个隐私边界
+ * 却不执行,比没有这个开关更糟:用户做了决定,决定被丢掉了。
+ */
+const GPS_CONSENT_KEY = 'kc.emergency_gps_consent'
+
+function mirrorGpsConsentLocally(granted: boolean): void {
+  try {
+    localStorage.setItem(GPS_CONSENT_KEY, granted ? 'true' : 'false')
+  } catch {
+    /* 存不进去时 SOS 路径会读不到 → 按未同意处理,这是安全的方向 */
+  }
+}
+
+/** 拉取账号级同意并同步到本地快取。SOS 时读的是快取,不能等网络。 */
+export async function loadEmergencyGpsConsent(): Promise<boolean> {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) return false
+  const { data, error } = await (supabase
+    .from('user_settings')
+    .select('emergency_gps_consent')
+    .eq('user_id', uid)
+    .maybeSingle() as any)
+  if (error) throw error
+  const granted = data?.emergency_gps_consent === true
+  mirrorGpsConsentLocally(granted)
+  return granted
+}
+
+export async function setEmergencyGpsConsent(granted: boolean): Promise<void> {
+  const { data: u } = await supabase.auth.getUser()
+  const uid = u.user?.id
+  if (!uid) throw new Error('未登录')
+  const { error } = await supabase
+    .from('user_settings')
+    .update({ emergency_gps_consent: granted } as any)
+    .eq('user_id', uid)
+  if (error) throw error
+  mirrorGpsConsentLocally(granted)
+}
+
 /** 读服务器当前生效的时区(可能是自动检测写入的,也可能是手动覆盖的)。 */
 export async function getServerTimezone(): Promise<string | null> {
   const { data: u } = await supabase.auth.getUser()

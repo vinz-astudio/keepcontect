@@ -33,6 +33,10 @@ Human = decision brain & final arbiter. Brain (Obsidian) = memory brain / source
 - Releasing: `npm run release:android -- <ver>` bumps 3 of 4 version files + builds the APK; the Tauri
   desktop build and `tauri.conf.json` are **separate/manual** — all four version files must move together.
 - Secrets and the Android keystore are gitignored — never commit them.
+- **Android notifications, background work or permissions: read `android/PLAY-CONSTRAINTS.md` first.**
+  The APK and the AAB are one codebase and KC is going to Play, so "works on a test phone" is not the
+  bar — "passes review and behaves the same" is. Several Play capabilities degrade *silently* when not
+  granted, which is how a feature can look shipped and be dead.
 
 > The Brain path above is machine-relative (works while both folders sit under `Desktop/`). If your
 > IDE runs elsewhere, adjust the path or ask the human for the vault location.

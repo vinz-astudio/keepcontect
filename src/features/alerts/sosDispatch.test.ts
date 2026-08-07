@@ -13,6 +13,7 @@ describe('dispatchSos with dependencies injection', () => {
       raiseSos,
       triggerPushDispatch,
       getCurrentCoords,
+      hasGpsConsent: () => true,
       updateSosLocation,
     })
 
@@ -33,6 +34,7 @@ describe('dispatchSos with dependencies injection', () => {
         raiseSos,
         triggerPushDispatch,
         getCurrentCoords,
+        hasGpsConsent: () => true,
         updateSosLocation,
       })
     ).rejects.toThrow('DB Error')
@@ -75,6 +77,7 @@ describe('dispatchSos with dependencies injection', () => {
       raiseSos,
       triggerPushDispatch,
       getCurrentCoords,
+      hasGpsConsent: () => true,
       updateSosLocation,
     })
 
@@ -107,6 +110,7 @@ describe('dispatchSos with dependencies injection', () => {
       raiseSos,
       triggerPushDispatch,
       getCurrentCoords,
+      hasGpsConsent: () => true,
     })
 
     expect(result).toBe('alert-123')
@@ -123,6 +127,7 @@ describe('dispatchSos with dependencies injection', () => {
       raiseSos,
       triggerPushDispatch,
       getCurrentCoords,
+      hasGpsConsent: () => true,
     })
 
     expect(result).toBe('alert-123')
@@ -142,6 +147,7 @@ describe('dispatchSos with dependencies injection', () => {
     const result = await dispatchSos({
       raiseSos,
       getCurrentCoords,
+      hasGpsConsent: () => true,
       updateSosLocation,
     })
     const duration = Date.now() - startTime
@@ -163,6 +169,7 @@ describe('dispatchSos with dependencies injection', () => {
     await dispatchSos({
       raiseSos,
       getCurrentCoords,
+      hasGpsConsent: () => true,
       updateSosLocation,
     })
 
@@ -180,6 +187,7 @@ describe('dispatchSos with dependencies injection', () => {
     await dispatchSos({
       raiseSos,
       getCurrentCoords,
+      hasGpsConsent: () => true,
       updateSosLocation,
     })
 
@@ -198,6 +206,7 @@ describe('dispatchSos with dependencies injection', () => {
     const result = await dispatchSos({
       raiseSos,
       getCurrentCoords,
+      hasGpsConsent: () => true,
       updateSosLocation,
     })
 
@@ -217,6 +226,7 @@ describe('dispatchSos with dependencies injection', () => {
     const result = await dispatchSos({
       raiseSos,
       getCurrentCoords,
+      hasGpsConsent: () => true,
       updateSosLocation,
     })
 
@@ -238,11 +248,66 @@ describe('dispatchSos with dependencies injection', () => {
     const result = await dispatchSos({
       raiseSos,
       getCurrentCoords,
+      hasGpsConsent: () => true,
       updateSosLocation,
     })
 
     expect(result).toBe('alert-123')
     expect(getCurrentCoords).toHaveBeenCalledTimes(1)
+    expect(updateSosLocation).not.toHaveBeenCalled()
+  })
+})
+
+describe('dispatchSos GPS consent gate', () => {
+  // The switch on the Me screen used to write localStorage and nothing read it:
+  // coordinates were fetched and uploaded regardless of the answer. These two
+  // tests exist so that cannot come back silently.
+  it('never fetches or uploads a position when consent is withheld', async () => {
+    const raiseSos = vi.fn().mockResolvedValue('alert-123')
+    const triggerPushDispatch = vi.fn().mockResolvedValue(undefined)
+    const getCurrentCoords = vi.fn().mockResolvedValue({ lat: 1.2, lng: 3.4 })
+    const updateSosLocation = vi.fn().mockResolvedValue(true)
+
+    const result = await dispatchSos({
+      raiseSos,
+      triggerPushDispatch,
+      getCurrentCoords,
+      updateSosLocation,
+      hasGpsConsent: () => false,
+    })
+
+    await new Promise((r) => setTimeout(r, 20))
+
+    // The alert itself must still go out — declining location is not declining help.
+    expect(result).toBe('alert-123')
+    expect(raiseSos).toHaveBeenCalledTimes(1)
+    expect(triggerPushDispatch).toHaveBeenCalledTimes(1)
+
+    // Checked before the fetch, so the device is never even asked for a fix.
+    expect(getCurrentCoords).not.toHaveBeenCalled()
+    expect(updateSosLocation).not.toHaveBeenCalled()
+  })
+
+  it('defaults to withholding when consent cannot be read', async () => {
+    const raiseSos = vi.fn().mockResolvedValue('alert-123')
+    const triggerPushDispatch = vi.fn().mockResolvedValue(undefined)
+    const getCurrentCoords = vi.fn().mockResolvedValue({ lat: 1.2, lng: 3.4 })
+    const updateSosLocation = vi.fn().mockResolvedValue(true)
+
+    // No hasGpsConsent passed: falls through to the real reader, which sees no
+    // stored answer. An emergency is the worst moment to guess generously about
+    // a privacy decision, so absence of consent is not consent.
+    const result = await dispatchSos({
+      raiseSos,
+      triggerPushDispatch,
+      getCurrentCoords,
+      updateSosLocation,
+    })
+
+    await new Promise((r) => setTimeout(r, 20))
+
+    expect(result).toBe('alert-123')
+    expect(getCurrentCoords).not.toHaveBeenCalled()
     expect(updateSosLocation).not.toHaveBeenCalled()
   })
 })

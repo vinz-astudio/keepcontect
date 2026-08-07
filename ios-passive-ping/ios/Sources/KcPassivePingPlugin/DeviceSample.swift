@@ -39,7 +39,6 @@ struct DeviceSample {
     var batteryLevel: Float?
     var batteryState: String?
     var lowPowerMode: Bool?
-    var pasteboardChangeCount: Int?
     var systemUptimeSeconds: TimeInterval?
     var otherAudioPlaying: Bool?
     var motionVariance: Double?
@@ -67,7 +66,6 @@ struct DeviceSample {
         put("battery_level", batteryLevel)
         put("battery_state", batteryState)
         put("low_power_mode", lowPowerMode)
-        put("pasteboard_change_count", pasteboardChangeCount)
         put("system_uptime_seconds", systemUptimeSeconds)
         put("other_audio_playing", otherAudioPlaying)
         put("motion_variance", motionVariance)
@@ -127,11 +125,12 @@ final class DeviceSampleCollector {
         default: sample.batteryState = "unknown"
         }
 
-        // The counter only. Reading the pasteboard's *contents* shows the user a
-        // "pasted from" banner and would be an unforgivable thing for a
-        // background process to do; reading how many times it changed does not
-        // and cannot expose anything that was copied.
-        sample.pasteboardChangeCount = UIPasteboard.general.changeCount
+        // The pasteboard change counter was read here and has been removed.
+        // It only ever returned a usable value in 9 of 56 field samples — iOS
+        // evidently restricts it from a background wake — and "Keep Contact
+        // reads something to do with your clipboard" is an alarming sentence to
+        // have to put in front of a user for a signal that barely works. A
+        // safety app cannot spend that much trust on that little evidence.
 
         // Covers the person who is lying still with a podcast on — the exact
         // case that produces no steps and no unlocks for hours.

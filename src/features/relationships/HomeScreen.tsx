@@ -15,7 +15,8 @@ import '@/features/baseline/LivenessCard.css'
 import { AlertOverlay } from '@/features/baseline/AlertOverlay'
 import { NotificationsCard } from '@/features/alerts/NotificationsCard'
 import { listMyNotifications, listOpenAlerts } from '@/features/alerts/api'
-import { dispatchSos } from '@/features/alerts/sosDispatch'
+import { dispatchSos, readLocalGpsConsent } from '@/features/alerts/sosDispatch'
+import { loadEmergencyGpsConsent, setEmergencyGpsConsent } from '@/features/baseline/settingsApi'
 import { subscribeAlertSignals, subscribeGroupStatusSignals } from '@/features/alerts/realtime'
 import { setBadge } from '@/lib/badge'
 import { reportClient } from '@/lib/clientReport'
@@ -157,20 +158,35 @@ function LinkedDevicesCard({ onScan }: { onScan: () => void }) {
 
 function EmergencyGpsCard() {
   const { lang } = useI18n()
-  const [enabled, setEnabled] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('kc.emergency_gps_consent') === 'true'
-    } catch {
-      return false
-    }
-  })
+  // Seeded from the local mirror so the switch renders instantly, then
+  // reconciled against the account-level answer on the server.
+  const [enabled, setEnabled] = useState<boolean>(() => readLocalGpsConsent())
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    void loadEmergencyGpsConsent()
+      .then(setEnabled)
+      .catch(() => {
+        /* offline: the mirror already seeded the switch */
+      })
+  }, [])
 
   async function handleToggle(checked: boolean) {
     if (!checked) {
+      setBusy(true)
       try {
-        localStorage.setItem('kc.emergency_gps_consent', 'false')
-      } catch { /* ignore */ }
+        await setEmergencyGpsConsent(false)
+      } catch (err) {
+        setBusy(false)
+        toast(
+          lang === 'zh'
+            ? `关闭失败,请重试:${err instanceof Error ? err.message : String(err)}`
+            : `Could not turn this off: ${err instanceof Error ? err.message : String(err)}`,
+          'danger',
+        )
+        return
+      }
+      setBusy(false)
       setEnabled(false)
       // 'limited' is a PrototypeCard/Badge *tone*, not a ToastKind — the two
       // vocabularies got crossed here. Turning a consent off is a state change,
@@ -189,14 +205,29 @@ function EmergencyGpsCard() {
           })
         })
       }
-      localStorage.setItem('kc.emergency_gps_consent', 'true')
+      await setEmergencyGpsConsent(true)
       setEnabled(true)
       toast(lang === 'zh' ? '已开启紧急 GPS 授权，设备定位权限申请成功' : 'Emergency GPS consent granted & location ready', 'ok')
     } catch (e) {
+      // The OS prompt being declined or timing out is not a reason to lose the
+      // consent itself — the user said yes to sharing, iOS just has not handed
+      // over a fix yet. But if recording that consent fails, the switch must
+      // not claim to be on: SOS reads the stored answer, so a switch that shows
+      // "on" over an unstored consent would silently withhold the location.
       console.warn('Geolocation permission error:', e)
-      localStorage.setItem('kc.emergency_gps_consent', 'true')
-      setEnabled(true)
-      toast(lang === 'zh' ? '紧急 GPS 授权已开启（如弹窗请允许定位权限）' : 'Emergency GPS enabled (please allow location prompt)', 'ok')
+      try {
+        await setEmergencyGpsConsent(true)
+        setEnabled(true)
+        toast(lang === 'zh' ? '紧急 GPS 授权已开启（如弹窗请允许定位权限）' : 'Emergency GPS enabled (please allow location prompt)', 'ok')
+      } catch (saveErr) {
+        setEnabled(false)
+        toast(
+          lang === 'zh'
+            ? `授权未能保存,请重试:${saveErr instanceof Error ? saveErr.message : String(saveErr)}`
+            : `Consent was not saved, please retry: ${saveErr instanceof Error ? saveErr.message : String(saveErr)}`,
+          'danger',
+        )
+      }
     } finally {
       setBusy(false)
     }

@@ -55,6 +55,19 @@ public class NotifyWorker extends Worker {
     /** Kinds addressed to the subject themselves — the ones whose whole purpose
      *  is to get a locked phone's owner to unlock and check in before the alert
      *  escalates to other people. Mirrors src/features/push/alertPushKinds.ts. */
+    /**
+     * Whether the platform will honour a full-screen intent from this app.
+     *
+     * Below Android 14 the manifest declaration is enough. From 14 the grant is
+     * separate and revocable by the user, so it has to be asked at the moment of
+     * use rather than assumed at build time.
+     */
+    private static boolean canUseFullScreenIntent(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true;
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        return manager != null && manager.canUseFullScreenIntent();
+    }
+
     private static boolean isSelfAddressed(String kind) {
         return "concern".equals(kind) || "self".equals(kind);
     }
@@ -231,8 +244,27 @@ public class NotifyWorker extends Worker {
             // updates never take over the screen.
             builder
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setFullScreenIntent(pending, true);
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
+
+            // Full-screen intent is a bonus, never the mechanism.
+            //
+            // From Android 14, USE_FULL_SCREEN_INTENT is only granted
+            // automatically to apps whose core function is calling or alarms.
+            // Everyone else has to ask Google Play for it, and a personal-safety
+            // app is not a likely grant. Calling setFullScreenIntent() without
+            // the grant does not fail loudly — the system quietly downgrades it
+            // to an ordinary heads-up notification, which means a build can look
+            // correct in review and behave differently on a tester's phone with
+            // nobody able to tell which happened.
+            //
+            // So it is asked for only when it is actually available, and
+            // everything this alert needs in order to work is carried by the
+            // channel instead: IMPORTANCE_HIGH, an explicit sound, vibration,
+            // lights and public lockscreen visibility. Those wake a phone on
+            // every device and need no permission Google has to approve.
+            if (canUseFullScreenIntent(context)) {
+                builder.setFullScreenIntent(pending, true);
+            }
         }
         try {
             // Tagged with the notification row id, matching the tag push-dispatch

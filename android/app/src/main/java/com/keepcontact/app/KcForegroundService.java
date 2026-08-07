@@ -23,6 +23,28 @@ public class KcForegroundService extends Service {
 
     private BroadcastReceiver passiveEventReceiver;
 
+    /**
+     * The published notification, kept so repeat starts reuse it.
+     *
+     * `start()` runs again on every broadcast the passive receiver sees — every
+     * unlock, every power connect — as a cheap way to revive the service if
+     * Android had killed it. When the service was already alive that still
+     * reached here and built and posted a fresh notification under the same id,
+     * and several ROMs re-animate the shade entry on a re-post. Users saw the
+     * guardian notification reappear every time they picked their phone up,
+     * reported as "a notification every ten minutes" — which is simply how often
+     * an ordinary person unlocks a phone.
+     *
+     * `startForeground()` is still called on every start, deliberately: on
+     * Android 8+ a `startForegroundService()` must be answered within about five
+     * seconds or the process is killed with
+     * ForegroundServiceDidNotStartInTimeException. Skipping the call to avoid
+     * the re-post would trade an annoyance for a crash. Reusing the identical
+     * Notification instance, plus setOnlyAlertOnce below, is what keeps it
+     * quiet.
+     */
+    private Notification publishedNotification;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -31,6 +53,13 @@ public class KcForegroundService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (publishedNotification != null) {
+            // Answer the start obligation with the notification that is already
+            // showing, rather than announcing the guard all over again.
+            enterForeground(publishedNotification);
+            return START_STICKY;
+        }
+
         ensureNotificationChannel();
 
         Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
@@ -42,11 +71,15 @@ public class KcForegroundService extends Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         }
 
+        // Kept deliberately flat. Android will not let a foreground service hide
+        // its notification, so the only thing left to control is how much
+        // attention it asks for. "Passive guard is active / Active sensing is
+        // enabled to ensure your safety" reads like an announcement; users who
+        // clear their shade every day do not want to be told this daily. A bare
+        // statement of fact is the quietest honest wording available.
         boolean isZh = Locale.getDefault().getLanguage().startsWith("zh");
-        String title = isZh ? "被动安全监护运行中" : "Passive guard is active";
-        String body = isZh 
-            ? "已启用日常活跃感应以保障您的安全。" 
-            : "Active sensing is enabled to ensure your safety.";
+        String title = isZh ? "Keep Contact" : "Keep Contact";
+        String body = isZh ? "守护中" : "Watching over you";
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
@@ -56,15 +89,29 @@ public class KcForegroundService extends Service {
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            // Belt to the reuse braces above: even if something posts this
+            // notification again, the shade must not treat it as news.
+            .setOnlyAlertOnce(true)
+            // Android 12+ will hold the notification back for about ten seconds
+            // rather than showing it the instant the service starts. It does not
+            // help a guard that runs all day, but it does stop the entry
+            // flashing into view every time the service is restarted after the
+            // system reclaims it.
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_DEFERRED)
             .build();
 
+        publishedNotification = notification;
+        enterForeground(notification);
+
+        return START_STICKY;
+    }
+
+    private void enterForeground(Notification notification) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
-
-        return START_STICKY;
     }
 
     private void ensureNotificationChannel() {
@@ -76,9 +123,16 @@ public class KcForegroundService extends Service {
             CHANNEL_ID,
             isZh ? "后台监护通道" : "Background Guard Channel",
             NotificationManager.IMPORTANCE_MIN);
-        channel.setDescription(isZh 
-            ? "Keep Contact 紧急安全守护的前台常驻状态" 
+        channel.setDescription(isZh
+            ? "Keep Contact 紧急安全守护的前台常驻状态"
             : "Foreground status for Keep Contact safety monitor");
+        // No launcher badge. IMPORTANCE_MIN already keeps this out of the status
+        // bar and at the bottom of the shade, but the badge dot was still
+        // putting a permanent mark on the home screen icon for a notification
+        // the user is never meant to act on.
+        channel.setShowBadge(false);
+        channel.setSound(null, null);
+        channel.enableVibration(false);
         manager.createNotificationChannel(channel);
     }
 
