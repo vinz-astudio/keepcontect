@@ -12023,3 +12023,33 @@ revoke truncate on table "public"."routine_mode_cohort_priors" from "authenticat
 revoke references on table "public"."routine_mode_cohort_priors" from "service_role";
 revoke trigger on table "public"."routine_mode_cohort_priors" from "service_role";
 revoke truncate on table "public"."routine_mode_cohort_priors" from "service_role";
+
+
+-- 5. System configuration rows ----------------------------------------------
+-- Also data rather than schema, and also invisible to a dump. These are not
+-- production's accumulated state - they are what the original migrations
+-- seeded so that a database works at all. Without the cohort generation rows,
+-- the trigger private.invalidate_routine_mode_cohort raises a not-null
+-- violation on the very first insert into public.profiles, so a fresh database
+-- cannot register a single user. That was found by replaying this baseline into
+-- an empty database and using it, which a schema diff does not do.
+--
+-- Counters start at zero on purpose. Production's generations have advanced to
+-- 30 / 28 / 18 through real invalidations; a fresh database has no cohort
+-- history to invalidate, so copying those numbers would assert a past that did
+-- not happen.
+--
+-- public.alert_model_versions is deliberately not seeded: it is a registry
+-- written when a model is activated, and the shadow dispatcher returns early
+-- while runtime_config.version_id is null. public.app_admins and
+-- public.app_versions are deliberately not seeded either - they are
+-- environment-specific, and hardcoding a production admin's auth id into a
+-- migration is exactly what broke local replay from June until 2026-08-08.
+
+insert into public.routine_mode_cohort_generations (routine_mode, generation)
+values ('regular_9to5', 0), ('semester_break', 0), ('shift_irregular', 0)
+on conflict (routine_mode) do nothing;
+
+insert into private.adaptive_alert_shadow_runtime_config (singleton)
+values (true)
+on conflict (singleton) do nothing;
