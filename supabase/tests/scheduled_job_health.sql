@@ -14,7 +14,7 @@ SELECT is(
   (SELECT count(*)::int FROM cron.job j
     WHERE NOT EXISTS (
       SELECT 1 FROM private.scheduled_job_expectations e WHERE e.job_name = j.jobname)
-      AND j.jobname <> 'scheduled-job-health'),
+      AND j.jobname NOT IN ('scheduled-job-health','iso-test-never-runs')),
   0,
   'every scheduled job has a staleness expectation'
 );
@@ -27,16 +27,25 @@ SELECT is(
   'the nightly rebuild that failed unnoticed for four nights is covered'
 );
 
--- Shape 1: it never ran, or stopped running. A fresh database has scheduled
--- every job and run none of them, so last_success_at is NULL throughout.
+-- Shape 1: it never ran, or stopped running.
 --
 -- The verdict must be false, not unknown. The reporter selects WHERE NOT
 -- healthy, and NULL is not NOT-true - so a NULL verdict would make "this job
 -- has never run at all" the single case the watchdog stayed silent about.
 -- That is the shape of the outage that prompted this whole change, so it is
 -- the one the test pins hardest.
+--
+-- A job scheduled inside this transaction has provably never run. Asserting
+-- against a real job instead would depend on whether the local pg_cron happened
+-- to fire between the database reset and this line, which is a coin flip that
+-- passes alone and fails in a suite.
+SELECT cron.schedule('iso-test-never-runs', '0 0 1 1 *', 'select 1');
+
+INSERT INTO private.scheduled_job_expectations (job_name, max_gap, matters_because)
+VALUES ('iso-test-never-runs', interval '10 minutes', 'fixture');
+
 SELECT is(
-  (SELECT healthy FROM private.scheduled_job_health() WHERE job_name = 'process-escalations'),
+  (SELECT healthy FROM private.scheduled_job_health() WHERE job_name = 'iso-test-never-runs'),
   false,
   'a job that has never succeeded is unhealthy, not unknown'
 );
@@ -48,7 +57,7 @@ SELECT is(
 );
 
 SELECT matches(
-  (SELECT problem FROM private.scheduled_job_health() WHERE job_name = 'account-shadow-cycle-v1'),
+  (SELECT problem FROM private.scheduled_job_health() WHERE job_name = 'iso-test-never-runs'),
   'no successful run',
   'and the problem says which way it is broken'
 );
