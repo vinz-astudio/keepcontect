@@ -15,9 +15,21 @@ APK 和 AAB 是同一份代码。KC 迟早要上 Play Store,所以**"APK 上测�
 
 ## 当前状态
 
-### 前台服务 `specialUse` — 承重,已按要求声明
+### 前台服务 `specialUse` — 已降级为兜底,默认不启用
 
-`KcForegroundService` 是 Android 侧告活的承重结构:`ACTION_USER_PRESENT`(解锁)**不在 Android 8+ 的隐式广播豁免名单里**,manifest 注册收不到,只有前台服务里运行时注册的接收器才拿得到。砍掉服务 = 解锁告活直接消失。
+**守护默认是睡着的。** `NotifyWorker` 每 15 分钟醒一次,用 `queryLastActiveTime()` 回看"手机最近被用过吗"并补报 —— 这条路不需要任何常驻进程,也就不需要通知。
+
+前台服务现在只在 `guard_mode = persistent` 时启动,而没有设备默认处于该模式。它存在只为一件事:**有些 ROM 会冻结睡着的应用**,前台服务是它们不敢杀的形态。
+
+降级不是自动发生的:KC 连续 3 次唤醒超时(应 15 分钟一次,超过 30 分钟算迟到)后**只是提出请求**,在应用内询问用户,**绝不发通知** —— 这个请求的内容恰恰是"我答应过不出现在通知栏",在通知栏问等于一边问一边毁约。用户拒绝就是拒绝,不再追问。
+
+唤醒能力的层级(从安静到可见):
+
+1. **WorkManager 每 15 分钟回看** —— 默认,零可见度
+2. **服务器 FCM 敲门** —— 已存在(`KcFcmService` 收到即入队 `NotifyWorker`),同样零可见度,且能穿透 Doze
+3. **常驻前台服务** —— 仅在前两者都被设备冻结、且用户同意后
+
+`specialUse` 的声明仍然保留(`PROPERTY_SPECIAL_USE_FGS_SUBTYPE` = `"Emergency and personal safety monitoring for lone dwellers"`),因为第 3 档仍会用到它。
 
 - `android:foregroundServiceType="specialUse"` + `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`
   = `"Emergency and personal safety monitoring for lone dwellers"` —— Play 要求的声明已就位
@@ -37,6 +49,14 @@ Android 14 起 `USE_FULL_SCREEN_INTENT` 只自动授予核心功能是**来电�
 **唤醒能力由通知渠道承担,不由这个权限承担**:`IMPORTANCE_HIGH` + 显式声音 + 震动 + 呼吸灯 + `VISIBILITY_PUBLIC`。这些在所有设备上都能把手机叫醒,且不需要 Google 批准任何东西。
 
 > 往后若有人想再让 concern"更强硬地"抢占屏幕:那条路是关的。要提高触达,改渠道、改文案、改升级时序,不要再往这个权限上压需求。
+
+### 唤醒锁惩罚 — 与 KC 无关,别把两件事混在一起
+
+Google 从 2026-03-01 起对**持有部分唤醒锁**(24 小时内满 2 小时、影响 >5% 会话)的应用挂商店警告、踢出推荐位。
+
+**KC 全仓库不持有任何 wake lock,不在这条的射程内。** 前台服务只是让进程留在内存里,CPU 照样能睡 —— 它不等于唤醒锁。
+
+前台服务的问题是**审核**(`specialUse` 要人工过)和**体验**(通知划不掉),不是电池指标。这两件事我曾经写混过一次,不要再混。
 
 ### 常驻通知 — 只能压到最低,不能隐藏
 
