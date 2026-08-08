@@ -1,0 +1,7 @@
+# The production baseline carries CRLF inside function bodies because that is
+# how production stores them. With core.autocrlf=true git would rewrite those
+# bytes on commit and checkout, and every replay would then differ from
+# production on 111 function bodies without anything reporting an error.
+# Verified once by supabase db diff --linked; keep it verifiable.
+supabase/migrations/*.sql        -text
+supabase/migrations-archive/**   -text
