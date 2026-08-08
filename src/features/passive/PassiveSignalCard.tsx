@@ -6,18 +6,22 @@ import {
   PING_SOURCES,
 } from '@/features/passive/api'
 import { getPlatform, isTauri } from '@/lib/platform'
+import { toast } from '@/lib/toast'
 import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import { APK_URL, getApkDownloadFilename } from '@/features/install/apk'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
 import {
+  getGuardMode,
   getGuardStatus,
+  resolveGuardDemotion,
   isUsageStatsEnabled,
   openUsageStatsSettings,
   isActivityRecognitionEnabled,
   requestActivityRecognitionPermission,
   openAutostartSettings,
+  type GuardMode,
   type GuardStatus,
 } from '@/features/passive/native'
 
@@ -40,6 +44,7 @@ export function PassiveSignalCard() {
   const [_, setSensorRefresh] = useState(0)
   // Android:无障碍后台守护实况(设置开关 + 真实绑定/事件时间戳;轮询自动刷新)
   const [guard, setGuard] = useState<GuardStatus | null>(null)
+  const [guardMode, setGuardMode] = useState<GuardMode | null>(null)
   const [usageStatsEnabled, setUsageStatsEnabled] = useState(false)
   const [activityRecognitionEnabled, setActivityRecognitionEnabled] = useState(false)
 
@@ -69,6 +74,17 @@ export function PassiveSignalCard() {
     setChargerSensor(checked)
     await setSensorEnabled('phone_charger', checked)
     void loadData()
+  }
+
+  const handleResolveDemotion = async (accepted: boolean) => {
+    await resolveGuardDemotion(accepted)
+    setGuardMode(await getGuardMode())
+    toast(
+      accepted
+        ? (lang === 'zh' ? '已开启常驻守护' : 'Persistent guard is on')
+        : (lang === 'zh' ? '守护将保持安静' : 'The guard will stay quiet'),
+      'ok',
+    )
   }
 
 
@@ -124,6 +140,7 @@ export function PassiveSignalCard() {
       if (capPlatform === 'android') {
         setUsageStatsEnabled(await isUsageStatsEnabled())
         setActivityRecognitionEnabled(await isActivityRecognitionEnabled())
+        setGuardMode(await getGuardMode())
       }
     }
   }, [])
@@ -155,6 +172,36 @@ export function PassiveSignalCard() {
           )}
           {android === 'native' && (
             <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+              {/* KC has concluded this phone freezes it, and is asking before it
+                  becomes visible. Raised here rather than as a notification: the
+                  whole point of the request is that KC promised to stay out of
+                  the shade, so announcing it there would break the promise while
+                  asking permission to break it. */}
+              {guardMode?.demotionPending && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: 'var(--accent-soft)', borderLeft: '3px solid var(--accent)', borderRadius: 'var(--r-sm)' }}>
+                  <strong style={{ fontSize: '0.88rem' }}>
+                    {lang === 'zh' ? '这台手机在让 Keep Contact 休眠' : 'This phone keeps putting Keep Contact to sleep'}
+                  </strong>
+                  <p className="muted" style={{ margin: 0, fontSize: '0.82rem', lineHeight: 1.45 }}>
+                    {lang === 'zh'
+                      ? 'Keep Contact 本来安静地待在后台,不在通知栏留下任何东西。但这台手机会把它冻结,冻结时它就看不到您了,关心您的人也可能因此收到不必要的提醒。在通知栏常驻一条最小的状态,可以让它不被冻结。'
+                      : 'Keep Contact has been sitting quietly in the background, leaving your notification shade alone. This phone keeps freezing it, and while frozen it cannot see you — which can send the people who care about you a needless alert. Keeping one small item in the shade stops it being frozen.'}
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      className="share"
+                      style={{ background: 'var(--accent)', color: 'white', border: 'none', fontWeight: 'bold' }}
+                      onClick={() => void handleResolveDemotion(true)}
+                    >
+                      {lang === 'zh' ? '好,显示状态' : 'Show it'}
+                    </button>
+                    <button className="share" onClick={() => void handleResolveDemotion(false)}>
+                      {lang === 'zh' ? '保持安静' : 'Keep it quiet'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* 1. App Activity & Screen Unlock Sensor */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>

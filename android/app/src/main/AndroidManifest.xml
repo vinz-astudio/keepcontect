@@ -107,4 +107,10 @@
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Lets the guard sleep instead of staying resident: with the exemption the
+         fifteen-minute look-back keeps running under Doze, so no ongoing
+         notification is needed. Google lists health monitors among the
+         acceptable reasons to ask, and KC is a personal-safety monitor for
+         people living alone. Declared in Play Console at submission. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 </manifest>

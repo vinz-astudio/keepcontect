@@ -16,6 +16,19 @@ import UserNotifications
 /// therefore never transits Apple or Google.
 enum NotifyFeed {
     private static let cursorKey = "kc.passive.notifySince"
+    /// Ids already drawn on this device.
+    ///
+    /// The cursor alone was the only thing standing between the user and an
+    /// endlessly repeating notification, and it held a value the server round-
+    /// tripped through a millisecond-precision Date — so a row could come back
+    /// as newer than itself and be posted again on every single wake. That is
+    /// fixed in notify-feed, but the cost of the cursor being wrong again is
+    /// paid by someone being woken repeatedly by an alert they already saw, so
+    /// the device now also refuses to draw the same row twice on its own.
+    private static let postedKey = "kc.passive.notifyPosted"
+    /// The feed returns at most 20 rows and the cursor only moves forward, so
+    /// this needs to cover a burst, not a history. Oldest ids fall off the end.
+    private static let postedLimit = 100
     /// Mirrors src/features/push/alertPushKinds.ts: push-dispatch sends these as
     /// system-displayed alert pushes, so the app must not draw them a second time.
     private static let selfAddressedKinds: Set<String> = ["concern", "self"]
@@ -37,8 +50,27 @@ enum NotifyFeed {
     }
 
     /// Dropped on sign-out so the next account starts from its own "now".
+    /// The posted-id ledger goes with it: it describes what the previous
+    /// account was shown, and holding it back would suppress the next
+    /// account's notifications on an id collision.
     static func resetCursor() {
         defaults.removeObject(forKey: cursorKey)
+        defaults.removeObject(forKey: postedKey)
+    }
+
+    /// Ids drawn on this device, oldest first.
+    private static func postedIds() -> [String] {
+        defaults.stringArray(forKey: postedKey) ?? []
+    }
+
+    private static func rememberPosted(_ ids: [String]) {
+        guard !ids.isEmpty else { return }
+        var ledger = postedIds()
+        ledger.append(contentsOf: ids)
+        if ledger.count > postedLimit {
+            ledger.removeFirst(ledger.count - postedLimit)
+        }
+        defaults.set(ledger, forKey: postedKey)
     }
 
     /// Pulls undelivered notifications and posts them locally.
@@ -77,6 +109,8 @@ enum NotifyFeed {
 
             var latest = since
             var posted = false
+            let alreadyPosted = Set(postedIds())
+            var newlyPosted: [String] = []
             for item in list {
                 let kind = item["kind"] as? String ?? ""
                 if let createdAt = item["created_at"] as? String, createdAt > latest {
@@ -86,12 +120,18 @@ enum NotifyFeed {
                 // lock screen. Posting them again from here would show the user
                 // the same concern twice. The cursor still moves past them.
                 if selfAddressedKinds.contains(kind) { continue }
+                let id = item["id"] as? String ?? UUID().uuidString
+                // Seen before: the cursor did not do its job. Move on quietly
+                // rather than waking the user with a notification they answered
+                // or dismissed already.
+                if alreadyPosted.contains(id) { continue }
                 let params = item["params"] as? [String: Any]
                 let fallback = item["body"] as? String ?? ""
-                post(body: render(kind: kind, params: params, fallback: fallback),
-                     id: item["id"] as? String ?? UUID().uuidString)
+                post(body: render(kind: kind, params: params, fallback: fallback), id: id)
+                newlyPosted.append(id)
                 posted = true
             }
+            rememberPosted(newlyPosted)
             defaults.set(latest, forKey: cursorKey)
             completion(posted)
         }.resume()

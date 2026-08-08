@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.PowerManager;
 import android.provider.Settings;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.JSObject;
@@ -161,6 +162,88 @@ public class PassivePingPlugin extends Plugin {
             }
         }
         call.resolve(new JSObject());
+    }
+
+    /** Current guard mode, and whether KC is waiting to ask about becoming visible. */
+    @PluginMethod
+    public void getGuardMode(PluginCall call) {
+        Context context = getContext();
+        JSObject result = new JSObject();
+        result.put("mode", PassivePing.guardMode(context));
+        result.put("demotionPending", PassivePing.isDemotionPending(context));
+        call.resolve(result);
+    }
+
+    /** The user's answer to that request. */
+    @PluginMethod
+    public void resolveGuardDemotion(PluginCall call) {
+        Boolean accepted = call.getBoolean("accepted");
+        PassivePing.resolveDemotion(getContext(), Boolean.TRUE.equals(accepted));
+        JSObject result = new JSObject();
+        result.put("mode", PassivePing.guardMode(getContext()));
+        call.resolve(result);
+    }
+
+    /**
+     * Whether the system will let KC wake up while the device is idle.
+     *
+     * This is what makes the silent guard possible: with the exemption, the
+     * fifteen-minute look-back keeps running and no ongoing notification is
+     * needed. Without it, Doze can defer the wake-up for hours, and a guard that
+     * cannot wake is indistinguishable from a user who has stopped moving.
+     */
+    @PluginMethod
+    public void isBatteryExempt(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("exempt", isIgnoringBatteryOptimizations());
+        call.resolve(result);
+    }
+
+    /**
+     * Asks for the exemption through the system dialog — one tap, no hunting
+     * through Settings.
+     *
+     * Google lists health monitors among the acceptable reasons to request this,
+     * which is what KC is. The screen that explains why must be shown before
+     * this is called: a bare system prompt asking to run in the background
+     * forever, with no context, is one most people decline.
+     */
+    @PluginMethod
+    public void requestBatteryExemption(PluginCall call) {
+        Context context = getContext();
+        JSObject result = new JSObject();
+        if (isIgnoringBatteryOptimizations()) {
+            result.put("exempt", true);
+            call.resolve(result);
+            return;
+        }
+        try {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(android.net.Uri.parse("package:" + context.getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        } catch (Exception e) {
+            // Some ROMs remove the dialog. The battery settings page is the next
+            // best thing; failing that the caller still gets a clean false.
+            try {
+                Intent fallback = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(fallback);
+            } catch (Exception ignored) {
+                // Nothing to open; the guard falls back to persistent mode on its own.
+            }
+        }
+        // The user answers in the system dialog after this returns, so the result
+        // reports the state as it stands now; callers re-read it on resume.
+        result.put("exempt", isIgnoringBatteryOptimizations());
+        call.resolve(result);
+    }
+
+    private boolean isIgnoringBatteryOptimizations() {
+        Context context = getContext();
+        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        if (pm == null) return false;
+        return pm.isIgnoringBatteryOptimizations(context.getPackageName());
     }
 
     /** Best-effort deep link to the OEM autostart whitelist (MIUI/HyperOS), falling back

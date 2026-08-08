@@ -36,6 +36,34 @@ function paramsWithRecipientMark(
   return p
 }
 
+// Deliberate duplicate of src/features/alerts/notifyFeedCursor.ts (the edge
+// runtime cannot import across the src/ boundary at deploy time); keep in sync.
+//
+// notifications.created_at is a timestamptz, stored to the microsecond. A
+// JavaScript Date holds only milliseconds, so re-serialising the client's
+// cursor through `new Date(Date.parse(since)).toISOString()` silently dropped
+// up to 999µs from it. The truncated value was then used as the strictly-
+// greater bound, which made the newest row newer than itself: it came back on
+// every poll, the client's own `createdAt > latest` guard saw an identical
+// string and never advanced the cursor, and the row was re-delivered forever —
+// until `read_at` was finally set by the user opening the app. On iOS, where
+// the feed runs on every silent push and each post re-alerts, that was a
+// notification re-appearing on its own indefinitely.
+//
+// So the client's own string goes to Postgres untouched, and comparison happens
+// at the precision the column is stored in. Date.parse is kept for validation
+// and for the lookback clamp only, never as a value the query sees.
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$/
+
+export function feedCursor(since: string | null | undefined, weekAgo: string): string {
+  if (!since) return weekAgo
+  const parsed = Date.parse(since)
+  if (Number.isNaN(parsed) || parsed < Date.parse(weekAgo)) return weekAgo
+  // Anything not a plain ISO timestamp still goes through Date so the query can
+  // never be handed a string Postgres would read differently than we validated.
+  return ISO_TIMESTAMP.test(since) ? since : new Date(parsed).toISOString()
+}
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -100,13 +128,7 @@ Deno.serve(async (req) => {
   // Undelivered = unread and newer than the client's cursor; cap the lookback
   // so a stale cursor can never dump ancient history as fresh notifications.
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
-  let cursor = weekAgo
-  if (since) {
-    const parsed = Date.parse(since)
-    if (!Number.isNaN(parsed) && parsed > Date.parse(weekAgo)) {
-      cursor = new Date(parsed).toISOString()
-    }
-  }
+  const cursor = feedCursor(since, weekAgo)
 
   const { data: notifications, error } = await supabase
     .from('notifications')

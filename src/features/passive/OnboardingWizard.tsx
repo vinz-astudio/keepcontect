@@ -14,10 +14,12 @@ import {
   getGuardStatus,
   getNativeFcmToken,
   isActivityRecognitionEnabled,
+  isBatteryExempt,
   isUsageStatsEnabled,
   openAutostartSettings,
   openUsageStatsSettings,
   requestActivityRecognitionPermission,
+  requestBatteryExemption,
   requestNativeNotificationPermission,
 } from './native'
 
@@ -62,13 +64,17 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
       let unavailable = false
 
       if (platform === 'android') {
-        const [pushToken, motionReady, usageReady, guard] = await Promise.all([
+        const [pushToken, motionReady, usageReady, guard, batteryExempt] = await Promise.all([
           getNativeFcmToken(),
           isActivityRecognitionEnabled(),
           isUsageStatsEnabled(),
           getGuardStatus(),
+          isBatteryExempt(),
         ])
         const notificationReady = Boolean(pushToken)
+        // The battery exemption is not in `requiredReady`: without it the guard
+        // still works, it just has to fall back to the visible resident mode.
+        // Blocking setup on it would turn a preference for quiet into a wall.
         requiredReady = notificationReady && motionReady && usageReady && Boolean(guard?.enabled)
         next = [
           {
@@ -92,6 +98,20 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
           {
             key: 'guard', icon: 'shield', title: copy.guard,
             description: copy.guardDescription, state: guard?.enabled ? 'ready' : 'unknown',
+          },
+          {
+            // Asked before the autostart step because this one is a single tap
+            // in a system dialog, and getting it is what lets the guard stay
+            // out of the notification shade entirely. The OEM autostart screen
+            // below is the messy fallback for the ROMs this does not cover.
+            key: 'battery', icon: 'battery_saver',
+            title: lang === 'zh' ? '允许后台运行' : 'Allow background running',
+            description: lang === 'zh'
+              ? '允许 Keep Contact 后台运行,让 App 能安静和稳定地守护您,以尽可能即时地反映您的状态给予关心您的人。'
+              : 'Allow Keep Contact to run in the background, so it can watch over you quietly and reliably, and let the people who care about you know how you are.',
+            state: batteryExempt ? 'ready' : 'action',
+            actionLabel: copy.enable,
+            onAction: async () => { await requestBatteryExemption(); await refreshCapabilities(false) },
           },
           {
             key: 'autostart', icon: 'restart_alt', title: copy.autostart,

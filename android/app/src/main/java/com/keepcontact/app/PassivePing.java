@@ -85,6 +85,85 @@ final class PassivePing {
         prefs(context).edit().clear().apply();
     }
 
+    // —— Guard mode ——
+    //
+    // KC used to hold a foreground service permanently, which meant an ongoing
+    // notification the user could not get rid of. That service's only unique
+    // contribution was pinging at the instant of an unlock: ACTION_USER_PRESENT
+    // is not an exempt implicit broadcast, so catching it live needs a resident
+    // process. But instant was never worth anything here — the alert model
+    // groups activity into thirty-minute sessions and judges silence in hours —
+    // and Android will tell us *when the device was last used* after the fact,
+    // which NotifyWorker already reads every fifteen minutes.
+    //
+    // So the guard sleeps. The service now exists only as a fallback for devices
+    // that will not let a sleeping app wake up again. From 2026-03-01 Google Play
+    // also penalises apps that hold wake locks excessively, so staying resident
+    // stopped being merely rude and became a distribution risk.
+    private static final String KEY_GUARD_MODE = "guard_mode";
+    private static final String KEY_MISSED_WAKEUPS = "guard_missed_wakeups";
+    private static final String KEY_DEMOTION_PENDING = "guard_demotion_pending";
+    static final String GUARD_SILENT = "silent";
+    static final String GUARD_PERSISTENT = "persistent";
+
+    /** How many overdue wake-ups before KC accepts that this device kills it. */
+    private static final int DEMOTE_AFTER_MISSED = 3;
+
+    static String guardMode(Context context) {
+        return prefs(context).getString(KEY_GUARD_MODE, GUARD_SILENT);
+    }
+
+    /**
+     * Records whether the periodic wake-up arrived when it should have.
+     *
+     * A device that freezes KC produces no ping and no complaint — the guard
+     * simply stops, and stopping looks exactly like the user being silent, which
+     * is how a frozen phone turns into a false alarm for somebody's family. So
+     * KC watches its own heartbeat rather than the user's device settings, and
+     * demotes itself to the visible guard once the evidence is unambiguous.
+     *
+     * Detecting it does not act on it. Becoming visible is a change the user can
+     * see and did not choose, so it is raised as a request the next time they
+     * open KC rather than applied behind their back — the app promised to stay
+     * out of the way, and quietly breaking that promise is worse than asking.
+     * No notification is posted for this; it waits in the app.
+     */
+    static void recordWakeupPunctuality(Context context, boolean onTime) {
+        if (GUARD_PERSISTENT.equals(guardMode(context))) return;
+        SharedPreferences prefs = prefs(context);
+        if (prefs.getBoolean(KEY_DEMOTION_PENDING, false)) return;
+        int missed = onTime ? 0 : prefs.getInt(KEY_MISSED_WAKEUPS, 0) + 1;
+        if (missed >= DEMOTE_AFTER_MISSED) {
+            prefs.edit()
+                .putBoolean(KEY_DEMOTION_PENDING, true)
+                .putInt(KEY_MISSED_WAKEUPS, 0)
+                .apply();
+            Log.i(TAG, "Guard demotion proposed: " + missed + " missed wake-ups");
+            return;
+        }
+        prefs.edit().putInt(KEY_MISSED_WAKEUPS, missed).apply();
+    }
+
+    /** Whether KC has concluded this device freezes it and is waiting to ask. */
+    static boolean isDemotionPending(Context context) {
+        return prefs(context).getBoolean(KEY_DEMOTION_PENDING, false);
+    }
+
+    /**
+     * The user's answer to that request.
+     *
+     * Declining is a real answer, not a deferral: the question is cleared and
+     * KC stays invisible. It will keep missing wake-ups and keep reporting less
+     * often, and that is the user's call to make about their own phone.
+     */
+    static void resolveDemotion(Context context, boolean accepted) {
+        prefs(context).edit()
+            .putBoolean(KEY_DEMOTION_PENDING, false)
+            .putString(KEY_GUARD_MODE, accepted ? GUARD_PERSISTENT : GUARD_SILENT)
+            .apply();
+        updateBackgroundServices(context);
+    }
+
     static void ping(Context context) {
         ping(context, 0);
     }
@@ -222,7 +301,10 @@ final class PassivePing {
             }
         }
 
-        if (needsService) {
+        // The service is no longer what keeps the guard alive — NotifyWorker's
+        // periodic look-back is. It runs only for devices that have proven they
+        // will not let a sleeping app wake up.
+        if (needsService && GUARD_PERSISTENT.equals(guardMode(context))) {
             startForegroundService(context);
         } else {
             stopForegroundService(context);

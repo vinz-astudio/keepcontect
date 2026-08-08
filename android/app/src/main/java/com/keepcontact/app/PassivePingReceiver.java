@@ -16,7 +16,11 @@ public class PassivePingReceiver extends BroadcastReceiver {
             return;
         }
 
-        if (PassivePing.isConfigured(context)) {
+        // Only the fallback guard needs reviving here. In silent mode there is no
+        // service to keep alive: the periodic look-back at usage history is what
+        // carries liveness, and it needs nothing running in between.
+        if (PassivePing.isConfigured(context)
+            && PassivePing.GUARD_PERSISTENT.equals(PassivePing.guardMode(context))) {
             KcForegroundService.start(context);
         }
 

@@ -55,6 +55,21 @@ public class NotifyWorker extends Worker {
     /** Kinds addressed to the subject themselves — the ones whose whole purpose
      *  is to get a locked phone's owner to unlock and check in before the alert
      *  escalates to other people. Mirrors src/features/push/alertPushKinds.ts. */
+    private static final String PREF_LAST_RUN = "notify_worker_last_run";
+    /** Scheduled every 15 min; double that is the point where lateness is the device, not jitter. */
+    private static final long RUN_OVERDUE_MS = 30 * 60 * 1000L;
+
+    private static boolean isRunOnTime(Context context) {
+        SharedPreferences prefs =
+            context.getSharedPreferences("keep_contact_passive", Context.MODE_PRIVATE);
+        long now = System.currentTimeMillis();
+        long previous = prefs.getLong(PREF_LAST_RUN, 0L);
+        prefs.edit().putLong(PREF_LAST_RUN, now).apply();
+        // A first run has nothing to be late for.
+        if (previous <= 0L) return true;
+        return (now - previous) <= RUN_OVERDUE_MS;
+    }
+
     /**
      * Whether the platform will honour a full-screen intent from this app.
      *
@@ -107,6 +122,14 @@ public class NotifyWorker extends Worker {
     public Result doWork() {
         Context context = getApplicationContext();
         if (!PassivePing.isConfigured(context)) return Result.success();
+
+        // Was this run roughly on time? The job is scheduled every fifteen
+        // minutes, so anything past double that means the device froze KC rather
+        // than the user going quiet — and a frozen guard that says nothing looks
+        // identical to a person who has stopped moving. Three of those in a row
+        // and KC gives up on being invisible and shows the ongoing notification,
+        // which is the one thing these ROMs will not kill.
+        PassivePing.recordWakeupPunctuality(context, isRunOnTime(context));
 
         // UsageStats passive ping backfill check
         if (PassivePing.isUsageStatsAllowed(context) && PassivePing.isUsageAccessGranted(context)) {

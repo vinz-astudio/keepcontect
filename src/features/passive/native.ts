@@ -51,6 +51,12 @@ interface PassivePingPlugin {
   isActivityRecognitionEnabled(): Promise<{ enabled: boolean }>
   requestActivityRecognitionPermission(): Promise<void>
 
+  // Android only: lets the guard sleep instead of staying resident.
+  isBatteryExempt(): Promise<{ exempt: boolean }>
+  requestBatteryExemption(): Promise<{ exempt: boolean }>
+  getGuardMode(): Promise<{ mode: string; demotionPending: boolean }>
+  resolveGuardDemotion(options: { accepted: boolean }): Promise<{ mode: string }>
+
   // iOS only: HealthKit as a wake source (KC-IOS-HEALTHWAKE-SPIKE-001).
   enableHealthWake(): Promise<{ granted: boolean }>
 }
@@ -128,6 +134,71 @@ export async function enableHealthWake(): Promise<boolean> {
     return !!res?.granted
   } catch {
     return false
+  }
+}
+
+// —— 电池优化白名单(Android) ——
+//
+// 这一条决定了守护能不能"睡着而不是常驻"。拿到豁免,15 分钟的回看在 Doze 下
+// 照常运行,通知栏干干净净;拿不到,系统可能把唤醒推迟几个小时,KC 只好退回
+// 常驻前台服务——那条划不掉的通知就是这么来的。
+
+export async function isBatteryExempt(): Promise<boolean> {
+  if (Capacitor.getPlatform() !== 'android') return true
+  try {
+    const res = await PassivePing.isBatteryExempt()
+    return !!res?.exempt
+  } catch {
+    // 旧壳没有这个方法:当作没拿到,让守护走保守路径
+    return false
+  }
+}
+
+/**
+ * 弹出系统原生的「允许后台一直运行」对话框。
+ *
+ * 必须先给用户看过解释再调用——一个没有上下文、要求永久后台运行的系统弹窗,
+ * 多数人会直接拒绝。用户是在这个 Promise 返回**之后**才作答的,所以返回值只
+ * 代表调用前的状态,真实结果要在页面恢复时重新读一次。
+ */
+export async function requestBatteryExemption(): Promise<boolean> {
+  if (Capacitor.getPlatform() !== 'android') return true
+  try {
+    const res = await PassivePing.requestBatteryExemption()
+    return !!res?.exempt
+  } catch {
+    return false
+  }
+}
+
+export interface GuardMode {
+  /** 'silent' = 后台无痕;'persistent' = 通知栏常驻(仅冻结 KC 的设备才需要) */
+  mode: 'silent' | 'persistent'
+  /** KC 判定这台设备在冻结自己,正等着问用户要不要转为可见守护 */
+  demotionPending: boolean
+}
+
+export async function getGuardMode(): Promise<GuardMode | null> {
+  if (Capacitor.getPlatform() !== 'android') return null
+  try {
+    const res = await PassivePing.getGuardMode()
+    return {
+      mode: res?.mode === 'persistent' ? 'persistent' : 'silent',
+      demotionPending: !!res?.demotionPending,
+    }
+  } catch {
+    // 旧壳没有这个方法:当作静默且无待决请求
+    return null
+  }
+}
+
+/** 用户对"转为可见守护"的答复。拒绝也是答复,问题就此清除,不再追问。 */
+export async function resolveGuardDemotion(accepted: boolean): Promise<void> {
+  if (Capacitor.getPlatform() !== 'android') return
+  try {
+    await PassivePing.resolveGuardDemotion({ accepted })
+  } catch {
+    /* 旧壳:忽略 */
   }
 }
 
