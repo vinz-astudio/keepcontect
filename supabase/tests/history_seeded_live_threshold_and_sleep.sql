@@ -64,7 +64,7 @@ WITH config AS (
     "emergency": {
       "contract_version": "adr0022_v1",
       "neutral_minutes": 90,
-      "expected_live_definition_sha256": "1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21"
+      "expected_live_definition_sha256": "c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150"
     }
   }'::jsonb AS value
 )
@@ -132,81 +132,46 @@ SELECT
 FROM public.alert_model_versions AS v
 WHERE v.id = '30730000-0000-4000-8000-000000000010';
 
+-- ADR-0037 retired the history-seeded live threshold. `alert_gap_profiles` is
+-- shadow learning evidence and can never become live authority; the only live
+-- source is a usable `account_normal_bounds` row, and no evidence means NULL
+-- rather than a fabricated template.
 SELECT is(
   private.silence_threshold('30730000-0000-4000-8000-000000000001'),
-  interval '295 minutes',
-  'valid retained personal history is the immediate live threshold'
+  NULL,
+  'a valid shadow gap profile alone never becomes the live threshold'
 );
 
-INSERT INTO public.behavior_pings (
-  user_id, kind, at, source, received_at, ingest_version, event_id
-) VALUES
-  (
-    '30730000-0000-4000-8000-000000000001',
-    'app', now() - interval '36 hours', 'app',
-    now() - interval '36 hours', 2, gen_random_uuid()
-  ),
-  (
-    '30730000-0000-4000-8000-000000000001',
-    'app', now() - interval '28 hours', 'app',
-    now() - interval '28 hours', 2, gen_random_uuid()
-  );
-
-SELECT is(
-  private.silence_threshold('30730000-0000-4000-8000-000000000001'),
-  interval '480 minutes',
-  'new canonical records extend the retained baseline without claiming coverage'
+INSERT INTO public.account_normal_bounds (
+  user_id, through_date, lookback_days, false_alarm_budget,
+  window_starts_at, window_ends_at, event_count, gap_count, evidence_days,
+  first_event_at, last_event_at, sleep_window_applied, order_index,
+  normal_upper_bound_minutes, largest_gap_minutes,
+  second_largest_gap_minutes, has_usable_signal, sensitivity,
+  buffer_minutes, threshold_minutes, episodes_new
+) VALUES (
+  '30730000-0000-4000-8000-000000000001', current_date - 1, 30, 1,
+  now() - interval '30 days', now(), 10, 9, 5,
+  now() - interval '9 days', now() - interval '1 day', false, 2,
+  90, 120, 90, true, 'high',
+  0, 90, 0
 );
-
-UPDATE public.alert_gap_profiles
-SET neutral_p95_minutes = 250,
-    latest_evidence_at = now(),
-    profile_sha256 = repeat('c', 64),
-    input_sha256 = repeat('d', 64)
-WHERE version_id = '30730000-0000-4000-8000-000000000010'
-  AND user_id = '30730000-0000-4000-8000-000000000001'
-  AND context_key = 'personal_global';
-
-SELECT is(
-  private.silence_threshold('30730000-0000-4000-8000-000000000001'),
-  interval '250 minutes',
-  'a newer rebuilt profile replaces the temporary extension'
-);
-
-UPDATE public.alert_gap_profiles
-SET neutral_p95_minutes = 30,
-    profile_sha256 = repeat('e', 64)
-WHERE version_id = '30730000-0000-4000-8000-000000000010'
-  AND user_id = '30730000-0000-4000-8000-000000000001'
-  AND context_key = 'personal_global';
 
 SELECT is(
   private.silence_threshold('30730000-0000-4000-8000-000000000001'),
   interval '90 minutes',
-  'personal history can never shorten the fixed high-sensitivity floor'
+  'an explicit usable account bound is the live threshold at high sensitivity'
 );
 
-UPDATE public.alert_gap_profiles
-SET neutral_p95_minutes = 295,
-    quality_state = 'low_support',
-    profile_sha256 = repeat('f', 64)
-WHERE version_id = '30730000-0000-4000-8000-000000000010'
-  AND user_id = '30730000-0000-4000-8000-000000000001'
-  AND context_key = 'personal_global';
+UPDATE public.user_settings
+SET sensitivity = 'balanced'
+WHERE user_id = '30730000-0000-4000-8000-000000000001';
 
 SELECT is(
   private.silence_threshold('30730000-0000-4000-8000-000000000001'),
-  interval '90 minutes',
-  'invalid or insufficient history falls back to the fixed template'
+  interval '135 minutes',
+  'balanced sensitivity adds the accepted 45-minute buffer to the account bound'
 );
-
-UPDATE public.alert_gap_profiles
-SET quality_state = 'valid',
-    neutral_p95_minutes = 590,
-    profile_sha256 = repeat('1', 64)
-WHERE version_id = '30730000-0000-4000-8000-000000000010'
-  AND user_id = '30730000-0000-4000-8000-000000000001'
-  AND context_key = 'personal_global';
 
 UPDATE public.user_settings
 SET sensitivity = 'low'
@@ -214,8 +179,46 @@ WHERE user_id = '30730000-0000-4000-8000-000000000001';
 
 SELECT is(
   private.silence_threshold('30730000-0000-4000-8000-000000000001'),
-  interval '600 minutes',
-  'personal threshold plus sensitivity buffer remains capped at ten hours'
+  interval '180 minutes',
+  'low sensitivity adds the accepted 90-minute buffer to the account bound'
+);
+
+-- A newer bound supersedes the older one; the shadow gap profile is still not
+-- consulted.
+INSERT INTO public.account_normal_bounds (
+  user_id, through_date, lookback_days, false_alarm_budget,
+  window_starts_at, window_ends_at, event_count, gap_count, evidence_days,
+  first_event_at, last_event_at, sleep_window_applied, order_index,
+  normal_upper_bound_minutes, largest_gap_minutes,
+  second_largest_gap_minutes, has_usable_signal, sensitivity,
+  buffer_minutes, threshold_minutes, episodes_new
+) VALUES (
+  '30730000-0000-4000-8000-000000000001', current_date, 30, 1,
+  now() - interval '30 days', now(), 12, 11, 6,
+  now() - interval '9 days', now(), false, 2,
+  300, 330, 300, true, 'low',
+  90, 390, 0
+);
+
+SELECT is(
+  private.silence_threshold('30730000-0000-4000-8000-000000000001'),
+  interval '390 minutes',
+  'the most recent usable account bound supersedes the older one'
+);
+
+-- Losing usable signal is a return to unknown, not a fallback to a template.
+-- The schema already enforces the honest shape: no usable signal means no bound
+-- and no threshold, so unknown can never be stored as a number.
+UPDATE public.account_normal_bounds
+SET has_usable_signal = false,
+    normal_upper_bound_minutes = NULL,
+    threshold_minutes = NULL
+WHERE user_id = '30730000-0000-4000-8000-000000000001';
+
+SELECT is(
+  private.silence_threshold('30730000-0000-4000-8000-000000000001'),
+  NULL,
+  'losing usable account evidence returns NULL instead of a fabricated fallback'
 );
 
 SELECT ok(

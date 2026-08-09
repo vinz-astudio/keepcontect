@@ -1,6 +1,6 @@
 -- ADR-0028: live-definition identity must not depend on CRLF/LF storage.
 BEGIN;
-SELECT plan(5);
+SELECT plan(6);
 
 SELECT has_function(
   'private',
@@ -20,7 +20,7 @@ SELECT lives_ok(
     );
   BEGIN
     IF private.shadow_live_definition_matches(
-      '1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21',
+      'c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150',
       _definition
     ) IS DISTINCT FROM true THEN
       RAISE EXCEPTION 'LF production representation was rejected';
@@ -28,7 +28,7 @@ SELECT lives_ok(
   END;
   $body$;
   $test$,
-  'legacy CRLF model pin accepts the identical LF production definition'
+  'authorized pin accepts the identical LF production definition'
 );
 
 SELECT lives_ok(
@@ -36,7 +36,7 @@ SELECT lives_ok(
   DO $body$
   BEGIN
     IF private.shadow_live_definition_matches(
-      '1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21',
+      'c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150',
       pg_get_functiondef('private.silence_threshold(uuid)'::regprocedure)
         || E'\n-- tampered'
     ) IS DISTINCT FROM false THEN
@@ -67,8 +67,30 @@ SELECT is(
     ),
     'hex'
   ),
-  '6be4ed54feff52428cf1d86210126bd9362953201fc5ac8b9e885abd586092ce',
-  'normalized live threshold matches the authorized history-seeded definition'
+  'c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150',
+  'normalized live threshold matches the authorized account-bound definition'
+);
+
+-- The 2026-08-04 ADR-0037 rewrite of private.silence_threshold shipped without
+-- re-authorizing the shadow config pin, so the evaluator fail-closed on every
+-- run. This guard makes that drift impossible to repeat silently: the config
+-- authority must always name the current live definition.
+SELECT ok(
+  strpos(
+    pg_get_functiondef('private.alert_candidate_config_is_valid(jsonb)'::regprocedure),
+    encode(
+      extensions.digest(
+        replace(
+          pg_get_functiondef('private.silence_threshold(uuid)'::regprocedure),
+          E'\r\n',
+          E'\n'
+        ),
+        'sha256'
+      ),
+      'hex'
+    )
+  ) > 0,
+  'authorized config pin tracks the current live threshold definition'
 );
 
 SELECT * FROM finish();

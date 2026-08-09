@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(79);
+SELECT plan(80);
 
 -- Task 6 is an owner-only, prospective snapshot/evaluator boundary.
 SELECT has_table('public', 'alert_judgment_subject_contexts',
@@ -212,7 +212,7 @@ SELECT '{
   "emergency":{
     "contract_version":"adr0022_v1",
     "neutral_minutes":90,
-    "expected_live_definition_sha256":"1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21"
+    "expected_live_definition_sha256":"c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150"
   }
 }'::jsonb AS config;
 
@@ -381,6 +381,18 @@ SELECT
   'authenticated'
 FROM generate_series(1, 20) AS n
 ON CONFLICT (id) DO NOTHING;
+
+-- The base has no auth.users provisioning trigger, so this file owns the
+-- application-layer profile rows that the cohort provenance path reads.
+INSERT INTO public.profiles (id, display_name, consent_data_sharing)
+SELECT
+  format('46000000-0000-0000-0000-%s', lpad(n::text, 12, '0'))::uuid,
+  format('candidate eval %s', n),
+  true
+FROM generate_series(1, 20) AS n
+ON CONFLICT (id) DO UPDATE
+SET display_name = EXCLUDED.display_name,
+    consent_data_sharing = EXCLUDED.consent_data_sharing;
 
 INSERT INTO auth.users (id, email, aud, role)
 VALUES (
@@ -1788,6 +1800,50 @@ SELECT ok(
   ),
   'configured pre-promotion pin recognizes the authorized live successor'
 );
+-- ADR-0037 retired the fixed ADR-0022 template. Without an account normal
+-- bound there is no evidence, and the honest live threshold is NULL - never a
+-- fabricated default.
+SELECT results_eq(
+  $$
+    SELECT settings.sensitivity,
+      extract(epoch FROM private.silence_threshold(settings.user_id))::integer / 60
+    FROM (VALUES
+      ('46000000-0000-0000-0000-000000000004'::uuid, 'high'::text),
+      ('46000000-0000-0000-0000-000000000005'::uuid, 'balanced'::text),
+      ('46000000-0000-0000-0000-000000000006'::uuid, 'low'::text)
+    ) settings(user_id, sensitivity)
+    ORDER BY settings.sensitivity
+  $$,
+  $$ VALUES
+    ('balanced'::text, NULL::integer),
+    ('high'::text, NULL::integer),
+    ('low'::text, NULL::integer)
+  $$,
+  'without an account normal bound the live threshold is NULL for every sensitivity'
+);
+
+-- With one explicit 90-minute account bound each, the accepted additive
+-- sensitivity buffers still produce 90 / 135 / 180.
+INSERT INTO public.account_normal_bounds (
+  user_id, through_date, lookback_days, false_alarm_budget,
+  window_starts_at, window_ends_at, event_count, gap_count, evidence_days,
+  first_event_at, last_event_at, sleep_window_applied, order_index,
+  normal_upper_bound_minutes, largest_gap_minutes,
+  second_largest_gap_minutes, has_usable_signal, sensitivity,
+  buffer_minutes, threshold_minutes, episodes_new
+)
+SELECT
+  bound.user_id, current_date, 30, 1,
+  '2026-07-11 00:00:00+00', '2026-08-10 00:00:00+00', 10, 9, 5,
+  '2026-08-01 00:00:00+00', '2026-08-09 00:00:00+00', false, 2,
+  90, 120, 90, true, bound.sensitivity,
+  bound.buffer_minutes, 90 + bound.buffer_minutes, 0
+FROM (VALUES
+  ('46000000-0000-0000-0000-000000000004'::uuid, 'high'::text, 0),
+  ('46000000-0000-0000-0000-000000000005'::uuid, 'balanced'::text, 45),
+  ('46000000-0000-0000-0000-000000000006'::uuid, 'low'::text, 90)
+) AS bound(user_id, sensitivity, buffer_minutes);
+
 SELECT results_eq(
   $$
     SELECT settings.sensitivity,
@@ -1804,7 +1860,7 @@ SELECT results_eq(
     ('high'::text, 90),
     ('low'::text, 180)
   $$,
-  'pure emergency high/default/low results match the live ADR-0022 contract'
+  'an explicit 90-minute account bound yields the accepted 90/135/180 sensitivity ladder'
 );
 
 -- Deterministic provenance is independent of caller timezone.
@@ -2009,8 +2065,8 @@ SELECT results_eq(
     ORDER BY fn
   $$,
   $$ VALUES
-    ('process_escalations'::text, 'fde0f2ec750cec9b3e55e04c95f14f93fecea39843a661abd2d37b8a2f6108c5'::text),
-    ('silence_threshold'::text, '6be4ed54feff52428cf1d86210126bd9362953201fc5ac8b9e885abd586092ce'::text)
+    ('process_escalations'::text, 'dae555ee3f3eee057cd438a80bc05913743803ea15daf8dfacd112357d857112'::text),
+    ('silence_threshold'::text, 'c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150'::text)
   $$,
   'Task 6 leaves ADR-0022 live threshold and Guardian 30-minute state machine definitions unchanged'
 );

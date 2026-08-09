@@ -1,7 +1,7 @@
 -- GM alert mute is a narrow, explicit live-authority exception.
 BEGIN;
 
-SELECT plan(13);
+SELECT plan(14);
 
 INSERT INTO auth.users (id, email, aud, role) VALUES
   ('30000000-0000-4000-8000-000000000001', 'gm-mute-admin@example.invalid', 'authenticated', 'authenticated'),
@@ -234,6 +234,9 @@ SELECT is(
   'muting does not pause or stop escalation of an existing open alert'
 );
 
+-- ADR-0037/ADR-0039 retired the history-seeded threshold authority. The pin below
+-- still fails closed on any silent change to the live threshold source, but it now
+-- pins the accepted account_normal_bounds definition instead of the retired one.
 SELECT is(
   encode(
     extensions.digest(
@@ -246,8 +249,20 @@ SELECT is(
     ),
     'hex'
   ),
-  '6be4ed54feff52428cf1d86210126bd9362953201fc5ac8b9e885abd586092ce',
-  'GM mute keeps the authorized history-seeded silence threshold'
+  'c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150',
+  'GM mute keeps the authorized account-bound silence threshold'
+);
+
+SELECT ok(
+  strpos(
+    pg_get_functiondef('private.silence_threshold(uuid)'::regprocedure),
+    'account_normal_bounds'
+  ) > 0
+  AND strpos(
+    pg_get_functiondef('private.silence_threshold(uuid)'::regprocedure),
+    'user_activity_profiles'
+  ) = 0,
+  'live threshold authority is account_normal_bounds, not the retired history-seeded profile'
 );
 
 SELECT * FROM finish();

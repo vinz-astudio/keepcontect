@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(15);
+SELECT plan(18);
 
 SELECT has_function(
   'private',
@@ -9,39 +9,34 @@ SELECT has_function(
   'phase-2 exposes one owner-only cumulative maintenance dispatcher'
 );
 
+-- ADR-0028/ADR-0038: activation is an environment stage, not something a
+-- migration ships. A fresh base therefore carries no model version and no
+-- enabled runtime; this file builds its own activation fixture below and then
+-- asserts the same activation semantics against it.
+SELECT is(
+  (SELECT count(*)::integer FROM public.alert_model_versions),
+  0,
+  'fresh base seeds no shadow model version'
+);
+
 SELECT is(
   (
     SELECT count(*)::integer
-    FROM public.alert_model_versions
-    WHERE name = 'kc-shadow-prod-v2-history-seeded'
-      AND status = 'shadow'
-      AND evidence_version = 'canonical-v2'
+    FROM private.adaptive_alert_shadow_runtime_config
+    WHERE singleton
+      AND (enabled OR accept_coverage_leases)
   ),
-  1,
-  'phase-2 creates exactly one history-seeded shadow model'
+  0,
+  'fresh base leaves the shadow runtime unactivated'
 );
 
-SELECT is(
-  (
-    SELECT config #>> '{sessionization,historical_v1_policy}'
-    FROM public.alert_model_versions
-    WHERE name = 'kc-shadow-prod-v2-history-seeded'
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM private.adaptive_alert_shadow_runtime_config
+    WHERE singleton AND version_id IS NOT NULL
   ),
-  'sessionized_training_only_v1',
-  'the production shadow model explicitly admits sessionized v1 training evidence'
-);
-
-SELECT is(
-  (
-    SELECT v.name
-    FROM private.adaptive_alert_shadow_runtime_config AS runtime
-    JOIN public.alert_model_versions AS v ON v.id = runtime.version_id
-    WHERE runtime.singleton
-      AND runtime.enabled
-      AND runtime.accept_coverage_leases
-  ),
-  'kc-shadow-prod-v2-history-seeded',
-  'runtime points at the enabled history-seeded model'
+  'fresh base points the runtime at no model version'
 );
 
 SELECT results_eq(
@@ -145,7 +140,7 @@ WITH config AS (
     "emergency": {
       "contract_version": "adr0022_v1",
       "neutral_minutes": 90,
-      "expected_live_definition_sha256": "1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21"
+      "expected_live_definition_sha256": "c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150"
     }
   }'::jsonb AS value
 )
@@ -218,8 +213,32 @@ SELECT is(
     ),
     'hex'
   ),
-  '6be4ed54feff52428cf1d86210126bd9362953201fc5ac8b9e885abd586092ce',
-  'fixture reproduces the authorized history-seeded live definition hash'
+  'c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150',
+  'fixture reproduces the authorized live threshold definition hash'
+);
+
+-- Activation semantics, now asserted against the fixture this file owns.
+SELECT is(
+  (
+    SELECT config #>> '{sessionization,historical_v1_policy}'
+    FROM public.alert_model_versions
+    WHERE name = 'history-seed-activation-fixture'
+  ),
+  'sessionized_training_only_v1',
+  'the activated shadow model explicitly admits sessionized v1 training evidence'
+);
+
+SELECT is(
+  (
+    SELECT v.name
+    FROM private.adaptive_alert_shadow_runtime_config AS runtime
+    JOIN public.alert_model_versions AS v ON v.id = runtime.version_id
+    WHERE runtime.singleton
+      AND runtime.enabled
+      AND runtime.accept_coverage_leases
+  ),
+  'history-seed-activation-fixture',
+  'runtime points at the enabled activated model'
 );
 
 CREATE TEMP TABLE activation_live_before AS
@@ -463,15 +482,27 @@ SELECT is(
   'phase-2 leaves the live silence-threshold function byte-for-byte unchanged'
 );
 
+-- ADR-0038 moved the initial validation cycle out of the migration and into the
+-- environment activation step, so this file runs the cycle it is asserting on.
+SELECT lives_ok(
+  $$
+    SELECT private.run_adaptive_alert_shadow_cycle(
+      '29200000-0000-4000-8000-000000000010',
+      clock_timestamp() + interval '1 minute'
+    )
+  $$,
+  'the activated model can run one shadow validation cycle'
+);
+
 SELECT ok(
   EXISTS (
     SELECT 1
     FROM private.adaptive_alert_shadow_cycle_runs AS run
     JOIN public.alert_model_versions AS version
       ON version.id = run.version_id
-    WHERE version.name = 'kc-shadow-prod-v2-history-seeded'
+    WHERE version.name = 'history-seed-activation-fixture'
   ),
-  'activation records an initial shadow validation cycle for the history-seeded model'
+  'activation records an initial shadow validation cycle for the activated model'
 );
 
 SELECT * FROM finish();
