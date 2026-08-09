@@ -62,42 +62,42 @@ The totals decompose as 696 historical tests + 30 S1 contract tests + 6 S2 ACL t
 | --- | --- | --- |
 | `adaptive_alert_gap_profiles.sql` | FIXED | Missing PostgreSQL 17 `MAINTAIN` revoke; now fully green. |
 | `adaptive_sleep_candidate.sql` | FIXED | Missing PostgreSQL 17 `MAINTAIN` revoke; now fully green. |
-| `gm_mute_user.sql` | CONFLICT | Direct table authority fixed; test 13 still pins a different `silence_threshold` definition hash. |
+| `gm_mute_user.sql` | OBSOLETE-EXPECTATION | Direct table authority fixed; test 13 still pins the pre-ADR-0037 `silence_threshold` definition hash. |
 | `adaptive_alert_routine_modes.sql` | DIAGNOSED-UNFIXED | ACL fixed; tests 14-15 still see no expected routine/consent invalidation rows although trigger and generation seeds exist. No semantic edit made. |
-| `adaptive_alert_candidate_evaluator.sql` | CONFLICT | ACL fixed; tests 68-70/74 disagree with current candidate source, emergency threshold, and live function hashes. |
-| `adaptive_alert_shadow_schema.sql` | CONFLICT | ACL fixed; tests 59-60 expect a different cron set and one seeded model while the baseline deliberately omits the model seed. |
-| `account_threshold_shadow.sql` | CONFLICT | `private.silence_threshold` returns NULL without a usable `account_normal_bounds` row; recorder writes that into a NOT NULL column; historical hash pin also differs. |
-| `history_seeded_live_threshold_and_sleep.sql` | CONFLICT | Tests seed history/shadow state, but current live threshold reads `account_normal_bounds`, not the history model. |
-| `routine_safety.sql` | MIXED | Five failures share the NULL threshold conflict; live batch does not auto-resolve an alert; the missing `task_missed` path still needs isolated diagnosis. |
+| `adaptive_alert_candidate_evaluator.sql` | OBSOLETE-EXPECTATION | ACL fixed; tests 68-70/74 still require the pre-ADR-0037 candidate source, fixed emergency threshold, and old live hashes. |
+| `adaptive_alert_shadow_schema.sql` | FIXTURE/EXPECTATION-DRIFT | ACL fixed; tests 59-60 expect a pre-baseline cron inventory and environment-specific seeded model that ADR-0038 deliberately does not encode as schema seed data. |
+| `account_threshold_shadow.sql` | DIAGNOSED-UNFIXED | ADR-0037 intentionally allows no-evidence threshold NULL, but the shadow recorder still writes it into a NOT NULL column; old hash expectation is separately obsolete. |
+| `history_seeded_live_threshold_and_sleep.sql` | OBSOLETE-EXPECTATION | ADR-0037 replaced the history-seeded live threshold with `account_normal_bounds`; these tests still assert the superseded authority. |
+| `routine_safety.sql` | MIXED | Five threshold assertions and live-ping auto-resolution are obsolete under ADR-0037/0039; the missing `task_missed` path still needs isolated diagnosis. |
 | `routine_mode_cohort_priors.sql` | DIAGNOSED-UNFIXED | Builder publishes zero and invalidation generations/rows do not move as expected; earliest rejecting guard still needs a focused trace. |
-| `adaptive_alert_shadow_coverage_contract.sql` | CONFLICT | Test expects runtime `enabled=true` and `accept_coverage_leases=true`; baseline intentionally starts `false/false` with no version. |
-| `adaptive_alert_shadow_operational_cycle.sql` | CONFLICT | Cycle aborts on live-definition hash mismatch before completing its plan. |
+| `adaptive_alert_shadow_coverage_contract.sql` | FIXTURE/PHASE-DRIFT | ADR-0028 base objects intentionally start `false/false` and unversioned; activation is a separate environment phase. S1/ADR-0039 coverage-health work remains future S3 implementation. |
+| `adaptive_alert_shadow_operational_cycle.sql` | DIAGNOSED-UNFIXED | Cycle aborts on a superseded live-definition hash before completing its plan; fixture/config must first align to ADR-0037. |
 | `adaptive_alert_shadow_operational_schema.sql` | DIAGNOSED-UNFIXED | Context capture values and cohort dirty queue differ from fixture expectations; exact branch still needs focused trace. |
-| `adaptive_alert_shadow_recorder.sql` | CONFLICT | Historical `process_escalations`/`silence_threshold` hash pins differ from current live definitions. |
-| `adaptive_shadow_history_seeded_activation.sql` | CONFLICT | Downstream of deliberately absent model seed/runtime version plus live hash disagreement. |
-| `adaptive_shadow_live_hash_canonicalization.sql` | CONFLICT | LF/normalized representation is rejected because the semantic function body hash differs, not because of line endings alone. |
-| `adaptive_shadow_subject_context_provenance.sql` | CONFLICT | Capture requires a valid enabled shadow version; baseline deliberately supplies none. |
+| `adaptive_alert_shadow_recorder.sql` | OBSOLETE-EXPECTATION | Historical `process_escalations`/`silence_threshold` hash pins predate the accepted live successors. |
+| `adaptive_shadow_history_seeded_activation.sql` | FIXTURE/PHASE-DRIFT | It assumes environment activation data exists in a fresh baseline and also pins the superseded live threshold. |
+| `adaptive_shadow_live_hash_canonicalization.sql` | OBSOLETE-EXPECTATION | LF normalization is not the issue; the expected semantic body predates ADR-0037. |
+| `adaptive_shadow_subject_context_provenance.sql` | FIXTURE/PHASE-DRIFT | Capture correctly requires a valid enabled shadow version, but the fresh-baseline fixture supplies none. |
 
 ## Shared causal clusters
 
-1. **Live threshold contract split.** Current code uses `account_normal_bounds` and may return NULL; older tests expect history-seeded 90/135/180-style thresholds and pin a different function body.
-2. **Live escalation contract split.** Tests pin another `process_escalations` body and some expect live activity to resolve an alert, while ADR-0039 says passive/technical activity cannot answer an alert.
-3. **Shadow bootstrap contract split.** Baseline deliberately starts disabled and unversioned; older tests expect seeded/enabled shadow state, validation runs, and a different cron/model inventory.
+1. **Accepted live threshold vs obsolete tests.** ADR-0037 makes `account_normal_bounds` authoritative and permits NULL when evidence is insufficient; ADR-0039 further restricts training to healthy continuous coverage and repeated comparable long gaps. Older tests still expect history-seeded 90/135/180-style thresholds and old hashes.
+2. **Accepted alert truth vs obsolete tests.** ADR-0039 says passive/technical activity cannot answer an alert. Tests that expect a live ping to auto-resolve or pin an older `process_escalations` body must migrate.
+3. **Fresh baseline vs environment activation fixtures.** ADR-0028 base objects start disabled/unseeded and activation is separate; ADR-0038 preserves current cron structure but deliberately does not fabricate environment-specific model rows. Tests must establish their own activation fixture or test the safe bootstrap state.
 4. **Technical paths still unpinned.** Routine-mode invalidation, cohort rebuild guards, context capture, dirty-queue creation, and `task_missed` need focused traces before they can be called defects or obsolete tests.
 
-DeepSeek V4 independently classified clusters 1-3 as high-confidence contract conflicts and cluster 4 as evidence-insufficient/diagnosed-unfixed. Manager verified those conclusions against the repository; V4 had no filesystem, write, network, subdelegation, or production authority.
+DeepSeek V4 independently grouped clusters 1-3 as high-confidence contract conflicts and cluster 4 as evidence-insufficient/diagnosed-unfixed. Manager then resolved the apparent conflicts against accepted ADR-0037, ADR-0039, ADR-0028, and ADR-0038: clusters 1-3 require test/fixture migration, not a new product decision. V4 had no filesystem, write, network, subdelegation, or production authority.
 
 Google/agy then completed a separate read-only integrated audit with verdict **PASS** and no findings. Its sandbox attested one turn, zero write attempts, zero subdelegations, and no tools outside the allowlist.
 
-## Human decisions required before semantic repair
+## Decision state before semantic repair
 
-No decision is needed for the ACL repair. Before changing the remaining semantic paths, the next checkpoint must settle:
+No new human product decision is required for the three main historical conflicts:
 
-1. Which live threshold definition is authoritative: current `account_normal_bounds`/NULL-on-insufficient-signal behavior, or the older history-seeded threshold contract and pinned hash.
-2. Whether any genuinely live user event may resolve an alert automatically, versus the accepted rule that only explicit alert-bound resolution/confirmation can do so.
-3. Whether a fresh environment must start shadow processing disabled and unseeded, or ship a seeded/enabled model and scheduled cycle.
+1. ADR-0037/0039 already make the current personal normal-bound model authoritative, require healthy continuous coverage, and forbid invented fallback thresholds.
+2. ADR-0039 already forbids passive/technical activity from answering an alert; only explicit alert-bound resolution/confirmation may do so.
+3. ADR-0028/0038 already separate safe fresh bootstrap from environment activation and preserve cron structure without fabricating environment-specific model data.
 
-Routine invalidation, cohort, context capture, and `task_missed` should be technically traced first; they are not yet appropriate human product choices.
+Routine invalidation, cohort, context capture, `task_missed`, and the NULL-intolerant shadow recorder should be technically traced next. S1 coverage-health implementation remains S3 work under the already accepted ADR-0039 contract.
 
 ## Store/native relevance
 
