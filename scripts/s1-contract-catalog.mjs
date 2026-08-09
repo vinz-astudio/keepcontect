@@ -230,6 +230,66 @@ export const S1_CONTRACTS = [
     invariant: 'Active Guardian has comprehensive care scope inside KC boundaries',
   },
   {
+    id: 'ADR0039-AAB-01',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'pass', route: 'S4', invariant: 'Store manifest has no AccessibilityService',
+  },
+  {
+    id: 'ADR0039-AAB-02',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'pass', route: 'S4', invariant: 'Release tooling builds a distinct Play App Bundle',
+  },
+  {
+    id: 'ADR0039-AAB-03',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'pass', route: 'S4', invariant: 'Review-gated Android capabilities are optional detected paths',
+  },
+  {
+    id: 'ADR0039-AAB-04',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'pass', route: 'S4', invariant: 'Unavailable Android capability cannot become Ready',
+  },
+  {
+    id: 'ADR0039-IOS-01',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'red', route: 'S4', invariant: 'Background location is not used as a relaunch-only hack',
+  },
+  {
+    id: 'ADR0039-IOS-02',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'pass', route: 'S4', invariant: 'Native iOS project carries APNs and HealthKit capabilities',
+  },
+  {
+    id: 'ADR0039-IOS-03',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'red', route: 'S4', invariant: 'Silent push wording never promises guaranteed coverage',
+  },
+  {
+    id: 'ADR0039-IOS-04',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'pass', route: 'S4', invariant: 'Motion and HealthKit evidence cannot resolve alerts',
+  },
+  {
+    id: 'ADR0039-IOS-05',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'pass', route: 'S4', invariant: 'Family Controls capability is absent and remains unproven',
+  },
+  {
+    id: 'ADR0039-TAURI-01',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'pass', route: 'S4', invariant: 'Unavailable Tauri idle probe is explicit non-operational state',
+  },
+  {
+    id: 'ADR0039-TAURI-02',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'pass', route: 'S4', invariant: 'Tauri autostart is configured and permissioned',
+  },
+  {
+    id: 'ADR0039-TAURI-03',
+    pack: 'platform', layer: 'vitest', file: 'scripts/s1-platform-contract.test.mjs',
+    expected: 'pass', route: 'S4', invariant: 'Tauri signed updater and desktop bundle targets are configured',
+  },
+  {
     id: 'ADR0039-IOS-EXT-01',
     pack: 'platform',
     layer: 'external',

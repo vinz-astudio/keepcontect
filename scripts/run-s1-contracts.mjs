@@ -20,7 +20,7 @@ function commandFor(group) {
   if (group.layer === 'pgtap') {
     return ['exec', '--package=supabase@2.109.1', '--', 'supabase', 'test', 'db', '--local', group.file]
   }
-  if (group.layer === 'vitest') return ['exec', '--', 'vitest', 'run', group.file]
+  if (group.layer === 'vitest') return ['exec', '--', 'vitest', 'run', '--reporter=verbose', group.file]
   throw new Error(`unsupported layer: ${group.layer}`)
 }
 
