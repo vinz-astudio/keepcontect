@@ -75,21 +75,19 @@ INSERT INTO auth.users (id,email,aud,role) VALUES
   ('49000000-0000-0000-0000-000000000006','op-guardian@example.invalid','authenticated','authenticated')
 ON CONFLICT (id) DO NOTHING;
 
-UPDATE public.profiles SET routine_pattern='regular_9to5', consent_data_sharing=true
-WHERE id IN (
-  '49000000-0000-0000-0000-000000000001',
-  '49000000-0000-0000-0000-000000000002',
-  '49000000-0000-0000-0000-000000000004',
-  '49000000-0000-0000-0000-000000000005'
-);
-UPDATE public.user_settings
-SET sensitivity='balanced', timezone='UTC', updated_at='2026-07-27 09:00:00+00'
-WHERE user_id IN (
-  '49000000-0000-0000-0000-000000000001',
-  '49000000-0000-0000-0000-000000000002',
-  '49000000-0000-0000-0000-000000000004',
-  '49000000-0000-0000-0000-000000000005'
-);
+INSERT INTO public.profiles (id, display_name, routine_pattern, consent_data_sharing) VALUES
+  ('49000000-0000-0000-0000-000000000001','Operational good device','regular_9to5',true),
+  ('49000000-0000-0000-0000-000000000002','Operational monitored','regular_9to5',true),
+  ('49000000-0000-0000-0000-000000000003','Operational unmonitored','regular_9to5',false),
+  ('49000000-0000-0000-0000-000000000004','Operational bad zone','regular_9to5',true),
+  ('49000000-0000-0000-0000-000000000005','Operational future source','regular_9to5',true),
+  ('49000000-0000-0000-0000-000000000006','Operational guardian','regular_9to5',false);
+
+INSERT INTO public.user_settings (user_id, sensitivity, timezone, updated_at) VALUES
+  ('49000000-0000-0000-0000-000000000001','balanced','UTC','2026-07-27 09:00:00+00'),
+  ('49000000-0000-0000-0000-000000000002','balanced','UTC','2026-07-27 09:00:00+00'),
+  ('49000000-0000-0000-0000-000000000004','balanced','UTC','2026-07-27 09:00:00+00'),
+  ('49000000-0000-0000-0000-000000000005','balanced','UTC','2026-07-27 09:00:00+00');
 
 INSERT INTO public.groups(id,name,created_by)
 VALUES ('49000000-0000-0000-0000-000000000010','operational-g',

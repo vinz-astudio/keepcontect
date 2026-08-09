@@ -12,33 +12,15 @@ INSERT INTO auth.users (id, email, aud, role) VALUES
   ('45000000-0000-0000-0000-000000000008', 'cohort-trigger-new@example.invalid', 'authenticated', 'authenticated')
 ON CONFLICT (id) DO NOTHING;
 
-UPDATE public.profiles
-SET consent_data_sharing = true,
-    routine_pattern = 'regular_9to5'
-WHERE id IN (
-  '45000000-0000-0000-0000-000000000001',
-  '45000000-0000-0000-0000-000000000002',
-  '45000000-0000-0000-0000-000000000003',
-  '45000000-0000-0000-0000-000000000004'
-);
-
-UPDATE public.profiles
-SET consent_data_sharing = false,
-    routine_pattern = 'regular_9to5'
-WHERE id = '45000000-0000-0000-0000-000000000005';
-
-UPDATE public.profiles
-SET consent_data_sharing = true,
-    routine_pattern = 'semester_break'
-WHERE id = '45000000-0000-0000-0000-000000000006';
-
-UPDATE public.profiles
-SET consent_data_sharing = false,
-    routine_pattern = CASE id
-      WHEN '45000000-0000-0000-0000-000000000007'::uuid THEN 'regular_9to5'
-      ELSE 'semester_break'
-    END
-WHERE id IN ('45000000-0000-0000-0000-000000000007', '45000000-0000-0000-0000-000000000008');
+INSERT INTO public.profiles (id, display_name, consent_data_sharing, routine_pattern) VALUES
+  ('45000000-0000-0000-0000-000000000001', 'Cohort 120', true, 'regular_9to5'),
+  ('45000000-0000-0000-0000-000000000002', 'Cohort 180', true, 'regular_9to5'),
+  ('45000000-0000-0000-0000-000000000003', 'Cohort 240', true, 'regular_9to5'),
+  ('45000000-0000-0000-0000-000000000004', 'Cohort 1200', true, 'regular_9to5'),
+  ('45000000-0000-0000-0000-000000000005', 'Cohort no consent', false, 'regular_9to5'),
+  ('45000000-0000-0000-0000-000000000006', 'Cohort semester', true, 'semester_break'),
+  ('45000000-0000-0000-0000-000000000007', 'Cohort trigger old', false, 'regular_9to5'),
+  ('45000000-0000-0000-0000-000000000008', 'Cohort trigger new', false, 'semester_break');
 
 WITH config AS (
   SELECT '{"sessionization":{"gap_minutes":30,"per_user_day_gap_cap":1,"training_horizon_days":30,"intervention_window_minutes":30},"context":{"definition_version":"cohort-test-v1","day_partition":"all_days","hour_bucket_minutes":60},"personal":{"min_samples":1,"min_support_dates":1,"min_span_days":1,"max_age_days":30,"min_confidence":0.7,"confidence_formula_version":"support_ratio_v1"},"cohort":{"min_contributors":4,"min_support_dates":5,"min_span_days":5,"max_age_days":30,"min_confidence":0.5,"contribution_floor_minutes":100,"contribution_ceiling_minutes":1000,"confidence_formula_version":"cohort_support_min_v1","algorithm":"weighted_median","trim_fraction":0.25},"sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},"candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},"sleep_compensation":{"max_start_delay_minutes":0,"max_wake_advance_minutes":0,"max_wake_delay_minutes":0,"max_update_minutes_per_day":0,"min_positive_nights":1,"lookback_nights":1,"min_late_events_per_night":1,"timezone_tolerance_minutes":0},"evaluator":{"contract_version":"adaptive_candidate_v1"},"emergency":{"contract_version":"adr0022_v1","neutral_minutes":90,"expected_live_definition_sha256":"1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21"}}'::jsonb AS value
