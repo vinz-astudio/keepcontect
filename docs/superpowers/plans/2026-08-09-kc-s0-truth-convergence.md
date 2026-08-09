@@ -4,7 +4,7 @@
 
 **Goal:** Converge the current main-line Android/design work and Claude's six database commits into one isolated, auditable local source baseline, while making zero production or release changes.
 
-**Architecture:** Work only in a dedicated git worktree based on `main@37d78ed`. Merge the complete Claude database branch without rewriting its history, then establish mechanical web/Android/database baselines. agy produces the source-inventory artifact; DeepSeek V4 classifies the database-test failures. Codex reviews semantics, integrates results, updates Brain truth, and owns acceptance.
+**Architecture:** Work only in a dedicated git worktree based on the execution-time local `main`, which must contain design commit `37d78ed` and this committed plan. Record that resolved SHA as `S0_BASE` before creating the worktree. Merge the complete Claude database branch without rewriting its history, then establish mechanical web/Android/database baselines. agy produces the source-inventory artifact; DeepSeek V4 classifies the database-test failures. Codex reviews semantics, integrates results, updates Brain truth, and owns acceptance.
 
 **Tech Stack:** Git worktrees, React 19, Vite 6, TypeScript 5.8, Vitest 3, Capacitor Android 7, Gradle, Supabase CLI 2.109.1/Postgres pgTAP, Obsidian Brain guarded-task runtime.
 
@@ -58,15 +58,18 @@ Expected: task state is `in_progress`; runtime check passes; executor orders hav
 
   Expected: both commands print nothing.
 
-- [ ] Verify immutable source refs:
+- [ ] Verify immutable source refs and capture the current local plan-bearing main SHA:
 
   ```powershell
-  git -C 'C:\Users\vizen\Desktop\GCIT Tasks\Keep contact' rev-parse main
+  $s0Base = git -C 'C:\Users\vizen\Desktop\GCIT Tasks\Keep contact' rev-parse main
+  git -C 'C:\Users\vizen\Desktop\GCIT Tasks\Keep contact' merge-base --is-ancestor 37d78ed $s0Base
+  git -C 'C:\Users\vizen\Desktop\GCIT Tasks\Keep contact' show "$s0Base`:docs/superpowers/plans/2026-08-09-kc-s0-truth-convergence.md" > $null
+  $s0Base
   git -C 'C:\Users\vizen\Desktop\GCIT Tasks\Keep contact' rev-parse claude/upbeat-panini-7a75aa
   git -C 'C:\Users\vizen\Desktop\GCIT Tasks\Keep contact' merge-base main claude/upbeat-panini-7a75aa
   ```
 
-  Expected, in order: `37d78edbe1c3b6af3513d95ab444ce9bca9faf3f`, `693e71b73f561d5da9742c108f51af833363a074`, `666e09ba2ad0ac5a2f9750cf45a259049cfd62b0`.
+  Expected: both plan-bearing checks exit 0; `$s0Base` is recorded in guarded evidence; Claude is `693e71b73f561d5da9742c108f51af833363a074`; merge base is `666e09ba2ad0ac5a2f9750cf45a259049cfd62b0`.
 
 - [ ] Confirm the target path and branch do not already exist, then create the worktree:
 
@@ -191,7 +194,7 @@ Expected baseline: approximately 26 files / 696 tests with 17 failing files. A m
   - exact starting refs, merge base, merge commit, and current `HEAD`;
   - complete main-only and Claude-only commit lists;
   - grouped changed-file inventory, highlighting active migrations versus archive;
-  - proof that the ten pre-merge commits (four main-side, six Claude-side) are ancestors;
+  - proof that every commit reachable from the recorded `S0_BASE` plus all six Claude-only commits is preserved as an ancestor;
   - explicit statement that no production/release operation occurred;
   - redaction confirmation.
 - [ ] Reject any edits outside the one report file.
@@ -273,7 +276,7 @@ Expected: Brain notes describe one current truth and preserve historical decisio
   ```
 
 - [ ] Re-run `npm run typecheck`, `npm run build`, and the Android command from Task 4 if either report review caused any tracked non-document change. Normally none should exist.
-- [ ] Verify the final branch contains the merge commit and evidence commit, while root `main` remains at `37d78ed` and clean.
+- [ ] Verify the final branch contains the merge commit and evidence commit, while root `main` remains at the recorded `S0_BASE` and clean.
 - [ ] Verify there is no new tag, remote push, deployment, version bump, release artifact commit, or linked database mutation.
 - [ ] Attach evidence to the guarded task, run the final runtime check, and finish the task only if every S0 acceptance condition is met.
 - [ ] Handoff S1 as a new guarded plan: product-semantics and platform-contract test specification. Do not begin S1 implicitly.
