@@ -1,0 +1,995 @@
+[
+  {
+    "version": "20260610124403",
+    "name": "core_relationships",
+    "file": "20260610124403_core_relationships.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "d231dc8c171b4421b26c8a649bb319e0"
+    ]
+  },
+  {
+    "version": "20260610124651",
+    "name": "harden_rls_and_grants",
+    "file": "20260610124651_harden_rls_and_grants.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "4a5c98942583827f439d22f11b05c5c1"
+    ]
+  },
+  {
+    "version": "20260610125336",
+    "name": "creator_visibility",
+    "file": "20260610125336_creator_visibility.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "28353280d5fee08543e853c31c11a7ff"
+    ]
+  },
+  {
+    "version": "20260610133542",
+    "name": "guardian_codes",
+    "file": "20260610133542_guardian_codes.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "72cfed78272ea8fb2a60f32d4169fa68"
+    ]
+  },
+  {
+    "version": "20260610142638",
+    "name": "escalation_schema",
+    "file": "20260610142638_escalation_schema.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "838a1df7f9e24dbc74070bb6cae7dec8"
+    ]
+  },
+  {
+    "version": "20260610143019",
+    "name": "escalation_logic",
+    "file": "20260610143019_escalation_logic.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "547fb7df9cec80cdaef3aa3b99637383"
+    ]
+  },
+  {
+    "version": "20260611042251",
+    "name": "notification_params",
+    "file": "20260611042251_notification_params.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "831afe8db53df9d8a62178a05108cad2"
+    ]
+  },
+  {
+    "version": "20260616170727",
+    "name": "checkin_tasks_respect_sleep",
+    "file": "20260616170727_checkin_tasks_respect_sleep.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "4c620e5cba3e25f909eff48dca8ff840"
+    ]
+  },
+  {
+    "version": "20260611045853",
+    "name": "web_push",
+    "file": "20260611045853_web_push.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "b44bbf34856979e6332cc2cc26964cbb"
+    ]
+  },
+  {
+    "version": "20260612212401",
+    "name": "checkin_tasks",
+    "file": "20260612212401_checkin_tasks.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "27aadf79d0a7553b303aac9543d27460"
+    ]
+  },
+  {
+    "version": "20260613050040",
+    "name": "behavior_pings",
+    "file": "20260613050040_behavior_pings.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "46f678af1fda58f4507d0937aab68bb8"
+    ]
+  },
+  {
+    "version": "20260613152541",
+    "name": "tune_dark_threshold",
+    "file": "20260613152541_tune_dark_threshold.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "22f448975d944ca69f147dc98e719c7d"
+    ]
+  },
+  {
+    "version": "20260613194637",
+    "name": "require_pattern_to_resolve",
+    "file": "20260613194637_require_pattern_to_resolve.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "566d9627862c7e5cd6018592e416c498"
+    ]
+  },
+  {
+    "version": "20260613200717",
+    "name": "server_silence_baseline",
+    "file": "20260613200717_server_silence_baseline.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "a0bda7fd98990861a5e3e40b029fed4b"
+    ]
+  },
+  {
+    "version": "20260614081840",
+    "name": "sensitivity_sync",
+    "file": "20260614081840_sensitivity_sync.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "3fd03266caf8b8714faf6316cc6a3a62"
+    ]
+  },
+  {
+    "version": "20260614142145",
+    "name": "update_checkin_task",
+    "file": "20260614142145_update_checkin_task.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "05d250f237d49e26945a21689fd53dc4"
+    ]
+  },
+  {
+    "version": "20260614163050",
+    "name": "group_activity_board",
+    "file": "20260614163050_group_activity_board.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "6634f245dc8fc57be74967d007a516e6"
+    ]
+  },
+  {
+    "version": "20260615030056",
+    "name": "send_test_notification",
+    "file": "20260615030056_send_test_notification.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "30939ade266b04538eb1cd78f56b29bb"
+    ]
+  },
+  {
+    "version": "20260615033243",
+    "name": "raise_test_alert",
+    "file": "20260615033243_raise_test_alert.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "be4fb1ed13ac305b2c29752baf817123"
+    ]
+  },
+  {
+    "version": "20260615064834",
+    "name": "set_display_name",
+    "file": "20260615064834_set_display_name.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "fa3f476db7fcbaaf67361afb6a397813"
+    ]
+  },
+  {
+    "version": "20260615071244",
+    "name": "group_activity_alerted_and_concern",
+    "file": "20260615071244_group_activity_alerted_and_concern.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "d8624a2d9fa8204df99ce7e1ea9e46fe"
+    ]
+  },
+  {
+    "version": "20260615092834",
+    "name": "sos_gps_rename_and_notif_delete",
+    "file": "20260615092834_sos_gps_rename_and_notif_delete.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "b9a83ecce02735c46c1b62868c9fd1f8"
+    ]
+  },
+  {
+    "version": "20260615134209",
+    "name": "sleep_window_baseline",
+    "file": "20260615134209_sleep_window_baseline.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "8d398f982322151b1965ee8fe1d32097"
+    ]
+  },
+  {
+    "version": "20260616082859",
+    "name": "set_group_community",
+    "file": "20260616082859_set_group_community.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "77002fe9d491f1f4a1d9cc0d5f6d5cab"
+    ]
+  },
+  {
+    "version": "20260619042826",
+    "name": "passive_sos_watch_parity",
+    "file": "20260619042826_passive_sos_watch_parity.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "4d0fb78332a98df9432e935fbd9bddf2"
+    ]
+  },
+  {
+    "version": "20260620162349",
+    "name": "alerts_sos_severity_and_reacher_gating",
+    "file": "20260620162349_alerts_sos_severity_and_reacher_gating.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "1f415cf262f8b04f53e17d7ebc1efd82"
+    ]
+  },
+  {
+    "version": "20260621022839",
+    "name": "resolve_alert_normalizes_device_state",
+    "file": "20260621022839_resolve_alert_normalizes_device_state.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "3e29f3e3da780bf6df8d6bcf3f27c720"
+    ]
+  },
+  {
+    "version": "20260622144931",
+    "name": "clients_table_and_report_client",
+    "file": "20260622144931_clients_table_and_report_client.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "ca44a3176fd8d5d8f60508d851980981"
+    ]
+  },
+  {
+    "version": "20260622150745",
+    "name": "profile_display_name_from_oauth_metadata",
+    "file": "20260622150745_profile_display_name_from_oauth_metadata.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "f7dd31aaa55a721d8cee4228d4af9c7c"
+    ]
+  },
+  {
+    "version": "20260622151410",
+    "name": "gm_admin_console",
+    "file": "20260622151410_gm_admin_console.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "d0f3dfb69cf04a74d35875bb7c1f43d3"
+    ]
+  },
+  {
+    "version": "20260623065518",
+    "name": "gm_delete_user",
+    "file": "20260623065518_gm_delete_user.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "8242fae5080931bcee7de30c706b0e58"
+    ]
+  },
+  {
+    "version": "20260623065530",
+    "name": "add_pattern_hash",
+    "file": "20260623065530_add_pattern_hash.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "f5939d7325aee4f4441cb72ba4f16e77"
+    ]
+  },
+  {
+    "version": "20260624100122",
+    "name": "add_behavior_pings_insert_policy",
+    "file": "20260624100122_add_behavior_pings_insert_policy.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "107be3f83f43ef3bc8a547c3daa03c8e"
+    ]
+  },
+  {
+    "version": "20260623081519",
+    "name": "gm_list_clients_liveness",
+    "file": "20260623081519_gm_list_clients_liveness.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "002ee49f96b73b12f85160858bd4f368"
+    ]
+  },
+  {
+    "version": "20260623081532",
+    "name": "prune_stale_clients",
+    "file": "20260623081532_prune_stale_clients.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "452963e0e005ec087f2cfa064f159f0c"
+    ]
+  },
+  {
+    "version": "20260624050102",
+    "name": "gm_list_clients_unified_status",
+    "file": "20260624050102_gm_list_clients_unified_status.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "59c1e724e2d4c404db8230b6e7306647"
+    ]
+  },
+  {
+    "version": "20260624050109",
+    "name": "harden_emergency_info_rls",
+    "file": "20260624050109_harden_emergency_info_rls.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "8c9e6a6eb2e2f893f9d6d60bfeb74204"
+    ]
+  },
+  {
+    "version": "20260624050114",
+    "name": "add_emergency_location_columns",
+    "file": "20260624050114_add_emergency_location_columns.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "86afe428d3e23ecdf791f10148bec8e5"
+    ]
+  },
+  {
+    "version": "20260624050121",
+    "name": "allow_guardians_read_clients_during_alert",
+    "file": "20260624050121_allow_guardians_read_clients_during_alert.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "956a1858166a3336d5b11830520d387b"
+    ]
+  },
+  {
+    "version": "20260624050135",
+    "name": "centralize_alert_logic",
+    "file": "20260624050135_centralize_alert_logic.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "e75067f7389c9829cf9575202325aba2"
+    ]
+  },
+  {
+    "version": "20260624051146",
+    "name": "fix_gm_list_clients_parameters",
+    "file": "20260624051146_fix_gm_list_clients_parameters.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "83cfa8830b13f4aa2daf7b9ae3ae8b42"
+    ]
+  },
+  {
+    "version": "20260624051721",
+    "name": "fix_behavior_pings_check_constraint",
+    "file": "20260624051721_fix_behavior_pings_check_constraint.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "39c6991db631568fb74e1ab3e4525957"
+    ]
+  },
+  {
+    "version": "20260624104625",
+    "name": "add_adaptive_routine_schema",
+    "file": "20260624104625_add_adaptive_routine_schema.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "f174a24a937418d1e11b60f34543f273"
+    ]
+  },
+  {
+    "version": "20260624105756",
+    "name": "20260624140000_adaptive_routine_impl",
+    "file": "20260624105756_adaptive_routine_impl.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "42d52788f81094d2e30a71dbcd0cd3f7"
+    ]
+  },
+  {
+    "version": "20260624170612",
+    "name": "guardian_confirm_safe_keep_nudge",
+    "file": "20260624170612_guardian_confirm_safe_keep_nudge.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "90cf697d762a07aee19600c927aa0645"
+    ]
+  },
+  {
+    "version": "20260626095828",
+    "name": "scoped_group_activity_views",
+    "file": "20260626095828_scoped_group_activity_views.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "a07362e4566e0381b3140d1bc917faf4"
+    ]
+  },
+  {
+    "version": "20260627015542",
+    "name": "my_routine_status",
+    "file": "20260627015542_my_routine_status.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "d503ebd4a1c12d6b0cf40fae9db409fe"
+    ]
+  },
+  {
+    "version": "20260628060750",
+    "name": "fix_notifications_clear_and_threshold_sensitivity",
+    "file": "20260628060750_fix_notifications_clear_and_threshold_sensitivity.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "a124da842ea4b9d1c21235494c1212d1"
+    ]
+  },
+  {
+    "version": "20260628060905",
+    "name": "tighten_notifications_delete_policy_role",
+    "file": "20260628060905_tighten_notifications_delete_policy_role.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "5bcd79b256b46c2770523baebcac9bc2"
+    ]
+  },
+  {
+    "version": "20260628061131",
+    "name": "reduce_routine_threshold_stacking",
+    "file": "20260628061131_reduce_routine_threshold_stacking.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "49b2bf55a04b5193e116f95233c7bc9d"
+    ]
+  },
+  {
+    "version": "20260628074256",
+    "name": "sensitivity_additive_0_45_90",
+    "file": "20260628074256_sensitivity_additive_0_45_90.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "c558f04a26649acff77a9ec38105709c"
+    ]
+  },
+  {
+    "version": "20260628121907",
+    "name": "fix_sleep_window_utc_to_local",
+    "file": "20260628121907_fix_sleep_window_utc_to_local.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "61c297320113636eeecfeba814526057"
+    ]
+  },
+  {
+    "version": "20260629050030",
+    "name": "realtime_status_lists",
+    "file": "20260629050030_realtime_status_lists.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "b6d633a55db88765ece561c113269679"
+    ]
+  },
+  {
+    "version": "20260629050110",
+    "name": "realtime_alert_notifications",
+    "file": "20260629050110_realtime_alert_notifications.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "8e0901dbf08105beced3f9fd1787a1f2"
+    ]
+  },
+  {
+    "version": "20260705100343",
+    "name": "fcm_push_tokens",
+    "file": "20260705100343_fcm_push_tokens.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "badcfb4342a5bc876272e7796bfae732"
+    ]
+  },
+  {
+    "version": "20260705160307",
+    "name": "concern_real_alert",
+    "file": "20260705160307_concern_real_alert.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "a5fef51711433a39de77f3ff882a1670"
+    ]
+  },
+  {
+    "version": "20260715024733",
+    "name": "tighten_emergency_reveal_terminal",
+    "file": "20260715024733_tighten_emergency_reveal_terminal.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "754a72e987b7bec1a29f02c9bbd743eb"
+    ]
+  },
+  {
+    "version": "20260715051159",
+    "name": "f1_genuine_activity_source",
+    "file": "20260715051159_f1_genuine_activity_source.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "20e9ac5adfdf660303f3f0f338d082ee"
+    ]
+  },
+  {
+    "version": "20260715131010",
+    "name": "push_delivery_leases",
+    "file": "20260715131010_push_delivery_leases.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "59f693ba01794e06f7335d58833da851"
+    ]
+  },
+  {
+    "version": "20260716021236",
+    "name": "use_local_sleep_columns",
+    "file": "20260716021236_use_local_sleep_columns.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "c6bc51185f7a65216e867d92a4fff408"
+    ]
+  },
+  {
+    "version": "20260717124306",
+    "name": "checkin_task_wall_clock",
+    "file": "20260717124306_checkin_task_wall_clock.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "257fa90ffce733c31bc9cc2a763a26f0"
+    ]
+  },
+  {
+    "version": "20260719015302",
+    "name": "routine_ai_gate1_containment",
+    "file": "20260719015302_routine_ai_gate1_containment.sql",
+    "statement_count": 58,
+    "statement_md5": [
+      "de562b7ca0a42f9f5044abbf32c6fb01",
+      "edffa8f91e653f572df092c27d5a86b6",
+      "2a449704b80ac0aa454abcf6048b6700",
+      "231a1fa298f7c8b0853cce57ea613623",
+      "86ec1573157ba30fe14886bbb7ee9997",
+      "5a8b63dbcc6dac257567b2a85239bf13",
+      "c3cf763a5116dd4e69e40222cca59dbf",
+      "b8c0b2da47314e921afa2f116024353a",
+      "75f71ef13624b0bbfd41e587a7f39bdd",
+      "8ce82bc7ed94b5b71cf9ec3bd533d4e3",
+      "1cbd0d087465f48e218c2df6d130d421",
+      "068e9308ad4e5195b5754c22ffd71787",
+      "6afdf83ba6cc42c941b22f86a8c0c3de",
+      "ee4ac5028d25031a4a64848516cc3f81",
+      "fbefc600f238f1538dbd051bd1d0ac1b",
+      "1bf6c181aa3ba12adb9f351a31d85068",
+      "eb38134cdddf3f0973bf5948f9a79471",
+      "86306f522757574142193df65770ae97",
+      "2602346b46401ecabb4eda2ba139332a",
+      "8cf331510362eeba58b5c186870109ad",
+      "5d9b57b46fa350b8ec6b90bccb734d81",
+      "206de0638bd43debf014294bdfb23c58",
+      "7cabcdf427c8285d036d1dfdffa97866",
+      "4cab47dd7f0995456571cf691f1ad326",
+      "3fc42c1c8db599c6422a81423ef3eb85",
+      "bf3292a3ede8daee5628be13a96d6b43",
+      "22ed9af456bf4a8693a51cb77adffb2c",
+      "7dfe21ca178d72594c2c583d796572ef",
+      "96150cb74d921d472f97ab33797123d3",
+      "236444bfb4e68f8b24682827b7d5fbda",
+      "6a40103615ec4de1ae7bdba5b2861af8",
+      "8219b4c294a567abce607391d94d1206",
+      "052fd01ca34c73193de7aceeaa7c5a7a",
+      "d11c571dc5df24dcbd544c05c9ba3ce0",
+      "e68f3ad871515b3284c98720341852b3",
+      "1df4d605d771163bfec3aa3ce96027e8",
+      "ebc49cf882912bbc431d6422557d53d0",
+      "8fe9a78c1f0aef91374b77d0bfdcb3e0",
+      "15cae9287b060ce906620692813c61b3",
+      "b3ce1dca00d68b2fb082d999deb9c02c",
+      "3d82f5da41753b9a2decd1e7d9f2e680",
+      "3b4d9f46bfebb3c6546f274da02a3e12",
+      "6c12baf8b06327c5f219e10fd4e7cb96",
+      "0043b06bd29f5851c391954c243709ea",
+      "f3b6b5c61ac37d6697db9d5080b7cdf7",
+      "5018202fc4b5a2537fbd1ac431cdcac0",
+      "eb4c2934c0c15fac79a1c455ba204e60",
+      "e3e91c63237e3a0acb556f9b3992995c",
+      "b9f8fc9d65f5de54590862ad76cd5bc3",
+      "b56e5e0f2ed0686b55a5a3f4c49a6082",
+      "e0cc2aad87f40073c14343fe2800ca19",
+      "c9df698cbf5fa222b369308b1482dc02",
+      "39ed40270605fd6151e21276e6cbf0b9",
+      "846ac6db003e9a705cc6826279da0fde",
+      "df7de7f5fe50e9483b3801c0e914170a",
+      "02ddc7aebf8bcc9e1830160b7fd9df11",
+      "80e7f967c147b6161c02f550b2857dbf",
+      "1da794c837390eb4d2016f3c38807ff8"
+    ]
+  },
+  {
+    "version": "20260719162146",
+    "name": "correct_gate1_sensitivity_contract",
+    "file": "20260719162146_correct_gate1_sensitivity_contract.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "5dc5ea1953a69ebfc49a4d45e2d5b5ee"
+    ]
+  },
+  {
+    "version": "20260720150000",
+    "name": "keep_notifications_on_auto_resolve",
+    "file": "20260720150000_keep_notifications_on_auto_resolve.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "e5dbb8ead8b1396d12b839aaef2b56f2"
+    ]
+  },
+  {
+    "version": "20260718063500",
+    "name": "update_sos_location",
+    "file": "20260718063500_update_sos_location.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "fe117ca2ffd7d78bcd7c4e276d15be90"
+    ]
+  },
+  {
+    "version": "20260727090000",
+    "name": "scope_group_alerts_to_monitoring_direction",
+    "file": "20260727090000_scope_group_alerts_to_monitoring_direction.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "22b0296274109a42ae9a432c5e9155bf"
+    ]
+  },
+  {
+    "version": "20260725160000",
+    "name": "canonicalize_routine_modes",
+    "file": "20260725160000_canonicalize_routine_modes.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "b701610e7f1924e62c9fbac4d440bc7d"
+    ]
+  },
+  {
+    "version": "20260725161000",
+    "name": "adaptive_alert_shadow_schema",
+    "file": "20260725161000_adaptive_alert_shadow_schema.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "9d919d0bdcecc307fe655c6f7c8efb76"
+    ]
+  },
+  {
+    "version": "20260725162000",
+    "name": "adaptive_sleep_candidate",
+    "file": "20260725162000_adaptive_sleep_candidate.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "cece8c0777ba0f40b392ac618d09cb42"
+    ]
+  },
+  {
+    "version": "20260725163000",
+    "name": "adaptive_alert_gap_profiles",
+    "file": "20260725163000_adaptive_alert_gap_profiles.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "63dd225e68c9051ece21141a6913a3d7"
+    ]
+  },
+  {
+    "version": "20260725164000",
+    "name": "routine_mode_cohort_priors",
+    "file": "20260725164000_routine_mode_cohort_priors.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "3145f26e55e0336cfe063010000253ed"
+    ]
+  },
+  {
+    "version": "20260725165000",
+    "name": "adaptive_alert_candidate_evaluator",
+    "file": "20260725165000_adaptive_alert_candidate_evaluator.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "8e59a9cc5dec2abfb059948c1d5f2588"
+    ]
+  },
+  {
+    "version": "20260725170000",
+    "name": "adaptive_alert_replay",
+    "file": "20260725170000_adaptive_alert_replay.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "3b4e277f58f62a2482feff15940a34c9"
+    ]
+  },
+  {
+    "version": "20260725171000",
+    "name": "adaptive_alert_shadow_recorder",
+    "file": "20260725171000_adaptive_alert_shadow_recorder.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "735e39ceb0f48b5aee3af71cc239b389"
+    ]
+  },
+  {
+    "version": "20260727173000",
+    "name": "adaptive_alert_shadow_coverage_contract",
+    "file": "20260727173000_adaptive_alert_shadow_coverage_contract.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "a46acccd907f1728b8613b08d4050745"
+    ]
+  },
+  {
+    "version": "20260727173500",
+    "name": "align_android_coverage_client_platform",
+    "file": "20260727173500_align_android_coverage_client_platform.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "2287dba556ae541610b0808d439ce794"
+    ]
+  },
+  {
+    "version": "20260727174000",
+    "name": "adaptive_alert_shadow_operational_schema",
+    "file": "20260727174000_adaptive_alert_shadow_operational_schema.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "e8157e265679db460dd8c15dd02123b7"
+    ]
+  },
+  {
+    "version": "20260727175000",
+    "name": "adaptive_alert_shadow_operational_cycle",
+    "file": "20260727175000_adaptive_alert_shadow_operational_cycle.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "5a42cf41c341d9103fd96f009a7f1421"
+    ]
+  },
+  {
+    "version": "20260727175500",
+    "name": "scope_adaptive_shadow_population",
+    "file": "20260727175500_scope_adaptive_shadow_population.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "a099fb566866e6b87dd62b9efe5e2bcf"
+    ]
+  },
+  {
+    "version": "20260729110301",
+    "name": "routine_status_real_learning_evidence",
+    "file": "20260729110301_routine_status_real_learning_evidence.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "333f96877c8d25de8135136435254e37"
+    ]
+  },
+  {
+    "version": "20260729161625",
+    "name": "gm_mute_user",
+    "file": "20260729161625_gm_mute_user.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "56ddebf76cffffe40b9102b83a6e3c23"
+    ]
+  },
+  {
+    "version": "20260729163120",
+    "name": "canonicalize_shadow_live_hash",
+    "file": "20260729163120_canonicalize_shadow_live_hash.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "2d080986e1abd59db81ab6eab214c75f"
+    ]
+  },
+  {
+    "version": "20260729163157",
+    "name": "remove_behavior_ping_coalescing",
+    "file": "20260729163157_remove_behavior_ping_coalescing.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "abbe634ac1298220b3fe506b9d04792a"
+    ]
+  },
+  {
+    "version": "20260729163209",
+    "name": "adr0029_p1_sessionized_v1_training",
+    "file": "20260729163209_adr0029_p1_sessionized_v1_training.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "cbe7ff6dd0b9de63be2c06da57bd180c"
+    ]
+  },
+  {
+    "version": "20260729175359",
+    "name": "activate_history_seeded_adaptive_shadow",
+    "file": "20260729175359_activate_history_seeded_adaptive_shadow.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "b01c08a82d736ca4e8f79bd061fa9862"
+    ]
+  },
+  {
+    "version": "20260729180524",
+    "name": "fix_shadow_subject_context_provenance",
+    "file": "20260729180524_fix_shadow_subject_context_provenance.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "9135100a09eebd7c2b8bdd6e4acd4a55"
+    ]
+  },
+  {
+    "version": "20260729184648",
+    "name": "use_history_seeded_live_threshold_and_sleep_grace",
+    "file": "20260729184648_use_history_seeded_live_threshold_and_sleep_grace.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "b2ba120bdb7be7b1c13e4369fbdd76b5"
+    ]
+  },
+  {
+    "version": "20260801083106",
+    "name": "delivery_outcome_native_missed",
+    "file": "20260801083106_delivery_outcome_native_missed.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "abfc564c13631d503df621cc96e2b9d1"
+    ]
+  },
+  {
+    "version": "20260801201728",
+    "name": "gm_send_concern_real_alert",
+    "file": "20260801201728_gm_send_concern_real_alert.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "ab6dfd31320daf94b5e07ed75fbe1e1e"
+    ]
+  },
+  {
+    "version": "20260802115211",
+    "name": "concern_requires_explicit_unlock",
+    "file": "20260802115211_concern_requires_explicit_unlock.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "201290765a93ff7880ae126a5109caf5"
+    ]
+  },
+  {
+    "version": "20260802124556",
+    "name": "activity_never_answers_an_alert",
+    "file": "20260802124556_activity_never_answers_an_alert.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "d4c7b48ccc49106312db2a46526d4651"
+    ]
+  },
+  {
+    "version": "20260802134424",
+    "name": "account_gap_profile",
+    "file": "20260802134424_account_gap_profile.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "6ecddd96aa09866f4efa2dd0926b92f3"
+    ]
+  },
+  {
+    "version": "20260802140036",
+    "name": "account_gap_profile_set_based_sleep",
+    "file": "20260802140036_account_gap_profile_set_based_sleep.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "a423d85778affafe135a054d45dd95ec"
+    ]
+  },
+  {
+    "version": "20260802165244",
+    "name": "account_threshold_shadow",
+    "file": "20260802165244_account_threshold_shadow.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "e22d56a7bd457b80ddd35f45734c7b58"
+    ]
+  },
+  {
+    "version": "20260802165738",
+    "name": "account_threshold_shadow_episode_naming",
+    "file": "20260802165738_account_threshold_shadow_episode_naming.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "21fa8679582e3f495b151aa6c73f4c6c"
+    ]
+  },
+  {
+    "version": "20260802165837",
+    "name": "account_threshold_shadow_recorder_episode_naming",
+    "file": "20260802165837_account_threshold_shadow_recorder_episode_naming.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "c649cfce9d7bc04211b48759afdc6818"
+    ]
+  },
+  {
+    "version": "20260803193000",
+    "name": "device_activity_samples",
+    "file": "20260803193000_device_activity_samples.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "3e6883b1463aa8a8f39bd07eb1dcdc84"
+    ]
+  },
+  {
+    "version": "20260804090000",
+    "name": "emergency_gps_consent_and_drop_pasteboard",
+    "file": "20260804090000_emergency_gps_consent_and_drop_pasteboard.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "a96e4cc1b7542f89af9473eaf8a167ba"
+    ]
+  },
+  {
+    "version": "20260804130221",
+    "name": "account_normal_upper_bound",
+    "file": "20260804130221_account_normal_upper_bound.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "c7b660a633474dc72b1ee7b1bbc2c328"
+    ]
+  },
+  {
+    "version": "20260804135728",
+    "name": "silence_threshold_reads_normal_bounds",
+    "file": "20260804135728_silence_threshold_reads_normal_bounds.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "7341f0376e5dbb25562114d7e063f0cd"
+    ]
+  },
+  {
+    "version": "20260804142350",
+    "name": "nightly_job_maintains_normal_bounds",
+    "file": "20260804142350_nightly_job_maintains_normal_bounds.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "ae2314835adec78ed17bfc184a11e185"
+    ]
+  },
+  {
+    "version": "20260804190000",
+    "name": "account_normal_upper_bound",
+    "file": "20260804190000_account_normal_upper_bound.sql",
+    "statement_count": 10,
+    "statement_md5": [
+      "bdd1810a2ce466e6818353940b57b997",
+      "69047d69d317bcb9d009b63e6888f8ce",
+      "1b5cc6806bdc8db0ff71bbf82ba392b9",
+      "b99a86c1bcfa7227da02a2d7a1228a86",
+      "a61ebb7490b77f1ca0ed12e5254305ab",
+      "15b2802a784a6be79493356eadd1ac9c",
+      "0b258ca6fdcaad73f04fa0bf76a1ab8e",
+      "f3a46d0d27957923b1b99b3696c8a7ee",
+      "aee3fdeceafb4c0bc5c14e316ad80a95",
+      "48fe067c8cad34ac6c605b2709fc0efe"
+    ]
+  },
+  {
+    "version": "20260807223000",
+    "name": "activity_never_answers_an_alert_in_cron",
+    "file": "20260807223000_activity_never_answers_an_alert_in_cron.sql",
+    "statement_count": 1,
+    "statement_md5": [
+      "ac08a7fd7adf92813b88b69c8c258659"
+    ]
+  }
+]
