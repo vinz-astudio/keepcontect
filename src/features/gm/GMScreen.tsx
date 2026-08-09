@@ -24,6 +24,11 @@ import {
 } from '@/features/update/versionSelection'
 import { APP_VERSION } from '@/lib/version'
 import { formatBehaviorTime } from '@/features/gm/behaviorTime'
+import {
+  CONCERN_NEEDS_ALERT_MESSAGE,
+  concernErrorMessage,
+  gmConcernEligible,
+} from '@/features/gm/gmConcernEligibility'
 import './GMScreen.css'
 
 interface UserRow {
@@ -272,13 +277,19 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
     }
   }, [load, active])
 
-  async function act(key: string, fn: () => Promise<void>, okMsg: string) {
+  async function act(
+    key: string,
+    fn: () => Promise<void>,
+    okMsg: string,
+    mapError?: (error: unknown) => string
+  ) {
     setBusy(key)
     try {
       await fn()
       toast(okMsg, 'ok')
     } catch (e) {
-      toast(e instanceof Error ? e.message : translate('err.op'), 'danger')
+      const fallback = e instanceof Error ? e.message : translate('err.op')
+      toast(mapError ? mapError(e) : fallback, 'danger')
     } finally {
       setBusy(null)
     }
@@ -865,15 +876,20 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
                         </button>
                         <button
                           className="gm__row-btn concern"
-                          disabled={busy != null}
+                          disabled={busy != null || !gmConcernEligible(r)}
                           onClick={() =>
                             void act(
                               r.user_id + 'c',
                               () => gmSendConcern(r.user_id),
-                              t('gm.concerned')
+                              t('gm.concerned'),
+                              (error) => concernErrorMessage(error, translate('err.op'))
                             )
                           }
-                          title={t('gm.concern')}
+                          title={
+                            gmConcernEligible(r)
+                              ? t('gm.concern')
+                              : CONCERN_NEEDS_ALERT_MESSAGE
+                          }
                         >
                           Concern
                         </button>
