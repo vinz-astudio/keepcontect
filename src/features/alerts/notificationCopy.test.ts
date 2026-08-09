@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { renderNotificationCopy } from '@/features/alerts/notificationCopy'
+import {
+  notificationClaimsDanger,
+  renderNotificationCopy,
+} from '@/features/alerts/notificationCopy'
 
 describe('notification copy', () => {
   it('uses second person when a resolved notification is about the current user', () => {
@@ -79,5 +82,31 @@ describe('auto_resolved notification copy', () => {
     })
 
     expect(copy).toBe('raw body')
+  })
+})
+
+describe('notificationClaimsDanger', () => {
+  it('treats an SOS as the emergency it is', () => {
+    expect(notificationClaimsDanger({ kind: 'sos', body: '', params: {} })).toBe(true)
+  })
+
+  it('never treats a coverage interruption as an emergency', () => {
+    expect(
+      notificationClaimsDanger({
+        kind: 'coverage_interrupted',
+        body: '',
+        params: { means_danger: false },
+      })
+    ).toBe(false)
+  })
+
+  it('honours the server denial for any kind, so wording and styling cannot disagree', () => {
+    expect(
+      notificationClaimsDanger({ kind: 'sos', body: '', params: { means_danger: false } })
+    ).toBe(false)
+  })
+
+  it('leaves ordinary notifications alone', () => {
+    expect(notificationClaimsDanger({ kind: 'concern', body: '', params: {} })).toBe(false)
   })
 })
