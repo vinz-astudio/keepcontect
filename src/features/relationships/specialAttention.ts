@@ -4,12 +4,9 @@
  * A private, default-off notification preference. The server owns eligibility,
  * privacy and the notice itself; nothing here grants any data visibility or
  * operational authority, and a client can only ever read its own subscriptions.
- *
- * The RPC wrappers and the UI toggle land with S3-C, which owns protection
- * health and therefore the surface where the notice and the `Limited` state are
- * shown. They also need `src/lib/database.types.ts` regenerated for the new
- * functions, which is outside this package's write set.
  */
+
+import { supabase } from '@/lib/supabase'
 
 export const RELATIONSHIP_NOT_ACTIVE = 'relationship not active'
 
@@ -33,4 +30,23 @@ export function isSpecialAttentionOn(
 export function specialAttentionErrorKey(error: unknown): 'special.needsActive' | null {
   const raw = error instanceof Error ? error.message : ''
   return raw.includes(RELATIONSHIP_NOT_ACTIVE) ? 'special.needsActive' : null
+}
+
+/** The caller's own subscriptions. Never anyone else's. */
+export async function listMySpecialAttention(): Promise<SpecialAttentionSubscription[]> {
+  const { data, error } = await supabase.rpc('my_special_attention')
+  if (error) throw new Error(error.message)
+  return (data ?? []) as SpecialAttentionSubscription[]
+}
+
+/**
+ * Turns the preference on or off. Turning it on needs a currently active
+ * relationship; turning it off never does, so withdrawal is always available.
+ */
+export async function setSpecialAttention(subject: string, enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_special_attention', {
+    _subject: subject,
+    _enabled: enabled,
+  })
+  if (error) throw new Error(error.message)
 }

@@ -7,6 +7,7 @@ import { RoutineSettings } from '@/features/baseline/RoutineSettings'
 import { CheckinTasksCard } from '@/features/tasks/CheckinTasksCard'
 import { listMyTasks } from '@/features/tasks/api'
 import { PassiveSignalCard } from '@/features/passive/PassiveSignalCard'
+import { ProtectionHealthCard } from '@/features/baseline/ProtectionHealthCard'
 import { PassivePingBoot } from '@/features/passive/PassivePingBoot'
 import { OnboardingWizard } from '@/features/passive/OnboardingWizard'
 import { checkAndMigrateOnboarding, saveOnboardingCompleted } from '@/features/passive/onboardingState'
@@ -561,7 +562,7 @@ export function HomeScreen() {
       summary={<PrototypeCard compact><PrototypeRow icon="radar" title={lang === 'zh' ? `${groups.length} 个关照圈正在连接` : `${groups.length} circle${groups.length === 1 ? '' : 's'} connected`} subtitle={lang === 'zh' ? '下方保留每个人的真实活动时间与告警状态。' : 'Real activity timing and alert state remain visible below.'} /></PrototypeCard>}
       ownTask={<CheckinTasksCard />}
       gmTools={<><strong>{lang === 'zh' ? '管理工具' : 'Manager tools'}</strong><p>{lang === 'zh' ? '查看成员、版本与运营状态。' : 'Review members, versions, and operational status.'}</p><button type="button" className="prototype-button prototype-button--primary" onClick={() => setGmOpen(true)}>{lang === 'zh' ? '进入' : 'Open'}</button></>}
-      notifications={<div className="home-prototype__stack"><ApkUpgradeNotice /><NotificationsCard onChanged={refreshWatchMeta} /></div>}
+      notifications={<div className="home-prototype__stack"><ProtectionHealthCard /><ApkUpgradeNotice /><NotificationsCard onChanged={refreshWatchMeta} /></div>}
       people={<StatusBoard />}
       alertResponse={<p>{lang === 'zh' ? 'Concern 只会在真实告警发生后出现，用来先确认是否误报。' : 'Concern is available only after a real alert, to check whether it may be a false alarm.'}</p>}
       labels={{ gm: lang === 'zh' ? '管理员工具' : 'Manager tools', notifications: lang === 'zh' ? '通知' : 'Notifications', people: lang === 'zh' ? '大家的状态' : "Everyone's status", alert: lang === 'zh' ? '需要处理' : 'Needs action' }}
