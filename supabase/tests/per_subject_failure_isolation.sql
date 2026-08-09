@@ -44,6 +44,49 @@ FROM (VALUES
 ) AS u(id)
 CROSS JOIN generate_series(0, 150) AS h;
 
+-- ADR-0039: pings alone are not evidence. A silence only teaches when the
+-- system could actually observe it, so the two healthy accounts also need a
+-- coverage claim spanning their pings. Without it they would correctly learn
+-- nothing, and this file would end up testing the coverage gate instead of the
+-- failure isolation it exists to prove.
+WITH isolation_config AS (
+  SELECT '{
+  "sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8,"training_horizon_days":30,"intervention_window_minutes":30},
+  "context":{"definition_version":"isolation-v1","day_partition":"all_days","hour_bucket_minutes":60},
+  "personal":{"min_samples":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"min_confidence":0.7,"confidence_formula_version":"support_ratio_v1"},
+  "cohort":{"min_contributors":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"min_confidence":0.5,"contribution_floor_minutes":1,"contribution_ceiling_minutes":600,"confidence_formula_version":"cohort_support_min_v1","algorithm":"trimmed_mean","trim_fraction":0.1},
+  "sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},
+  "candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},
+  "sleep_compensation":{"max_start_delay_minutes":60,"max_wake_advance_minutes":60,"max_wake_delay_minutes":60,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":1,"timezone_tolerance_minutes":30},
+  "evaluator":{"contract_version":"adaptive_candidate_v1"},
+  "emergency":{"contract_version":"adr0022_v1","neutral_minutes":90,"expected_live_definition_sha256":"c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150"}
+}'::jsonb AS value
+)
+INSERT INTO public.alert_model_versions (
+  id, name, status, config, config_sha256, evidence_version, shadow_enabled_at
+)
+SELECT
+  'f1100000-0000-4000-8000-000000000001',
+  'isolation-coverage-fixture', 'shadow', value,
+  encode(extensions.digest(value::text, 'sha256'), 'hex'),
+  'canonical-v2', '2026-07-01 00:00:00+00'
+FROM isolation_config;
+
+INSERT INTO public.alert_observation_coverage_intervals (
+  version_id, user_id, starts_at, ends_at, timezone, utc_offset_minutes,
+  activity_coverage_state, intervention_coverage_state, sleep_context_state,
+  captured_at, evidence_version, provenance_sha256
+)
+SELECT
+  'f1100000-0000-4000-8000-000000000001', u.id,
+  '2026-07-31 00:00:00+00', '2026-08-09 00:00:00+00', 'UTC', 0,
+  'valid', 'valid', 'valid',
+  '2026-08-09 00:00:00+00', 'canonical-v2', repeat('e', 64)
+FROM (VALUES
+  ('f1000000-0000-4000-8000-000000000001'::uuid),
+  ('f1000000-0000-4000-8000-000000000002'::uuid)
+) AS u(id);
+
 -- Baseline: the rebuild completes and covers all three accounts.
 SELECT lives_ok(
   $$ SELECT private.rebuild_account_normal_bounds('2026-08-08'::date) $$,
