@@ -19,6 +19,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     /// — app whether its user is still active. iOS launches the app into the
     /// background to run this, which is why the guard needs no keepalive.
     ///
+    /// ADR-0039: this delivery is best-effort. iOS may delay a silent push,
+    /// coalesce several into one, or drop it entirely, so it is not guaranteed
+    /// to arrive and the app may not wake at all. A silent push therefore never
+    /// proves that coverage is healthy — its absence is `unknown`, not `fine`,
+    /// and the server treats it that way.
+    ///
     /// The completion handler must report whether anything arrived: iOS uses it
     /// to decide how generous the app's future wake budget should be, so
     /// claiming `.newData` every time would waste the budget we depend on.
