@@ -362,14 +362,17 @@ export function validateCatalog(rows, root, { final = false } = {}) {
 
 export function classifyAssertion(expected, id, output) {
   if (expected === 'blocked') return 'BLOCKED'
-  if (/Bail out!|ERR_MODULE_NOT_FOUND|Cannot find module|failed to load|\bERROR\b/i.test(output)) {
+  const clean = String(output).replace(/\x1b\[[0-9;]*m/g, '')
+  if (/Bail out!|ERR_MODULE_NOT_FOUND|Cannot find module|failed to load|psql:.*\bERROR:|Parse errors:/i.test(clean)) {
     return 'HARNESS_FAILURE'
   }
 
-  const line = String(output).split(/\r?\n/).find((candidate) => candidate.includes(id))
+  const line = clean.split(/\r?\n/).find((candidate) => candidate.includes(id))
+  const proveComplete = /Files=\d+, Tests=\d+,[^\n]*wallclock secs/i.test(clean)
+  if (!line && proveComplete) return expected === 'pass' ? 'PASS' : 'UNEXPECTED_PASS'
   if (!line) return 'HARNESS_FAILURE'
 
-  const failed = /\bnot ok\b|(?:^|\s)(?:FAIL|Ã—|×)(?:\s|$)/i.test(line)
+  const failed = /\bnot ok\b|# Failed test|(?:^|\s)(?:FAIL|Ã—|×)(?:\s|$)/i.test(line)
   const passed = !failed && (/\bok\b|(?:^|\s)(?:PASS|âœ“|✓)(?:\s|$)/i.test(line))
   if (failed) return expected === 'red' ? 'RED' : 'UNEXPECTED_RED'
   if (passed) return expected === 'pass' ? 'PASS' : 'UNEXPECTED_PASS'

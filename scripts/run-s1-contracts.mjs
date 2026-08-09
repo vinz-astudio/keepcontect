@@ -26,11 +26,14 @@ function commandFor(group) {
 
 async function defaultExecute(group, { root }) {
   const args = commandFor(group)
-  const executable = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-  const run = spawnSync(executable, args, { cwd: root, encoding: 'utf8' })
+  const executable = process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : 'npm'
+  const executableArgs = process.platform === 'win32'
+    ? ['/d', '/s', '/c', 'npm', ...args]
+    : args
+  const run = spawnSync(executable, executableArgs, { cwd: root, encoding: 'utf8' })
   return {
     exitCode: run.status ?? 1,
-    output: `${run.stdout ?? ''}${run.stderr ?? ''}`,
+    output: `${run.stdout ?? ''}${run.stderr ?? ''}${run.error ? `\n${run.error.stack ?? run.error}` : ''}`,
     command: `npm ${args.join(' ')}`,
   }
 }
@@ -108,6 +111,7 @@ async function main() {
   fs.mkdirSync(path.dirname(path.resolve(root, out)), { recursive: true })
   fs.writeFileSync(path.resolve(root, out), markdown, 'utf8')
   if (rows.some((row) => row.result === 'HARNESS_FAILURE')) process.exitCode = 2
+  else if (rows.some((row) => row.result !== 'PASS')) process.exitCode = 1
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -48,4 +48,16 @@ describe('S1 assertion classification', () => {
     expect(classifyAssertion('red', 'ADR0039-X-01', 'ok 1 - ADR0039-X-01')).toBe('UNEXPECTED_PASS')
     expect(classifyAssertion('blocked', 'ADR0039-X-01', '')).toBe('BLOCKED')
   })
+
+  test('understands pg_prove summaries that only print failing assertions', () => {
+    const output = [
+      '# Failed test 2: "ADR0039-X-RED expected gap"',
+      'Files=1, Tests=3,  0 wallclock secs',
+      'Result: FAIL',
+      'error running container: exit 1',
+    ].join('\n')
+    expect(classifyAssertion('red', 'ADR0039-X-RED', output)).toBe('RED')
+    expect(classifyAssertion('pass', 'ADR0039-X-PASS', output)).toBe('PASS')
+    expect(classifyAssertion('red', 'ADR0039-X-PASS', output)).toBe('UNEXPECTED_PASS')
+  })
 })
