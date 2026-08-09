@@ -1,8 +1,12 @@
 # S3-C — Coverage-valid learning and authoritative protection health
 
-Author: Claude · Date: 2026-08-09 · Status: plan, not executed
+Author: Claude · Date: 2026-08-09 · Status: C1 executed; C2–C6 pending
 Branch: `codex/kc-s2-db-diagnosis` · Base: `7d6b6d4`
+
 Binding decisions: ADR-0035, ADR-0037, ADR-0038, ADR-0039
+
+> **Correction, 2026-08-09 22:30 (C1).** This plan assumed the coverage-interval
+> schema had to be built. It already exists. See §3.1 and §4 for what changed.
 
 Closes the last seven S1 REDs, all in
 `supabase/tests/s1_coverage_learning_health_contract.sql`, plus the two items
@@ -35,7 +39,7 @@ must never spend evidence it did not have.**
 
 | Fact | Evidence |
 |---|---|
-| No coverage-interval concept exists | no table matching `%coverage_interval%` in the catalog |
+| ~~No coverage-interval concept exists~~ | **Wrong.** `public.alert_observation_coverage_intervals` already exists with all three state axes, RLS on, zero policies, no client grants, written by `private.finalize_alert_shadow_coverage` |
 | `rebuild_account_normal_bounds` learns from raw gaps | its source mentions none of coverage, exclusions or repeat-evidence |
 | No protection-health surface exists | `public.my_protection_health` is absent |
 | Replay failing set | exactly `s1_coverage_learning_health_contract.sql`, 7 of 8 assertions |
@@ -48,21 +52,26 @@ must never spend evidence it did not have.**
 
 ### 3.1 Coverage intervals
 
-New table `public.alert_observation_coverage_intervals`. One row per continuous
-stretch during which a **named collector on a named platform** claims to have
-been observing a person, with the three state axes the contract names:
+**This table already exists** and was verified in C1 rather than built. One row
+per continuous stretch during which the shadow line recorded observation for a
+person, with the three state axes the contract names. The real columns are:
 
 | Column | Meaning |
 |---|---|
 | `user_id` | subject |
-| `source` | trusted collector identity (e.g. `android-native-v1`, `tauri-idle-v1`) |
-| `platform` | `android` / `ios` / `tauri` / `pwa` / … |
-| `started_at`, `ended_at` | half-open; `ended_at IS NULL` means still open |
-| `activity_coverage_state` | `valid` / `degraded` / `unknown` — was activity actually observable |
-| `intervention_coverage_state` | `valid` / `degraded` / `unknown` — could the app have reached the person |
-| `sleep_context_state` | `valid` / `degraded` / `unknown` — was sleep context trustworthy |
-| `reason` | why it is not `valid`, when it is not |
-| `evidence_version`, `created_at` | provenance |
+| `version_id` | the shadow model version the interval was produced under |
+| `starts_at`, `ends_at` | bounded; `ends_at > starts_at` enforced |
+| `timezone`, `utc_offset_minutes` | the subject's own clock context |
+| `activity_coverage_state` | `valid` / `outage` / `unknown` — was activity actually observable |
+| `intervention_coverage_state` | `valid` / `incomplete` / `unknown` — could the app have reached the person |
+| `sleep_context_state` | `valid` / `incomplete` / `unknown` — was sleep context trustworthy |
+| `captured_at`, `finalized_at` | when the claim was made and sealed |
+| `evidence_version`, `provenance_sha256` | provenance; the hash shape is constraint-enforced |
+
+Collector identity lives upstream, on `private.alert_shadow_coverage_leases`
+(`client_id`, `channel`, `collector_contract`, `collector_state`,
+`capability_sha256`). Intervals are the finalized, per-user summary of those
+leases.
 
 Three axes rather than one boolean, because they fail independently and mean
 different things. A phone can be collecting activity fine while notifications are
@@ -73,8 +82,18 @@ kind of blindness hide behind another kind of sight.
 Absence of an interval is `unknown`, not `valid` — the default is "we do not
 know", which is the whole point.
 
-Grants: RLS on, no Data API write path. Clients report coverage through the
-existing lease/ping surface; the server writes intervals.
+Grants: RLS on, **zero policies, no grant to any client role** — there is no
+Data API path at all. Clients report coverage through the existing lease surface;
+`private.finalize_alert_shadow_coverage` writes the intervals.
+
+**Consequence C2 must respect.** Interval production is gated on the adaptive
+shadow runtime being enabled and accepting leases, which is default-off per
+ADR-0038. So on a fresh or unactivated environment there are no intervals, and
+coverage-valid learning correctly produces *nothing* rather than a bound. That is
+ADR-0039's stated outcome — "无健康覆盖时结果为 Unknown/证据不足，不训练" — not a
+gap to engineer around. It does mean **turning on coverage collection is a
+prerequisite for learning ever resuming**, and protection health must say
+`unknown` loudly in the meantime.
 
 ### 3.2 Learning gates — rewriting `rebuild_account_normal_bounds`
 
@@ -158,7 +177,7 @@ Executed in order; each ends green and committed before the next starts.
 
 | # | Scope | Done when |
 |---|---|---|
-| **C1** | Coverage-interval schema, RLS/grants, writer path | new behavioural pgTAP green; no client write path; absence reads as `unknown` |
+| **C1** ✅ | Verify and lock the existing coverage-interval contract; correct this plan | `observation_coverage_interval_contract.sql` 14/14; no client path; absence reads as `unknown`; **no migration needed** |
 | **C2** | Rewrite `rebuild_account_normal_bounds` with the four gates | `ADR0039-LEARN-01..04` green; behavioural test proves each exclusion reason separately |
 | **C3** | Incident table + `my_protection_health()` | `ADR0039-HEALTH-01..03` green; acknowledgement-vs-recovery proven behaviourally |
 | **C4** | Special Attention notice emission | ordering and one-notice-per-incident proven; no alert created |
