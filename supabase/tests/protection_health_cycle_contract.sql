@@ -220,19 +220,20 @@ SELECT is(
 -- not broken. Telling them to check their permissions would be blaming them
 -- for a gap that is ours.
 INSERT INTO auth.users (id, email, aud, role)
-VALUES ('58000000-0000-4000-8000-000000000004', 'cycle-ios@example.invalid', 'authenticated', 'authenticated')
+VALUES ('58000000-0000-4000-8000-000000000004', 'cycle-pwa@example.invalid', 'authenticated', 'authenticated')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.profiles (id, display_name)
-VALUES ('58000000-0000-4000-8000-000000000004', 'Cycle moved to iOS')
+VALUES ('58000000-0000-4000-8000-000000000004', 'Cycle moved to PWA')
 ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name;
 
--- They produced coverage on the APK, then moved to the iOS app, which emits
--- none. This is the exact shape of the one person production would have
--- notified.
+-- They produced coverage on the APK, then moved to a channel that has no
+-- background collector at all. iOS is deliberately not used here: iOS reports
+-- coverage from its wakes as of 20260811020000, so using it as the example of
+-- an unobservable platform would quietly stop testing anything.
 INSERT INTO public.clients (user_id, client_id, platform, app_version, first_seen_at, last_seen_at) VALUES
   ('58000000-0000-4000-8000-000000000004', 'moved-apk', 'android-apk', '0.5.26', now() - interval '20 days', now() - interval '7 days'),
-  ('58000000-0000-4000-8000-000000000004', 'moved-ios', 'ios-app',     '0.5.26', now() - interval '6 days',  now() - interval '2 hours')
+  ('58000000-0000-4000-8000-000000000004', 'moved-web', 'ios-pwa',     '0.5.26', now() - interval '6 days',  now() - interval '2 hours')
 ON CONFLICT (user_id, client_id) DO UPDATE SET platform = EXCLUDED.platform;
 
 INSERT INTO public.alert_observation_coverage_intervals

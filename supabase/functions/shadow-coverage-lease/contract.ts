@@ -1,8 +1,8 @@
 export interface CoverageLeaseRequest {
   token: string
   client_id: string
-  channel: 'android-apk' | 'tauri'
-  collector_contract: 'android-passive-v1' | 'tauri-idle-v1'
+  channel: 'android-apk' | 'tauri' | 'ios-app'
+  collector_contract: 'android-passive-v1' | 'tauri-idle-v1' | 'ios-wake-v1'
   collector_state: 'operational'
   capability_sha256: string
   observed_at: string
@@ -74,11 +74,22 @@ export function parseCoverageLeaseRequest(
   ) {
     return fail(400, 'invalid_request')
   }
-  if (body.channel !== 'android-apk' && body.channel !== 'tauri') {
+  // iOS reports from its background wakes: the silent push the passive-poll
+  // job sends every fifteen minutes, and HealthKit background delivery, which
+  // is the one mechanism that relaunches a force-quit app. Its cadence matches
+  // Android's at the median and has a much heavier tail, so the honest place
+  // to absorb that difference is the interval builder's gap allowance, not
+  // here — this only decides whether the channel is one we know.
+  const contractsByChannel = {
+    'android-apk': 'android-passive-v1',
+    'tauri': 'tauri-idle-v1',
+    'ios-app': 'ios-wake-v1',
+  } as const
+  if (!Object.hasOwn(contractsByChannel, body.channel as string)) {
     return fail(422, 'unsupported_channel')
   }
   const expectedContract =
-    body.channel === 'android-apk' ? 'android-passive-v1' : 'tauri-idle-v1'
+    contractsByChannel[body.channel as keyof typeof contractsByChannel]
   if (body.collector_contract !== expectedContract) {
     return fail(422, 'unsupported_contract')
   }

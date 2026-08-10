@@ -41,6 +41,39 @@ describe('parseCoverageLeaseRequest', () => {
     }
   })
 
+  it('accepts the paired iOS wake collector contract', () => {
+    const result = parseCoverageLeaseRequest(JSON.stringify({
+      ...validBody,
+      channel: 'ios-app',
+      collector_contract: 'ios-wake-v1',
+    }))
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.channel).toBe('ios-app')
+      expect(result.data.collector_contract).toBe('ios-wake-v1')
+    }
+  })
+
+  it('rejects an iOS lease carrying another channel’s contract', () => {
+    const result = parseCoverageLeaseRequest(JSON.stringify({
+      ...validBody,
+      channel: 'ios-app',
+      collector_contract: 'android-passive-v1',
+    }))
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.code).toBe('unsupported_contract')
+  })
+
+  it('still refuses a channel nobody has built a collector for', () => {
+    // ios-pwa and the web channels cannot observe anything in the background,
+    // so a lease claiming to come from one is not a capability we have.
+    for (const channel of ['ios-pwa', 'desktop-web', 'android-web']) {
+      const result = parseCoverageLeaseRequest(JSON.stringify({ ...validBody, channel }))
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.code).toBe('unsupported_channel')
+    }
+  })
+
   it('rejects a collector contract paired with the wrong channel', () => {
     const result = parseCoverageLeaseRequest(JSON.stringify({
       ...validBody,

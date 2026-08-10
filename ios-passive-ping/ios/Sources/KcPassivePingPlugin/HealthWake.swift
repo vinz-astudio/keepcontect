@@ -111,6 +111,10 @@ final class HealthWake {
     /// unreadable — which is exactly the position the `unlock`/`foreground`
     /// distinction is in today.
     private func onWake() {
+        // The lease goes first and unconditionally. It says "the watcher was
+        // awake here", which is true of this wake whether or not the sample
+        // below finds anything worth reporting.
+        PassiveGuard.shared.reportCoverageLease()
         PassiveGuard.shared.recordEvent(reason: "health-wake", kind: "steps")
         // The wake fired because new step data exists, so movement is already
         // implied. The sample is taken anyway for the signals movement cannot
@@ -131,6 +135,13 @@ final class HealthWake {
         }
         guard Self.isSupported, let stepType else { return }
         store.disableBackgroundDelivery(for: stepType) { _, _ in }
+    }
+
+    /// Whether a relaunch-capable wake is actually armed right now, as opposed
+    /// to merely entitled. The coverage lease reports capability, and an
+    /// entitlement nobody granted would overstate what this install can see.
+    var isObserving: Bool {
+        observerQuery != nil
     }
 
     func status() -> [String: Any] {
