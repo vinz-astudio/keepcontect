@@ -7,7 +7,7 @@
 -- that connects them, and about the order it connects them in.
 BEGIN;
 
-SELECT plan(12);
+SELECT plan(15);
 
 INSERT INTO auth.users (id, email, aud, role) VALUES
   ('58000000-0000-4000-8000-000000000001', 'cycle-stale@example.invalid', 'authenticated', 'authenticated'),
@@ -93,6 +93,13 @@ SELECT '58100000-0000-4000-8000-000000000001',
        'canonical-v2',
        now()
 FROM cycle_base_config;
+
+-- The gate reads the platform of the most recently seen client, so every
+-- subject in this fixture needs one that can report coverage.
+INSERT INTO public.clients (user_id, client_id, platform, app_version, first_seen_at, last_seen_at) VALUES
+  ('58000000-0000-4000-8000-000000000001', 'cycle-stale-apk', 'android-apk', '0.5.26', now() - interval '9 days', now() - interval '5 days'),
+  ('58000000-0000-4000-8000-000000000002', 'cycle-fresh-apk', 'android-apk', '0.5.26', now() - interval '9 days', now() - interval '1 hour')
+ON CONFLICT (user_id, client_id) DO UPDATE SET platform = EXCLUDED.platform;
 
 -- One subject lapsed well past the 26-hour window; one is still covered.
 INSERT INTO public.alert_observation_coverage_intervals
@@ -206,6 +213,53 @@ SELECT is(
      AND kind = 'coverage_interrupted'),
   1,
   'the same incident never notifies the same watcher twice'
+);
+
+
+-- 13..15: a subject on a channel that cannot report coverage is unobservable,
+-- not broken. Telling them to check their permissions would be blaming them
+-- for a gap that is ours.
+INSERT INTO auth.users (id, email, aud, role)
+VALUES ('58000000-0000-4000-8000-000000000004', 'cycle-ios@example.invalid', 'authenticated', 'authenticated')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.profiles (id, display_name)
+VALUES ('58000000-0000-4000-8000-000000000004', 'Cycle moved to iOS')
+ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name;
+
+-- They produced coverage on the APK, then moved to the iOS app, which emits
+-- none. This is the exact shape of the one person production would have
+-- notified.
+INSERT INTO public.clients (user_id, client_id, platform, app_version, first_seen_at, last_seen_at) VALUES
+  ('58000000-0000-4000-8000-000000000004', 'moved-apk', 'android-apk', '0.5.26', now() - interval '20 days', now() - interval '7 days'),
+  ('58000000-0000-4000-8000-000000000004', 'moved-ios', 'ios-app',     '0.5.26', now() - interval '6 days',  now() - interval '2 hours')
+ON CONFLICT (user_id, client_id) DO UPDATE SET platform = EXCLUDED.platform;
+
+INSERT INTO public.alert_observation_coverage_intervals
+  (version_id, user_id, starts_at, ends_at, timezone, utc_offset_minutes,
+   activity_coverage_state, intervention_coverage_state, sleep_context_state,
+   captured_at, evidence_version, provenance_sha256)
+VALUES
+  ('58100000-0000-4000-8000-000000000001', '58000000-0000-4000-8000-000000000004',
+   now() - interval '8 days', now() - interval '7 days', 'UTC', 0,
+   'valid', 'valid', 'valid', now() - interval '7 days', 'canonical-v2', repeat('c', 64));
+
+SELECT is(
+  (SELECT private.coverage_capable_subject('58000000-0000-4000-8000-000000000004')),
+  false,
+  'someone whose current channel cannot report coverage is not coverage-capable'
+);
+
+SELECT lives_ok(
+  $$SELECT private.run_protection_health_cycle(interval '2 hours')$$,
+  'the cycle runs with an unobservable subject present'
+);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.notifications
+   WHERE recipient_id = '58000000-0000-4000-8000-000000000004'),
+  0,
+  'an unobservable subject is never told to fix a gap that is not theirs'
 );
 
 SELECT * FROM finish();
