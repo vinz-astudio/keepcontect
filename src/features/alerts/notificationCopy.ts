@@ -18,6 +18,7 @@ const NOTIF_KINDS = new Set([
   'concern',
   'update',
   'coverage_interrupted',
+  'protection_limited',
 ])
 
 /**

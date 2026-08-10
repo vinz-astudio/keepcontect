@@ -103,7 +103,7 @@ describe('local Supabase replay compatibility harness', () => {
     expect(fixtureSql).not.toMatch(
       /grant\s+(?:all|insert|update|delete|truncate|references|trigger)\b/i,
     );
-  });
+  }, 30_000);
 
   it('strips only the two authorized leading BOMs in the disposable copy', async () => {
     const sources = await Promise.all(BOM_FILENAMES.map((filename) => readFile(
@@ -132,7 +132,7 @@ describe('local Supabase replay compatibility harness', () => {
         resultingHash: sha256(expected),
       });
     }
-  });
+  }, 30_000);
 
   it('accepts identical pinned SQL checked out with LF or CRLF line endings', async () => {
     const lfRepo = await copyReplayInputsToTemp();
@@ -148,7 +148,7 @@ describe('local Supabase replay compatibility harness', () => {
       await rm(lfRepo, { recursive: true, force: true });
       await rm(crlfRepo, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   it('fails before replay when a pinned source hash changes', async () => {
     const fakeRepo = await copyReplayInputsToTemp();

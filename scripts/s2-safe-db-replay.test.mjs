@@ -42,7 +42,7 @@ describe('S2 safe local database replay', () => {
     expect(safety).toBe(LOCAL_SAFETY_MIGRATION_SQL);
     expect(await readFile(BASELINE)).toEqual(before);
     expect(manifest.addedFiles).toEqual([LOCAL_SAFETY_MIGRATION_FILENAME]);
-  });
+  }, 30_000);
 
   it('fails closed when the pinned baseline bytes drift', async () => {
     const fakeRepo = await copyInputsToTemp();

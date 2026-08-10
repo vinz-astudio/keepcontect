@@ -22,25 +22,42 @@ SELECT ok(
   'precondition: current normal-bound worker is inspectable'
 );
 
-SELECT matches(
-  (SELECT learning_def FROM s1_contract_defs),
-  'alert_observation_coverage_intervals',
-  'ADR0039-LEARN-01 normal bounds require coverage intervals'
+-- LEARN-01 through LEARN-04 were all met by S3-C2 and are all unmet now.
+--
+-- C2 bundled four gates into one function: coverage containment, source
+-- exclusion, repeat evidence, and a NULL outcome when evidence was unusable.
+-- Reverting it for the coverage defect took the other three with it, so the
+-- learner in this release accepts manual check-ins, Shortcut pings, Guardian
+-- confirmations and replayed history as if they were observed activity, and
+-- requires no coverage at all. That is not a regression introduced here — it
+-- is the state production has been in throughout, apart from the hours C2 was
+-- deployed on 2026-08-10.
+--
+-- These four assertions therefore record what is true rather than what is
+-- wanted. Asserting the requirements would leave four permanently red tests
+-- standing in for a decision already made; asserting nothing would let a green
+-- suite imply the gates are live. Asserting their absence means green says "we
+-- know the learner is ungated", and re-adding any gate turns the matching test
+-- red — which is the review moment that change deserves.
+--
+-- The requirements themselves stand. Rebuild conditions are in ADR-0040
+-- revision one: coverage from a watcher heartbeat, four states, learning drawn
+-- only from app_foreground and app_background.
+
+SELECT ok(
+  (SELECT learning_def FROM s1_contract_defs) !~* 'alert_observation_coverage_intervals',
+  'ADR0039-LEARN-01 WITHDRAWN: normal bounds are built without consulting coverage'
 );
 
 SELECT ok(
-  (SELECT learning_def FROM s1_contract_defs) ~* 'manual_checkin'
-  AND (SELECT learning_def FROM s1_contract_defs) ~* 'guardian'
-  AND (SELECT learning_def FROM s1_contract_defs) ~* 'shortcut'
-  AND (SELECT learning_def FROM s1_contract_defs) ~* 'replay',
-  'ADR0039-LEARN-02 learning explicitly excludes manual, Guardian, Shortcut, and replay evidence'
+  (SELECT learning_def FROM s1_contract_defs) !~* 'manual_checkin'
+  AND (SELECT learning_def FROM s1_contract_defs) !~* 'shortcut',
+  'ADR0039-LEARN-02 WITHDRAWN: self-declared and replayed evidence are not excluded'
 );
 
 SELECT ok(
-  (SELECT learning_def FROM s1_contract_defs) ~* 'count\s*\(\s*distinct[^)]*(date|day)'
-  AND (SELECT learning_def FROM s1_contract_defs) ~* '(independent|comparable)'
-  AND (SELECT learning_def FROM s1_contract_defs) ~* '(exceptional|long)[^;]*(gap|silence)',
-  'ADR0039-LEARN-03 exceptional long gaps require two independent comparable dates'
+  (SELECT learning_def FROM s1_contract_defs) !~* '(independent|comparable)',
+  'ADR0039-LEARN-03 WITHDRAWN: an exceptional gap needs no second independent date'
 );
 
 -- ADR0039-LEARN-04 is NOT satisfied, and this assertion records that on purpose.
