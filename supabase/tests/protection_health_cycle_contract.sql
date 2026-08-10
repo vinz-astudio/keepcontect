@@ -7,7 +7,7 @@
 -- that connects them, and about the order it connects them in.
 BEGIN;
 
-SELECT plan(15);
+SELECT plan(17);
 
 INSERT INTO auth.users (id, email, aud, role) VALUES
   ('58000000-0000-4000-8000-000000000001', 'cycle-stale@example.invalid', 'authenticated', 'authenticated'),
@@ -100,6 +100,18 @@ INSERT INTO public.clients (user_id, client_id, platform, app_version, first_see
   ('58000000-0000-4000-8000-000000000001', 'cycle-stale-apk', 'android-apk', '0.5.26', now() - interval '9 days', now() - interval '5 days'),
   ('58000000-0000-4000-8000-000000000002', 'cycle-fresh-apk', 'android-apk', '0.5.26', now() - interval '9 days', now() - interval '1 hour')
 ON CONFLICT (user_id, client_id) DO UPDATE SET platform = EXCLUDED.platform;
+
+-- Capability is proven by a lease, not assumed from the platform, so each
+-- subject needs one on the channel they are on.
+INSERT INTO private.alert_shadow_coverage_leases
+  (user_id, event_id, client_id, channel, collector_contract, collector_state,
+   capability_sha256, observed_at, received_at, app_version, timezone, utc_offset_minutes) VALUES
+  ('58000000-0000-4000-8000-000000000001', gen_random_uuid(), 'cycle-stale-apk',
+   'android-apk', 'android-passive-v1', 'operational', repeat('a', 64),
+   now() - interval '5 days', now() - interval '5 days', '0.6.0', 'UTC', 0),
+  ('58000000-0000-4000-8000-000000000002', gen_random_uuid(), 'cycle-fresh-apk',
+   'android-apk', 'android-passive-v1', 'operational', repeat('b', 64),
+   now() - interval '1 hour', now() - interval '1 hour', '0.6.0', 'UTC', 0);
 
 -- One subject lapsed well past the 26-hour window; one is still covered.
 INSERT INTO public.alert_observation_coverage_intervals
@@ -261,6 +273,43 @@ SELECT is(
    WHERE recipient_id = '58000000-0000-4000-8000-000000000004'),
   0,
   'an unobservable subject is never told to fix a gap that is not theirs'
+);
+
+
+-- 16..17: an install that has never reported is not judged, however capable
+-- its platform is in principle. This is the iOS build that has not shipped
+-- yet, and the desktop build nobody has reinstalled.
+INSERT INTO auth.users (id, email, aud, role)
+VALUES ('58000000-0000-4000-8000-000000000005', 'cycle-unshipped@example.invalid', 'authenticated', 'authenticated')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.profiles (id, display_name)
+VALUES ('58000000-0000-4000-8000-000000000005', 'Cycle capable but silent')
+ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name;
+
+INSERT INTO public.clients (user_id, client_id, platform, app_version, first_seen_at, last_seen_at)
+VALUES ('58000000-0000-4000-8000-000000000005', 'unshipped-ios', 'ios-app', '0.5.25',
+        now() - interval '30 days', now() - interval '1 hour')
+ON CONFLICT (user_id, client_id) DO UPDATE SET platform = EXCLUDED.platform;
+
+SELECT is(
+  private.coverage_capable_subject('58000000-0000-4000-8000-000000000005'),
+  false,
+  'a capable platform running a build that has never reported is not judged'
+);
+
+-- And it becomes judgeable the moment it actually reports, with no migration.
+INSERT INTO private.alert_shadow_coverage_leases
+  (user_id, event_id, client_id, channel, collector_contract, collector_state,
+   capability_sha256, observed_at, received_at, app_version, timezone, utc_offset_minutes)
+VALUES ('58000000-0000-4000-8000-000000000005', gen_random_uuid(), 'unshipped-ios',
+        'ios-app', 'ios-wake-v1', 'operational', repeat('c', 64),
+        now() - interval '10 minutes', now() - interval '10 minutes', '0.6.0', 'UTC', 0);
+
+SELECT is(
+  private.coverage_capable_subject('58000000-0000-4000-8000-000000000005'),
+  true,
+  'one real lease is what makes a platform judgeable, not a version number'
 );
 
 SELECT * FROM finish();
