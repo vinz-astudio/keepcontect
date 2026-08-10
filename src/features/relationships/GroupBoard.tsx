@@ -11,6 +11,7 @@ import { translate, useI18n } from '@/lib/i18n'
 import { subscribeGroupStatusSignals } from '@/features/alerts/realtime'
 import { formatGroupActivityStatus } from '@/features/relationships/groupActivityDisplay'
 import { PrototypeIcon } from '@/features/prototype/PrototypeUI'
+import { SpecialAttentionToggle } from '@/features/relationships/SpecialAttentionToggle'
 import './GroupBoard.css'
 
 const DOT: Record<ActivityStatus, string> = {
@@ -160,6 +161,8 @@ export function GroupBoard({
                   </button>
                 )}
               </div>
+
+              {!member.is_me && <SpecialAttentionToggle subject={member.user_id} />}
             </div>
           ))}
         </div>

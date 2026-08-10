@@ -9,6 +9,7 @@ import {
   shouldSurfaceProtection,
   type ProtectionHealth,
 } from '@/features/baseline/protectionHealth'
+import './ProtectionHealthCard.css'
 
 /**
  * ADR-0039: healthy is quiet, a known failure is visible, and unknown is
