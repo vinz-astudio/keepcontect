@@ -29,7 +29,7 @@ export interface ShadowCoverageDeps {
   invokeCapability: () => Promise<TauriCoverageCapability>
   recordLease: (
     args: CoverageLeaseArgs,
-  ) => Promise<{ error: unknown | null }>
+  ) => Promise<{ error: unknown | null; data?: unknown }>
   getClientId: () => string
   now: () => number
   randomUUID: () => string
@@ -39,6 +39,9 @@ export interface ShadowCoverageDeps {
 }
 
 const FIVE_MINUTES_MS = 5 * 60_000
+
+/** Outcomes that mean the server took the lease (or is deliberately not taking any). */
+const ACCEPTED_LEASE_OUTCOMES = new Set(['inserted', 'duplicate', 'disabled'])
 
 async function sha256(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value)
@@ -65,11 +68,11 @@ const defaultDeps: ShadowCoverageDeps = {
     ) as TauriCoverageCapability
   },
   recordLease: async (args) => {
-    const { error } = await supabase.rpc(
+    const { data, error } = await supabase.rpc(
       'record_alert_shadow_coverage_lease' as never,
       args as never,
     )
-    return { error }
+    return { error, data }
   },
   getClientId,
   now: () => Date.now(),
@@ -115,7 +118,7 @@ export function startTauriShadowCoverage(
       const capabilitySha256 = await deps.hashCanonical(canonical)
       if (stopped) return
 
-      await deps.recordLease({
+      const { error, data } = await deps.recordLease({
         _client_id: deps.getClientId(),
         _channel: 'tauri',
         _collector_contract: 'tauri-idle-v1',
@@ -124,6 +127,15 @@ export function startTauriShadowCoverage(
         _observed_at: new Date(deps.now()).toISOString(),
         _event_id: deps.randomUUID(),
       })
+
+      // The RPC reports refusals in its return value, not as an error, so a
+      // rejected lease looks exactly like a healthy one from here. Left unread,
+      // a watcher can be refused every five minutes for days while the server
+      // records no coverage at all — which is what happened to the desktop
+      // shell reporting itself as `desktop-web`.
+      if (!error && !ACCEPTED_LEASE_OUTCOMES.has(data as string)) {
+        console.error('[coverage] shadow lease refused:', data)
+      }
     } catch {
       // Coverage is evidence-only. A failed lease waits for the next normal tick.
     } finally {

@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { supabase } from '@/lib/supabase'
-import { getPlatform, isStandalone } from '@/lib/platform'
+import { getPlatform, isStandalone, isTauri } from '@/lib/platform'
 import { APP_VERSION } from '@/lib/version'
 
 const CLIENT_ID_KEY = 'kc.clientId'
@@ -24,9 +24,14 @@ export function getClientId(): string {
   }
 }
 
-/** 精确客户端渠道:android-apk / ios-app / {plat}-pwa / {plat}-web */
+/** 精确客户端渠道:tauri / android-apk / ios-app / {plat}-pwa / {plat}-web */
 export function clientChannel(): string {
   const p = getPlatform()
+  // 桌面原生壳必须先判:它是普通 WebView,不查 isTauri() 就会自称 desktop-web,
+  // 与浏览器标签页无从区分。服务端 record_alert_shadow_coverage_lease 要求
+  // clients.platform = 'tauri' 才收覆盖凭据,报错渠道名会被静默判为
+  // capability_mismatch —— 守望者心跳因此永远落不了地。
+  if (isTauri()) return 'tauri'
   if (Capacitor.isNativePlatform()) {
     return p === 'android' ? 'android-apk' : `${p}-app`
   }
