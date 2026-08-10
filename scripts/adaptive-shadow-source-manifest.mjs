@@ -51,17 +51,47 @@ async function sha256(file) {
   return crypto.createHash('sha256').update(Buffer.from(auditedText, 'utf8')).digest('hex')
 }
 
+// S0 replaced the per-file migration history with one baseline generated from
+// production and moved the originals into supabase/migrations-archive. Every
+// path this audit pins therefore stopped resolving, and the audit reported
+// eight `missing` entries — a red that reads like "the source set is wrong"
+// when it actually means "the audit can no longer find what it audits".
+//
+// The audited guarantee is about content, not location: these eight files must
+// still hash to what was audited, and the three protected live-behaviour
+// migrations must not have been edited since the audit base. Both survive the
+// move, so resolution searches the live set and then the archive, and drift is
+// judged by comparing content against the audit base rather than by asking git
+// whether a path appears in a diff — a moved file appears in every diff.
+const SEARCH_DIRS = Object.freeze([
+  'supabase/migrations',
+  'supabase/migrations-archive/from-repo',
+  'supabase/migrations-archive/as-applied',
+])
+
+async function resolveMigration(root, name) {
+  for (const dir of SEARCH_DIRS) {
+    const relative = `${dir}/${name}`
+    if (await exists(path.join(root, relative))) return relative
+  }
+  return null
+}
+
 export async function verifyAdaptiveShadowSource(root) {
   const unexpected = []
   const migrations = {}
 
   for (const [name, expectedSha256] of Object.entries(EXPECTED_MIGRATIONS)) {
-    const relative = `supabase/migrations/${name}`
-    const absolute = path.join(root, relative)
-    if (!(await exists(absolute))) {
-      unexpected.push({ path: relative, reason: 'missing' })
+    const relative = await resolveMigration(root, name)
+    if (relative === null) {
+      unexpected.push({
+        path: `supabase/migrations/${name}`,
+        reason: 'missing',
+        searched: SEARCH_DIRS,
+      })
       continue
     }
+    const absolute = path.join(root, relative)
 
     const actualSha256 = await sha256(absolute)
     migrations[name] = actualSha256
@@ -83,23 +113,52 @@ export async function verifyAdaptiveShadowSource(root) {
     unexpected.push({ path: relative, reason: 'excluded-source-present' })
   }
 
-  const { stdout } = await execFileAsync(
-    'git',
-    ['diff', '--name-only', `${DIFF_BASE}...HEAD`],
-    { cwd: root, windowsHide: true },
-  )
-  const changed = new Set(
-    stdout
-      .split(/\r?\n/u)
-      .map((value) => value.trim().replaceAll('\\', '/'))
-      .filter(Boolean),
-  )
-  const protectedLiveDrift = PROTECTED_LIVE.filter((relative) => changed.has(relative))
-  for (const relative of protectedLiveDrift) {
-    unexpected.push({ path: relative, reason: 'protected-live-drift' })
+  // Content comparison against the audit base, not path membership in a diff.
+  // `git diff --name-only BASE...HEAD` lists a file that merely moved, so after
+  // S0 the path form reported drift for three migrations whose text nobody had
+  // touched — a false alarm that would have trained someone to ignore it.
+  const protectedLiveDrift = []
+  for (const auditedPath of PROTECTED_LIVE) {
+    const name = auditedPath.split('/').pop()
+    const current = await resolveMigration(root, name)
+    if (current === null) {
+      protectedLiveDrift.push({ path: auditedPath, reason: 'protected-live-missing' })
+      continue
+    }
+    let baseText
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['show', `${DIFF_BASE}:${auditedPath}`],
+        { cwd: root, windowsHide: true, maxBuffer: 32 * 1024 * 1024 },
+      )
+      baseText = stdout
+    } catch {
+      protectedLiveDrift.push({ path: auditedPath, reason: 'audit-base-unreadable' })
+      continue
+    }
+    const baseSha = crypto
+      .createHash('sha256')
+      .update(Buffer.from(baseText.replaceAll('\r\n', '\n'), 'utf8'))
+      .digest('hex')
+    const currentBytes = await readFile(path.join(root, current))
+    const currentSha = crypto
+      .createHash('sha256')
+      .update(Buffer.from(currentBytes.toString('utf8').replaceAll('\r\n', '\n'), 'utf8'))
+      .digest('hex')
+    if (baseSha !== currentSha) {
+      protectedLiveDrift.push({
+        path: current,
+        reason: 'protected-live-drift',
+        auditedPath,
+        baseSha256: baseSha,
+        currentSha256: currentSha,
+      })
+    }
   }
+  unexpected.push(...protectedLiveDrift)
 
-  const groupFixPresent = await exists(path.join(root, GROUP_FIX))
+  const groupFixPresent = (await resolveMigration(root, GROUP_FIX.split('/').pop())) !== null
   if (!groupFixPresent) unexpected.push({ path: GROUP_FIX, reason: 'group-fix-missing' })
 
   return {

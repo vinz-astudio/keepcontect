@@ -8,19 +8,26 @@ import {
   adaptLegacyRoutineSql,
   buildReplayCommands,
   prepareReplayProject,
+  resolveMigrationsRootFor,
   runLocalCommand,
   runReplay,
   stripLeadingUtf8Bom,
 } from './local-supabase-replay-core.mjs';
 
 const REAL_REPO_ROOT = resolve(process.cwd());
+// S0 moved the pinned inputs out of supabase/migrations into the archive, so
+// ask the harness where they live now rather than naming a directory whose
+// meaning has since changed. The fake repositories these tests build still
+// receive them as a plain supabase/migrations, which is what the harness
+// prefers whenever it is present.
+const REAL_MIGRATIONS_ROOT = await resolveMigrationsRootFor(REAL_REPO_ROOT);
 const ADMIN_SOURCE = join(
-  REAL_REPO_ROOT,
-  'supabase/migrations/20260623090000_gm_admin_console.sql',
+  REAL_MIGRATIONS_ROOT,
+  '20260623090000_gm_admin_console.sql',
 );
 const ADAPTIVE_SOURCE = join(
-  REAL_REPO_ROOT,
-  'supabase/migrations/20260624140000_adaptive_routine_impl.sql',
+  REAL_MIGRATIONS_ROOT,
+  '20260624140000_adaptive_routine_impl.sql',
 );
 const BOM_FILENAMES = [
   '20260625174615_sync_activity_truth.sql',
@@ -41,7 +48,7 @@ async function copyReplayInputsToTemp() {
   const fakeSupabase = join(fakeRepo, 'supabase');
 
   await cp(join(REAL_REPO_ROOT, 'supabase/config.toml'), join(fakeSupabase, 'config.toml'));
-  await cp(join(REAL_REPO_ROOT, 'supabase/migrations'), join(fakeSupabase, 'migrations'), {
+  await cp(REAL_MIGRATIONS_ROOT, join(fakeSupabase, 'migrations'), {
     recursive: true,
   });
   await cp(join(REAL_REPO_ROOT, 'supabase/tests'), join(fakeSupabase, 'tests'), {
@@ -100,7 +107,7 @@ describe('local Supabase replay compatibility harness', () => {
 
   it('strips only the two authorized leading BOMs in the disposable copy', async () => {
     const sources = await Promise.all(BOM_FILENAMES.map((filename) => readFile(
-      join(REAL_REPO_ROOT, 'supabase/migrations', filename),
+      join(REAL_MIGRATIONS_ROOT, filename),
     )));
     const manifest = await prepareReplayProject({ repoRoot: REAL_REPO_ROOT });
 
