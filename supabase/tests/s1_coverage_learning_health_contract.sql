@@ -43,12 +43,25 @@ SELECT ok(
   'ADR0039-LEARN-03 exceptional long gaps require two independent comparable dates'
 );
 
+-- ADR0039-LEARN-04 is NOT satisfied, and this assertion records that on purpose.
+--
+-- The coverage-gated implementation (S3-C2) shipped on 2026-08-10 and was
+-- reverted the same day: it derived coverage from activity signals, so it only
+-- counted itself as watching while the person was busy, and concluded that
+-- normal quiet lasts fourteen minutes. Reverted by
+-- 20260810040000_s3_revert_coverage_valid_learning.sql.
+--
+-- Asserting the requirement here would leave a red test standing in for a
+-- decision that has already been made; asserting nothing would let a green
+-- suite imply the gate is live. So we assert the gate's ABSENCE: green means
+-- "we know learning is ungated", and the moment someone re-adds gating this
+-- goes red -- flipping it back is the deliberate review step that gate
+-- deserves. Rebuild conditions: ADR-0040 revision one (watcher heartbeat,
+-- four coverage states).
 SELECT ok(
-  (SELECT learning_def FROM s1_contract_defs) ~* 'activity_coverage_state'
-  AND (SELECT learning_def FROM s1_contract_defs) ~* 'intervention_coverage_state'
-  AND (SELECT learning_def FROM s1_contract_defs) ~* 'sleep_context_state'
-  AND (SELECT learning_def FROM s1_contract_defs) ~* '''valid''',
-  'ADR0039-LEARN-04 only coverage-valid evidence may mutate learned bounds'
+  (SELECT learning_def FROM s1_contract_defs) !~* 'activity_coverage_state'
+  AND (SELECT learning_def FROM s1_contract_defs) !~* 'intervention_coverage_state',
+  'ADR0039-LEARN-04 WITHDRAWN: learning is ungated by coverage until ADR-0040 rev.1 is built'
 );
 
 SELECT has_function(
