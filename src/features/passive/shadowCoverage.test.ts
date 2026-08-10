@@ -20,7 +20,7 @@ function makeDeps(
     isTauri: () => true,
     isNativePlatform: () => false,
     invokeCapability: vi.fn().mockResolvedValue(operational),
-    recordLease: vi.fn().mockResolvedValue({ error: null }),
+    recordLease: vi.fn().mockResolvedValue({ error: null, data: 'inserted' }),
     getClientId: () => 'client-001',
     now: () => Date.parse('2026-07-27T10:00:00.000Z'),
     randomUUID: () => '00000000-0000-4000-8000-000000000001',
@@ -119,7 +119,7 @@ describe('startTauriShadowCoverage', () => {
     const recordLease = vi
       .fn()
       .mockResolvedValueOnce({ error: new Error('offline') })
-      .mockResolvedValue({ error: null })
+      .mockResolvedValue({ error: null, data: 'inserted' })
     const deps = makeDeps({ recordLease })
     const stop = startTauriShadowCoverage(deps)
     await flush()
@@ -130,5 +130,42 @@ describe('startTauriShadowCoverage', () => {
     await flush()
     expect(recordLease).toHaveBeenCalledTimes(2)
     stop()
+  })
+
+  it('surfaces a refusal the RPC reports in its return value, not as an error', async () => {
+    // capability_mismatch 曾让桌面壳连续 7 天每 5 分钟被拒一次而无人察觉:
+    // RPC 不报 error,只在返回值里说"不收",客户端从不读它。
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
+    const deps = makeDeps({
+      recordLease: vi
+        .fn()
+        .mockResolvedValue({ error: null, data: 'capability_mismatch' }),
+    })
+    const stop = startTauriShadowCoverage(deps)
+    await flush()
+    expect(consoleError).toHaveBeenCalledWith(
+      '[coverage] shadow lease refused:',
+      'capability_mismatch',
+    )
+    stop()
+    consoleError.mockRestore()
+  })
+
+  it('stays quiet when the server accepts, dedupes, or is switched off', async () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {})
+    for (const outcome of ['inserted', 'duplicate', 'disabled']) {
+      const deps = makeDeps({
+        recordLease: vi.fn().mockResolvedValue({ error: null, data: outcome }),
+      })
+      const stop = startTauriShadowCoverage(deps)
+      await flush()
+      stop()
+    }
+    expect(consoleError).not.toHaveBeenCalled()
+    consoleError.mockRestore()
   })
 })
