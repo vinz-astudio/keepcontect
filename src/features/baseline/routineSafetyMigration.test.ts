@@ -1,19 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import fs from 'node:fs'
-import path from 'node:path'
+import { readHistoricalMigration } from '../../../scripts/migration-sources.mjs'
 
+// S0 squashed the per-file migration history into one baseline generated from
+// production and moved the originals into supabase/migrations-archive. This
+// test asserts on the text of the Gate 1 containment migration, which is now
+// history rather than a shipping file — so it reads it from the archive, and
+// readHistoricalMigration throws with the directories it searched if the file
+// moves again, instead of degrading into "expected 0 to be 1".
 describe('Routine Safety Migration Static SQL Contracts', () => {
-  const migrationsDir = path.resolve('supabase/migrations')
-
   it('locates the single Gate 1 containment migration and asserts exact SQL requirements', () => {
-    const files = fs.readdirSync(migrationsDir)
-
-    // 1. Require exactly one filename containing routine_ai_gate1_containment
-    const gate1MigrationFiles = files.filter(file => file.includes('routine_ai_gate1_containment'))
-    expect(gate1MigrationFiles.length).toBe(1) // FAIL: No routine_ai_gate1_containment migration file exists yet
-
-    const gate1Migration = gate1MigrationFiles[0]
-    const sqlContent = fs.readFileSync(path.join(migrationsDir, gate1Migration), 'utf8')
+    const gate1 = readHistoricalMigration('routine_ai_gate1_containment')
+    const sqlContent = gate1.sql
 
     // 2. Assert ingest_version = 2 (not just 'v2')
     expect(sqlContent).toContain('ingest_version = 2')

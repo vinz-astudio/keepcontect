@@ -1,13 +1,21 @@
 -- pgTAP database-level routine safety and security tests
 BEGIN;
 
-SELECT plan(35);
+SELECT plan(36);
 
 -- Setup test users with typical columns to avoid constraints
 INSERT INTO auth.users (id, email, aud, role) VALUES
   ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'usera@example.com', 'authenticated', 'authenticated'),
   ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380b22', 'userb@example.com', 'authenticated', 'authenticated')
 ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.profiles (id, display_name, routine_pattern, consent_data_sharing) VALUES
+  ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Routine safety ward', 'regular_9to5', false),
+  ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380b22', 'Routine safety creator', 'regular_9to5', false);
+
+INSERT INTO public.user_settings (user_id, sensitivity, timezone) VALUES
+  ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'balanced', 'UTC'),
+  ('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380b22', 'balanced', 'UTC');
 
 -- Setup baseline device_state and alerts for User A
 INSERT INTO public.device_state (user_id, last_heartbeat_at)
@@ -243,8 +251,8 @@ SELECT results_eq(
 SET local role service_role;
 SELECT results_eq(
     $$ SELECT status FROM public.alerts WHERE user_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' ORDER BY opened_at DESC LIMIT 1 $$,
-    $$ VALUES ('resolved'::text) $$,
-    'A genuinely live batch event observed and received after opened_at must resolve the alert'
+    $$ VALUES ('open'::text) $$,
+    'Passive live activity must not answer or resolve a safety alert'
 );
 
 -- 20. Ingestion bounds: record_behavior_pings with >100 elements throws (limit exceeded)
@@ -300,9 +308,30 @@ SELECT lives_ok(
     'Executing daily aggregations RPC directly succeeds'
 );
 
--- ADR-0022: sensitivity remains an additive user tool on the deterministic
--- 1.5h Gate 1 base. Learned profiles stay quarantined from live safety.
+-- ADR-0037: no accepted account evidence means no threshold. Once a usable
+-- 90-minute account bound exists, sensitivity remains an additive user tool.
+-- Legacy learned profiles stay quarantined from live safety.
 RESET ROLE;
+SELECT is(
+    private.silence_threshold('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'),
+    NULL::interval,
+    'No usable account evidence must produce no invented live threshold'
+);
+
+INSERT INTO public.account_normal_bounds (
+  user_id, through_date, lookback_days, false_alarm_budget,
+  window_starts_at, window_ends_at, event_count, gap_count, evidence_days,
+  first_event_at, last_event_at, sleep_window_applied, order_index,
+  normal_upper_bound_minutes, largest_gap_minutes,
+  second_largest_gap_minutes, has_usable_signal, sensitivity,
+  buffer_minutes, threshold_minutes, episodes_new
+) VALUES (
+  'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '2026-08-09', 30, 1,
+  '2026-07-11 00:00:00+00', '2026-08-10 00:00:00+00', 10, 9, 5,
+  '2026-08-01 00:00:00+00', '2026-08-09 00:00:00+00', false, 2,
+  90, 120, 90, true, 'balanced', 45, 135, 0
+);
+
 UPDATE public.user_settings
 SET sensitivity = 'high'
 WHERE user_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';

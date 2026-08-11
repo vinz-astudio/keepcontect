@@ -1413,7 +1413,23 @@ export type Database = {
       }
       join_community_by_code: { Args: { _code: string }; Returns: string }
       join_group_by_code: { Args: { _code: string }; Returns: string }
+      my_protection_health: {
+        Args: never
+        Returns: {
+          state: string
+          since: string | null
+          cause: string | null
+          prompted_at: string | null
+          acknowledged_at: string | null
+          recovery_required: string | null
+          last_valid_coverage_at: string | null
+        }[]
+      }
       my_routine_status: { Args: never; Returns: Json }
+      my_special_attention: {
+        Args: never
+        Returns: { subject_id: string; created_at: string }[]
+      }
       process_checkin_tasks: { Args: never; Returns: undefined }
       process_escalations: { Args: never; Returns: undefined }
       prune_stale_clients: { Args: never; Returns: undefined }
@@ -1495,10 +1511,15 @@ export type Database = {
       }
       revoke_checkin_task: { Args: { _task: string }; Returns: undefined }
       run_daily_aggregations: { Args: never; Returns: undefined }
+      acknowledge_protection_health: { Args: never; Returns: undefined }
       send_concern: { Args: { _target: string }; Returns: undefined }
       send_heartbeat: { Args: { _status: string }; Returns: undefined }
       send_test_notification: { Args: never; Returns: undefined }
       set_display_name: { Args: { _name: string }; Returns: undefined }
+      set_special_attention: {
+        Args: { _subject: string; _enabled: boolean }
+        Returns: undefined
+      }
       set_group_community: {
         Args: { _community?: string; _group: string }
         Returns: undefined

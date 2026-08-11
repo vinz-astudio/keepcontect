@@ -1,0 +1,89 @@
+/*
+ * ADR-0039 makes three states mean three different things, and the styling has
+ * to carry that difference or the copy is arguing with the page.
+ *
+ *   ready    never renders — silence is what working looks like
+ *   limited  a known failure, and known failures are meant to be seen
+ *   unknown  not safe and not dangerous; it must not borrow the alarm's colour
+ *
+ * So `limited` gets the warning tone and a left rule that makes it hard to
+ * skim past, and `unknown` stays deliberately quiet — a neutral surface that
+ * says "we cannot tell" without implying either reassurance or emergency.
+ * Nothing here uses --danger: this card reports on the watching, never on the
+ * person being watched, and must never be mistaken for an alert about them.
+ */
+
+.health {
+  flex: 0 0 auto;
+  margin: 0 1rem 0.5rem;
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  background: var(--neutral-soft);
+}
+
+.health--limited {
+  background: var(--warning-soft);
+  border-color: var(--line);
+  border-left-color: var(--warning);
+}
+
+.health--unknown {
+  background: var(--neutral-soft);
+  border-color: var(--line);
+  border-left-color: var(--quiet);
+}
+
+.health__title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.health__state {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.health--limited .health__state {
+  color: var(--warning);
+}
+
+.health__detail {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+.health__ack {
+  align-self: flex-start;
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.health__ack:hover:not(:disabled) {
+  color: var(--fg);
+  border-color: var(--accent-line);
+}
+
+.health__ack:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

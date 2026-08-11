@@ -106,6 +106,14 @@ values (
   'authenticated'
 );
 
+insert into public.profiles (id, display_name, routine_pattern, consent_data_sharing)
+values (
+  'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380c33',
+  'Routine mode fixture',
+  'regular_9to5',
+  false
+);
+
 update public.profiles
 set routine_pattern = 'semester_break'
 where id = 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380c33';

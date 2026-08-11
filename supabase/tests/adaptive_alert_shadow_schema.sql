@@ -280,10 +280,11 @@ SELECT results_eq(
   $$,
   $$
     VALUES
+      ('account-shadow-cycle-v1'::text, '37 2 * * *'::text),
       ('adaptive-alert-shadow-cycle-v1'::text, '*/5 * * * *'::text),
       ('adaptive-alert-shadow-maintenance-v1'::text, '17 2 * * *'::text)
   $$,
-  'Phase 2 schedules only the two accepted adaptive-shadow jobs'
+  'shadow-family cron is exactly the three accepted jobs and nothing else'
 );
 
 CREATE TEMP TABLE shadow_live_snapshot AS
@@ -301,10 +302,13 @@ SELECT
   (SELECT count(*)::bigint FROM public.checkin_tasks) AS checkin_tasks_count,
   (SELECT coalesce(md5(string_agg(to_jsonb(c)::text, ',' ORDER BY c.id)), '') FROM public.checkin_tasks c) AS checkin_tasks_hash;
 
+-- ADR-0028/ADR-0038: a fresh base ships no model version at all. Seeding one is
+-- an environment activation step, so this file creates its own below rather
+-- than inheriting a migration-seeded row.
 SELECT is(
   (SELECT count(*)::integer FROM public.alert_model_versions),
-  1,
-  'Phase 2 seeds exactly one history-enabled shadow model version'
+  0,
+  'fresh base seeds no shadow model version'
 );
 
 INSERT INTO public.alert_model_versions (id, name, status, config, config_sha256, evidence_version)
@@ -312,7 +316,7 @@ VALUES (
   '41000000-0000-0000-0000-000000000001',
   'shadow-schema-test',
   'draft',
-  '{"sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8,"training_horizon_days":30,"intervention_window_minutes":30},"context":{"definition_version":"shadow-schema-test-v1","day_partition":"all_days","hour_bucket_minutes":60},"personal":{"min_samples":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"min_confidence":0.7,"confidence_formula_version":"support_ratio_v1"},"cohort":{"min_contributors":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"min_confidence":0.5,"contribution_floor_minutes":1,"contribution_ceiling_minutes":600,"confidence_formula_version":"cohort_support_min_v1","algorithm":"trimmed_mean","trim_fraction":0.1},"sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},"candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},"sleep_compensation":{"max_start_delay_minutes":60,"max_wake_advance_minutes":60,"max_wake_delay_minutes":60,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":1,"timezone_tolerance_minutes":30},"evaluator":{"contract_version":"adaptive_candidate_v1"},"emergency":{"contract_version":"adr0022_v1","neutral_minutes":90,"expected_live_definition_sha256":"1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21"}}'::jsonb,
+  '{"sessionization":{"gap_minutes":30,"per_user_day_gap_cap":8,"training_horizon_days":30,"intervention_window_minutes":30},"context":{"definition_version":"shadow-schema-test-v1","day_partition":"all_days","hour_bucket_minutes":60},"personal":{"min_samples":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"min_confidence":0.7,"confidence_formula_version":"support_ratio_v1"},"cohort":{"min_contributors":3,"min_support_dates":2,"min_span_days":2,"max_age_days":30,"min_confidence":0.5,"contribution_floor_minutes":1,"contribution_ceiling_minutes":600,"confidence_formula_version":"cohort_support_min_v1","algorithm":"trimmed_mean","trim_fraction":0.1},"sensitivity_buffers_minutes":{"high":0,"balanced":45,"low":90},"candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},"sleep_compensation":{"max_start_delay_minutes":60,"max_wake_advance_minutes":60,"max_wake_delay_minutes":60,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":1,"timezone_tolerance_minutes":30},"evaluator":{"contract_version":"adaptive_candidate_v1"},"emergency":{"contract_version":"adr0022_v1","neutral_minutes":90,"expected_live_definition_sha256":"c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150"}}'::jsonb,
   repeat('a', 64),
   'canonical-v2'
 );

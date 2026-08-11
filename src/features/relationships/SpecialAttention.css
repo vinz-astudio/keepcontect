@@ -1,0 +1,53 @@
+/*
+ * A private preference sitting inside someone else's card. It has to be
+ * reachable without looking like a statement about them: no accent fill, no
+ * badge, nothing that another person glancing at the screen would read as a
+ * label attached to that member. The hint only appears once the box is
+ * checked, because that is the only moment its promise — one notice, only
+ * after they have been prompted themselves — is worth the vertical space.
+ */
+
+.special {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.special__row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+}
+
+.special__row input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.special__row input:disabled {
+  cursor: default;
+}
+
+.special__label {
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.special__row input:checked + .special__label {
+  color: var(--fg);
+}
+
+.special__hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--quiet);
+}
+
+.special__error {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--warning);
+}

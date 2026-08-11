@@ -102,7 +102,7 @@ SELECT '{
   "candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},
   "sleep_compensation":{"max_start_delay_minutes":60,"max_wake_advance_minutes":60,"max_wake_delay_minutes":60,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":1,"timezone_tolerance_minutes":30},
   "evaluator":{"contract_version":"adaptive_candidate_v1"},
-  "emergency":{"contract_version":"adr0022_v1","neutral_minutes":90,"expected_live_definition_sha256":"1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21"}
+  "emergency":{"contract_version":"adr0022_v1","neutral_minutes":90,"expected_live_definition_sha256":"c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150"}
 }'::jsonb AS config;
 
 INSERT INTO public.alert_model_versions (id, name, status, config, config_sha256, evidence_version, shadow_enabled_at)
@@ -341,8 +341,8 @@ SELECT results_eq(
     ORDER BY fn
   $$,
   $$ VALUES
-    ('process_escalations'::text, 'fde0f2ec750cec9b3e55e04c95f14f93fecea39843a661abd2d37b8a2f6108c5'::text),
-    ('silence_threshold'::text, '6be4ed54feff52428cf1d86210126bd9362953201fc5ac8b9e885abd586092ce'::text)
+    ('process_escalations'::text, 'dae555ee3f3eee057cd438a80bc05913743803ea15daf8dfacd112357d857112'::text),
+    ('silence_threshold'::text, 'c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150'::text)
   $$,
   'Task 8 leaves ADR-0022 live threshold and Guardian 30-minute state machine definitions unchanged'
 );

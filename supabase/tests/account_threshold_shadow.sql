@@ -5,18 +5,20 @@
 
 BEGIN;
 
-SELECT plan(15);
+SELECT plan(18);
 
 INSERT INTO auth.users (id, email, aud, role) VALUES
   ('36000000-0000-4000-8000-000000000001', 'ats-tighten@example.invalid', 'authenticated', 'authenticated'),
   ('36000000-0000-4000-8000-000000000002', 'ats-sleep@example.invalid', 'authenticated', 'authenticated'),
-  ('36000000-0000-4000-8000-000000000003', 'ats-quiet@example.invalid', 'authenticated', 'authenticated')
+  ('36000000-0000-4000-8000-000000000003', 'ats-quiet@example.invalid', 'authenticated', 'authenticated'),
+  ('36000000-0000-4000-8000-000000000004', 'ats-no-live@example.invalid', 'authenticated', 'authenticated')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.profiles (id, display_name, routine_pattern, consent_data_sharing) VALUES
   ('36000000-0000-4000-8000-000000000001', 'ATS tighten', 'regular_9to5', false),
   ('36000000-0000-4000-8000-000000000002', 'ATS sleep', 'regular_9to5', false),
-  ('36000000-0000-4000-8000-000000000003', 'ATS quiet', 'regular_9to5', false)
+  ('36000000-0000-4000-8000-000000000003', 'ATS quiet', 'regular_9to5', false),
+  ('36000000-0000-4000-8000-000000000004', 'ATS no live comparator', 'regular_9to5', false)
 ON CONFLICT (id) DO UPDATE SET
   display_name = EXCLUDED.display_name,
   routine_pattern = EXCLUDED.routine_pattern,
@@ -25,12 +27,37 @@ ON CONFLICT (id) DO UPDATE SET
 INSERT INTO public.user_settings (user_id, sensitivity, timezone, sleep_start_local, sleep_end_local) VALUES
   ('36000000-0000-4000-8000-000000000001', 'high', 'UTC', NULL, NULL),
   ('36000000-0000-4000-8000-000000000002', 'high', 'UTC', '23:00', '07:00'),
-  ('36000000-0000-4000-8000-000000000003', 'high', 'UTC', '23:00', '07:00')
+  ('36000000-0000-4000-8000-000000000003', 'high', 'UTC', '23:00', '07:00'),
+  ('36000000-0000-4000-8000-000000000004', 'high', 'UTC', NULL, NULL)
 ON CONFLICT (user_id) DO UPDATE SET
   sensitivity = EXCLUDED.sensitivity,
   timezone = EXCLUDED.timezone,
   sleep_start_local = EXCLUDED.sleep_start_local,
   sleep_end_local = EXCLUDED.sleep_end_local;
+
+-- The first three subjects have an evidence-backed live comparator. Subject 4
+-- deliberately does not: ADR-0037 requires the live threshold to stay NULL.
+INSERT INTO public.account_normal_bounds (
+  user_id, through_date, lookback_days, false_alarm_budget,
+  window_starts_at, window_ends_at, event_count, gap_count, evidence_days,
+  first_event_at, last_event_at, sleep_window_applied, order_index,
+  normal_upper_bound_minutes, largest_gap_minutes,
+  second_largest_gap_minutes, has_usable_signal, sensitivity,
+  buffer_minutes, threshold_minutes, episodes_new
+)
+SELECT
+  subject.user_id, '2026-03-10'::date, 30, 1,
+  '2026-02-09T00:00:00Z'::timestamptz,
+  '2026-03-11T00:00:00Z'::timestamptz,
+  2, 1, 2,
+  '2026-03-01T00:00:00Z'::timestamptz,
+  '2026-03-01T03:20:00Z'::timestamptz,
+  false, 1, 90, 90, 90, true, 'high', 0, 90, 0
+FROM (VALUES
+  ('36000000-0000-4000-8000-000000000001'::uuid),
+  ('36000000-0000-4000-8000-000000000002'::uuid),
+  ('36000000-0000-4000-8000-000000000003'::uuid)
+) AS subject(user_id);
 
 -- 'high' sensitivity keeps the buffer at 0, so every threshold below is the
 -- neutral value itself and the arithmetic stays visible.
@@ -58,7 +85,11 @@ INSERT INTO public.behavior_pings (user_id, kind, source, at, received_at, inges
   -- Subject 3: the same silence, but it ends at 08:30, while the post-wake
   -- grace still runs to 09:00. Nothing may fire.
   ('36000000-0000-4000-8000-000000000003', 'app', 'capacitor', '2026-03-01T22:00:00Z', '2026-03-01T22:00:00Z', 2),
-  ('36000000-0000-4000-8000-000000000003', 'app', 'capacitor', '2026-03-02T08:30:00Z', '2026-03-02T08:30:00Z', 2);
+  ('36000000-0000-4000-8000-000000000003', 'app', 'capacitor', '2026-03-02T08:30:00Z', '2026-03-02T08:30:00Z', 2),
+
+  -- Subject 4 has enough candidate evidence, but no accepted live comparator.
+  ('36000000-0000-4000-8000-000000000004', 'app', 'capacitor', '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z', 2),
+  ('36000000-0000-4000-8000-000000000004', 'app', 'capacitor', '2026-03-01T03:20:00Z', '2026-03-01T03:20:00Z', 2);
 
 CREATE TEMP TABLE _live_before ON COMMIT DROP AS
 SELECT
@@ -67,7 +98,8 @@ SELECT
   (SELECT count(*) FROM public.notifications) AS notifications,
   (SELECT count(*) FROM public.behavior_pings) AS behavior_pings,
   (SELECT count(*) FROM public.device_state) AS device_state,
-  (SELECT private.silence_threshold('36000000-0000-4000-8000-000000000001')) AS live_threshold;
+  (SELECT private.silence_threshold('36000000-0000-4000-8000-000000000001')) AS live_threshold,
+  (SELECT private.silence_threshold('36000000-0000-4000-8000-000000000004')) AS missing_live_threshold;
 
 -- k = 0 keeps the neutral value equal to the account's own p95.
 SELECT lives_ok(
@@ -165,6 +197,38 @@ SELECT ok(
   'an account with no device state and no monitored membership is marked unalertable'
 );
 
+SELECT is(
+  (SELECT count(*) FROM public.account_threshold_shadow
+   WHERE user_id = '36000000-0000-4000-8000-000000000004' AND shrinkage_k = 0),
+  1::bigint,
+  'a candidate row is retained when the accepted live comparator is unavailable'
+);
+
+SELECT ok(
+  (SELECT neutral_minutes IS NOT NULL
+          AND candidate_floored_minutes IS NOT NULL
+          AND candidate_unfloored_minutes IS NOT NULL
+          AND gaps_evaluated IS NOT NULL
+          AND episodes_candidate_floored IS NOT NULL
+          AND episodes_candidate_unfloored IS NOT NULL
+   FROM public.account_threshold_shadow
+   WHERE user_id = '36000000-0000-4000-8000-000000000004' AND shrinkage_k = 0),
+  'candidate evidence remains populated without a live comparator'
+);
+
+SELECT ok(
+  (SELECT live_threshold_minutes IS NULL
+          AND episodes_live IS NULL
+          AND episodes_candidate_only IS NULL
+          AND episodes_live_only IS NULL
+          AND earliest_divergence_at IS NULL
+          AND earliest_divergence_gap_minutes IS NULL
+          AND longest_candidate_only_gap_minutes IS NULL
+   FROM public.account_threshold_shadow
+   WHERE user_id = '36000000-0000-4000-8000-000000000004' AND shrinkage_k = 0),
+  'all live-dependent values stay NULL when comparison is impossible'
+);
+
 SELECT ok(
   (SELECT count(*) FROM public.alerts) = (SELECT alerts FROM _live_before)
   AND (SELECT count(*) FROM public.alert_events) = (SELECT alert_events FROM _live_before)
@@ -172,7 +236,9 @@ SELECT ok(
   AND (SELECT count(*) FROM public.behavior_pings) = (SELECT behavior_pings FROM _live_before)
   AND (SELECT count(*) FROM public.device_state) = (SELECT device_state FROM _live_before)
   AND (SELECT private.silence_threshold('36000000-0000-4000-8000-000000000001'))
-      IS NOT DISTINCT FROM (SELECT live_threshold FROM _live_before),
+      IS NOT DISTINCT FROM (SELECT live_threshold FROM _live_before)
+  AND (SELECT private.silence_threshold('36000000-0000-4000-8000-000000000004'))
+      IS NOT DISTINCT FROM (SELECT missing_live_threshold FROM _live_before),
   'replaying a counterfactual raises no real alert and moves no live threshold'
 );
 

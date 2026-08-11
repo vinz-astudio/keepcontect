@@ -205,6 +205,12 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         }
         arm()
         flushRecord()
+        // Unconditional, and deliberately before the lock check. This records
+        // that the watcher was awake and looking, which is true of this wake
+        // even when the device is locked and the answer below is "nothing".
+        // Reporting coverage only when something was observed is what let
+        // S3-C2 conclude that a person's normal quiet was fourteen minutes.
+        reportCoverageLease()
 
         let unlocked = UIApplication.shared.isProtectedDataAvailable
         if unlocked {
@@ -411,6 +417,46 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
                 completion?()
             }.resume()
         }
+    }
+
+    // MARK: - Coverage lease
+
+    /// Tells the server the watcher was awake at this moment (ADR-0039).
+    ///
+    /// Fire-and-forget on purpose: a wake has a few seconds of budget and the
+    /// activity sample is the thing that must not be cut short. A dropped lease
+    /// costs one interval, and the interval builder already treats a wider gap
+    /// as `unknown` rather than inventing coverage across it.
+    func reportCoverageLease() {
+        guard let (baseUrl, token) = credentials(),
+              let url = URL(string: baseUrl + "/functions/v1/shadow-coverage-lease"),
+              let clientId = defaults.string(forKey: Key.clientId),
+              let appVersion = defaults.string(forKey: Key.appVersion) else { return }
+
+        let capability = AlertShadowCoverage.Capability(
+            pushWakeAvailable: defaults.string(forKey: Key.token) != nil,
+            healthWakeAvailable: HealthWake.shared.isObserving,
+            clientId: clientId,
+            appVersion: appVersion
+        )
+        // An install with no working wake source must not lease coverage it
+        // cannot deliver; saying nothing leaves the account `unknown`, which is
+        // the honest reading.
+        guard capability.isOperational else { return }
+
+        let body = AlertShadowCoverage.body(
+            token: token,
+            capability: capability,
+            capabilitySha256: AlertShadowCoverage.capabilitySha256(capability),
+            observedAt: Self.iso8601.string(from: Date()),
+            eventId: UUID()
+        )
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data(body.utf8)
+        session.dataTask(with: request).resume()
     }
 
     // MARK: - Helpers

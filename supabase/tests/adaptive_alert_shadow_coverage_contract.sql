@@ -1,9 +1,10 @@
 -- ADR-0028 production-shadow coverage lease contract.
--- Phase 2 enables the bounded runtime, while its explicit kill switch remains
--- source-identified, non-notifying, and fail-closed.
+-- Phase 2 ships the bounded runtime unactivated (ADR-0038); this test owns its
+-- own activation, and the explicit kill switch remains source-identified,
+-- non-notifying, and fail-closed.
 
 BEGIN;
-SELECT plan(38);
+SELECT plan(39);
 
 INSERT INTO auth.users (id, email, aud, role)
 VALUES (
@@ -46,7 +47,7 @@ SELECT '{
   "candidate_bounds":{"floor_minutes":1,"ceiling_minutes":600},
   "sleep_compensation":{"max_start_delay_minutes":60,"max_wake_advance_minutes":60,"max_wake_delay_minutes":60,"max_update_minutes_per_day":30,"min_positive_nights":2,"lookback_nights":3,"min_late_events_per_night":1,"timezone_tolerance_minutes":30},
   "evaluator":{"contract_version":"adaptive_candidate_v1"},
-  "emergency":{"contract_version":"adr0022_v1","neutral_minutes":90,"expected_live_definition_sha256":"1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21"}
+  "emergency":{"contract_version":"adr0022_v1","neutral_minutes":90,"expected_live_definition_sha256":"c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150"}
 }'::jsonb AS config;
 
 INSERT INTO public.alert_model_versions (
@@ -76,7 +77,27 @@ SELECT has_function(
   ARRAY['uuid','timestamp with time zone','integer']
 );
 
--- 4: accepted Phase-2 singleton is enabled but remains bounded.
+-- 4: ADR-0028/ADR-0038 - a fresh base is unactivated and fail-closed, while the
+-- accepted Phase-2 bounds are already in place. Activation is an environment
+-- stage, so no migration may ship the runtime pre-enabled.
+SELECT results_eq(
+  $$
+    SELECT enabled, accept_coverage_leases, max_population,
+      detail_retention_days, cycle_timeout_seconds,
+      max_consecutive_failures, consecutive_failures
+    FROM private.adaptive_alert_shadow_runtime_config
+    WHERE singleton
+  $$,
+  $$ VALUES (false, false, 10000, 35, 120, 3, 0) $$,
+  'fresh base leaves Phase-2 runtime unactivated but already bounded'
+);
+
+-- 5: this test owns its own activation, and activation is a flag change only -
+-- it may never widen the accepted bounds.
+UPDATE private.adaptive_alert_shadow_runtime_config
+SET enabled = true, accept_coverage_leases = true
+WHERE singleton;
+
 SELECT results_eq(
   $$
     SELECT enabled, accept_coverage_leases, max_population,
@@ -86,7 +107,7 @@ SELECT results_eq(
     WHERE singleton
   $$,
   $$ VALUES (true, true, 10000, 35, 120, 3, 0) $$,
-  'Phase-2 runtime is enabled and bounded'
+  'test-owned activation enables the runtime without widening its bounds'
 );
 
 UPDATE private.adaptive_alert_shadow_runtime_config

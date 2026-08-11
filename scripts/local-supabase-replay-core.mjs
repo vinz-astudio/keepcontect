@@ -128,6 +128,42 @@ async function assertResolvedDisposableContainment(supabaseRoot, boundary, outpu
   }
 }
 
+// S0 folded the per-file migration history into one baseline generated from
+// production and moved the originals into supabase/migrations-archive. This
+// harness exists to prove that replaying the repository's SQL locally survives
+// its two authorized UTF-8 BOMs, and both BOM-bearing files now live only in
+// the archive — the live set has no BOM at all. So the harness follows its
+// subject: it replays whichever directory still holds the pinned inputs.
+//
+// Without this it failed with a bare ENOENT, which reads as a broken test
+// rather than as "the thing under test moved".
+const ARCHIVE_FROM_REPO = join('migrations-archive', 'from-repo');
+
+/** Where a given repository currently keeps the pinned replay inputs. */
+export async function resolveMigrationsRootFor(repoRoot) {
+  return resolveMigrationsRoot(join(resolve(repoRoot), 'supabase'));
+}
+
+async function resolveMigrationsRoot(supabaseRoot) {
+  const candidates = [join(supabaseRoot, 'migrations'), join(supabaseRoot, ARCHIVE_FROM_REPO)];
+  for (const candidate of candidates) {
+    const present = await Promise.all(
+      Object.keys(PINNED_INPUTS).map(async (filename) => {
+        try {
+          await readFile(join(candidate, filename));
+          return true;
+        } catch {
+          return false;
+        }
+      }),
+    );
+    if (present.every(Boolean)) return candidate;
+  }
+  throw new Error(
+    `Pinned replay inputs are in neither ${candidates.join(' nor ')}.`,
+  );
+}
+
 async function verifyPinnedInputs(migrationsRoot) {
   const verifiedInputs = {};
 
@@ -208,10 +244,24 @@ async function listFiles(root, prefix = '') {
   return files;
 }
 
-async function verifyCopiedTree(sourceSupabaseRoot, copiedSupabaseRoot, adaptedRoutine) {
+// The copied tree always lands in <disposable>/supabase/migrations, but the
+// source may be supabase/migrations or the archive the pinned inputs moved to,
+// so a relative path is not enough to find the original on disk.
+function sourcePathFor(sourceSupabaseRoot, sourceMigrationsRoot, relativePath) {
+  return relativePath.startsWith(`migrations${sep}`)
+    ? join(sourceMigrationsRoot, relativePath.slice(`migrations${sep}`.length))
+    : join(sourceSupabaseRoot, relativePath);
+}
+
+async function verifyCopiedTree(
+  sourceSupabaseRoot,
+  sourceMigrationsRoot,
+  copiedSupabaseRoot,
+  adaptedRoutine,
+) {
   const sourceFiles = [
     'config.toml',
-    ...await listFiles(join(sourceSupabaseRoot, 'migrations'), 'migrations'),
+    ...await listFiles(sourceMigrationsRoot, 'migrations'),
     ...await listFiles(join(sourceSupabaseRoot, 'tests'), 'tests'),
   ];
   const copiedFiles = [
@@ -233,7 +283,9 @@ async function verifyCopiedTree(sourceSupabaseRoot, copiedSupabaseRoot, adaptedR
   }
 
   for (const relativePath of sourceFiles) {
-    const source = await readFile(join(sourceSupabaseRoot, relativePath));
+    const source = await readFile(
+      sourcePathFor(sourceSupabaseRoot, sourceMigrationsRoot, relativePath),
+    );
     let expected = source;
 
     if (relativePath === join('migrations', '20260624140000_adaptive_routine_impl.sql')) {
@@ -283,7 +335,7 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
     resolvedRepoRoot,
     disposableProjectRoot,
   );
-  const migrationsRoot = join(supabaseRoot, 'migrations');
+  const migrationsRoot = await resolveMigrationsRoot(supabaseRoot);
   const boundary = join(supabaseRoot, '.temp');
   const verifiedInputs = await verifyPinnedInputs(migrationsRoot);
   const bomSources = await verifyAuthorizedBomInputs(migrationsRoot);
@@ -347,7 +399,12 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
     });
   }
 
-  await verifyCopiedTree(supabaseRoot, disposableSupabaseRoot, adaptedRoutine);
+  await verifyCopiedTree(
+    supabaseRoot,
+    migrationsRoot,
+    disposableSupabaseRoot,
+    adaptedRoutine,
+  );
   const verifiedAfter = await verifyPinnedInputs(migrationsRoot);
 
   if (JSON.stringify(verifiedAfter) !== JSON.stringify(verifiedInputs)) {

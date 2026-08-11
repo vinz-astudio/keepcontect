@@ -17,7 +17,20 @@ const NOTIF_KINDS = new Set([
   'test',
   'concern',
   'update',
+  'coverage_interrupted',
+  'protection_limited',
 ])
+
+/**
+ * ADR-0039: a coverage interruption is a technical fact about a device, not a
+ * claim about the person. It must never be given emergency treatment, and the
+ * server says so machine-readably with params.means_danger = false.
+ */
+export function notificationClaimsDanger(input: NotificationCopyInput): boolean {
+  const params = paramsRecord(input.params)
+  if (params.means_danger === 'false') return false
+  return input.kind === 'sos'
+}
 
 export interface NotificationCopyInput {
   kind: string

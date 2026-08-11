@@ -143,7 +143,7 @@ SELECT '{
   "emergency":{
     "contract_version":"adr0022_v1",
     "neutral_minutes":90,
-    "expected_live_definition_sha256":"1907d59473d274d46a0e8e0b9ce8027037b4494b0dddf073cb46abf67db92e21"
+    "expected_live_definition_sha256":"c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150"
   }
 }'::jsonb AS config;
 
@@ -664,10 +664,16 @@ SELECT results_eq(
   $$,
   $$
     VALUES (
-      '3a297cdf808840972909a1c0426fe3bbe4a6e67aeca3d68ece4c32589e40a63a'::text,
-      '2eb3a5de8ffb9532ad7c6e698fc3b763b31054f82abc228f8dfccb14adf67314'::text
+      '554ee00f0aa6f8418995d4a0a8b4e73e605129e98f8e92e331fb714607386be8'::text,
+      '17e32a8db4638cfb818a774b6573a539bcb381d8085df931b122037b3aafbb42'::text
     )
   $$,
+  -- Re-locked after the ADR-0037 pin re-authorization
+  -- (20260809210000_s2_reauthorize_live_threshold_pin.sql). input_sha256 covers
+  -- the model config, so the authorized pin necessarily moves it, and
+  -- output_sha256 is digest(metrics || input_sha256), so it moves with it. The
+  -- replay metrics themselves are the invariant and stay asserted by the
+  -- decision and metric checks above this tripwire.
   'stable replay fixture matches the locked golden input and output hashes'
 );
 
