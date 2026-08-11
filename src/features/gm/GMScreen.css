@@ -524,3 +524,69 @@
   border-color: var(--ok);
   color: var(--ok);
 }
+
+/*
+ * Silence kind and threshold.
+ *
+ * A dark device and a quiet person are not degrees of the same thing, so they
+ * do not share a colour ramp. `device_dark` takes the warning tone because it
+ * is a fault we can fix; `person_quiet` takes the alert tone because it is the
+ * state the funnel exists for. `unknown` stays deliberately grey — under
+ * ADR-0039 it is neither safe nor dangerous, and colouring it either way would
+ * be a claim the data does not support.
+ */
+.gm__silence {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--r-sm);
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.gm__silence.is-device_dark {
+  color: var(--warn);
+  background: var(--warning-soft);
+}
+
+.gm__silence.is-person_quiet {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.gm__silence.is-unknown {
+  color: var(--quiet);
+  background: var(--neutral-soft);
+}
+
+.gm__silence.is-none {
+  color: var(--fg-muted);
+  opacity: 0.45;
+}
+
+.gm__threshold {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+}
+
+.gm__threshold.is-set {
+  color: var(--fg);
+}
+
+/* No threshold is not a small threshold: this account cannot raise a silence
+   alert at all, which should not read as a quiet number in a column of them. */
+.gm__threshold.is-unset {
+  color: var(--fg-muted);
+}
+
+.gm__threshold-note {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--warn);
+}

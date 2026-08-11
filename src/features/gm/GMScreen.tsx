@@ -25,6 +25,11 @@ import {
 import { APP_VERSION } from '@/lib/version'
 import { formatBehaviorTime } from '@/features/gm/behaviorTime'
 import {
+  formatThreshold,
+  isSilenceJudgeable,
+  readSilence,
+} from '@/features/gm/gmSilenceDisplay'
+import {
   CONCERN_NEEDS_ALERT_MESSAGE,
   concernErrorMessage,
   gmConcernEligible,
@@ -43,6 +48,16 @@ interface UserRow {
   alerted: boolean
   /** 基于 behavior_pings 的统一状态，与 process_escalations 保持一致 */
   status: 'alert' | 'active' | 'quiet' | 'silent' | 'never'
+  /** 告警成因。dark_device 是设备失联，silence 才是人的异常沉默 —— 两者
+   *  要采取的行动相反，所以徽章旁边必须写出来。 */
+  alert_cause: 'silence' | 'dark_device' | 'concern' | 'sos' | null
+  alert_stage: string | null
+  alert_opened_at: string | null
+  /** 这段安静属于哪一类，由设备心跳区分，不依赖是否已经告警。 */
+  silence_kind: 'person_quiet' | 'device_dark' | 'unknown' | null
+  /** 该账户实际被判断的阈值(分钟)。null = 没有可用证据，因此不会触发沉默告警。 */
+  threshold_minutes: number | null
+  threshold_basis: GmClient['threshold_basis'] | null
   /** GM mute: null=未静音, 'indefinite'=无限期, ISO string=到期时间 */
   muted_until: string | null
 }
@@ -212,6 +227,12 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
             last_behavior_at: null,
             alerted: false,
             status: 'never' as const,
+            alert_cause: null,
+            alert_stage: null,
+            alert_opened_at: null,
+            silence_kind: null,
+            threshold_minutes: null,
+            threshold_basis: null,
             muted_until: null,
           }
         if (c.platform || c.app_version) r.clients.push(c)
@@ -229,6 +250,15 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
         }
 
         if (c.alerted) r.alerted = true
+
+        // These are per-person facts the server repeats on every device row, so
+        // the first non-null wins rather than the last device iterated.
+        r.alert_cause ??= c.alert_cause ?? null
+        r.alert_stage ??= c.alert_stage ?? null
+        r.alert_opened_at ??= c.alert_opened_at ?? null
+        r.silence_kind ??= c.silence_kind ?? null
+        r.threshold_minutes ??= c.threshold_minutes ?? null
+        r.threshold_basis ??= c.threshold_basis ?? null
 
         // Use server-computed status (based on behavior_pings, matching process_escalations)
         if (c.status) {
@@ -771,6 +801,8 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
               <th style={{ width: '100px' }}>ID</th>
               <th>{lang === 'zh' ? '名字' : 'Name'}</th>
               <th style={{ width: '150px' }}>{lang === 'zh' ? '最新行为' : 'Last behavior'}</th>
+              <th style={{ width: '130px' }}>{lang === 'zh' ? '沉默类型' : 'Silence kind'}</th>
+              <th style={{ width: '120px' }}>{lang === 'zh' ? '当前阈值' : 'Threshold'}</th>
               <th>{lang === 'zh' ? '设备与版本' : 'Devices & Versions'}</th>
               <th style={{ width: '320px', textAlign: 'right' }}>{lang === 'zh' ? '操作' : 'Actions'}</th>
             </tr>
@@ -835,6 +867,72 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
                       {behaviorTime.exact && (
                         <span className="gm__behavior-exact">{behaviorTime.exact}</span>
                       )}
+                    </td>
+                    <td className="gm__table-silence">
+                      {(() => {
+                        const reading = readSilence(r)
+                        if (!reading) {
+                          return <span className="gm__silence is-none">—</span>
+                        }
+                        const label =
+                          reading === 'device_dark'
+                            ? (lang === 'zh' ? '设备失联' : 'Device dark')
+                            : reading === 'person_quiet'
+                              ? (lang === 'zh' ? '人未活动' : 'Person quiet')
+                              : (lang === 'zh' ? '未知' : 'Unknown')
+                        const why =
+                          reading === 'device_dark'
+                            ? (lang === 'zh'
+                                ? '采集器停了,我们看不到这个人 —— 这是设备问题,不代表对方出事。先修采集,别惊动群组。'
+                                : 'The collector stopped, so we cannot see this person. A device fault, not a claim about them. Fix the collector rather than alarming the group.')
+                            : reading === 'person_quiet'
+                              ? (lang === 'zh'
+                                  ? '设备心跳正常,但没有活动 —— 这才是真正的异常沉默,属于告警漏斗。'
+                                  : 'The device is still reporting but shows no activity. This is the silence the alert funnel is for.')
+                              : (lang === 'zh'
+                                  ? '没有设备心跳可依据,无法区分。未知既不代表安全,也不代表危险。'
+                                  : 'No heartbeat to judge by. Unknown is neither safe nor dangerous.')
+                        return (
+                          <span className={`gm__silence is-${reading}`} title={why}>
+                            {label}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td className="gm__table-threshold">
+                      {(() => {
+                        const basis = r.threshold_basis
+                        const judgeable = isSilenceJudgeable(r)
+                        const detail = basis
+                          ? [
+                              `${lang === 'zh' ? '证据日数' : 'evidence days'}: ${basis.evidence_days ?? '—'}`,
+                              `${lang === 'zh' ? '间隔样本' : 'gaps'}: ${basis.gap_count ?? '—'}`,
+                              `${lang === 'zh' ? '正常上界' : 'normal upper bound'}: ${formatThreshold(basis.normal_upper_bound_minutes)}`,
+                              `${lang === 'zh' ? '最长间隔' : 'largest gap'}: ${formatThreshold(basis.largest_gap_minutes)}`,
+                              `${lang === 'zh' ? '灵敏度' : 'sensitivity'}: ${basis.sensitivity ?? '—'} (+${basis.buffer_minutes ?? 0}m)`,
+                              `${lang === 'zh' ? '计算至' : 'through'}: ${basis.through_date ?? '—'}`,
+                            ].join('\n')
+                          : (lang === 'zh'
+                              ? '还没有为这个账户算过正常范围。'
+                              : 'No normal range has been computed for this account yet.')
+                        return (
+                          <span
+                            className={`gm__threshold ${judgeable ? 'is-set' : 'is-unset'}`}
+                            title={judgeable
+                              ? detail
+                              : (lang === 'zh'
+                                  ? '没有可用证据,因此不会为这个账户触发沉默告警。\n\n' + detail
+                                  : 'No usable evidence, so no silence alert can fire for this account.\n\n' + detail)}
+                          >
+                            {formatThreshold(r.threshold_minutes)}
+                            {!judgeable && (
+                              <span className="gm__threshold-note">
+                                {lang === 'zh' ? '不判沉默' : 'not judged'}
+                              </span>
+                            )}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className="gm__table-device" title={formatDevices(r.clients, lang)}>
                       {renderDevicesList(r.clients, lang)}

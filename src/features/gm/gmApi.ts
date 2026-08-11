@@ -17,6 +17,29 @@ export interface GmClient {
   alerted?: boolean
   web_count?: number
   status?: string | null
+  /** Why an alert is open. `dark_device` is about equipment, `silence` about a
+   *  person, and the two call for opposite responses. */
+  alert_cause?: 'silence' | 'dark_device' | 'concern' | 'sos' | null
+  alert_stage?: string | null
+  alert_opened_at?: string | null
+  /** Which kind of quiet this is, judged by the device heartbeat rather than by
+   *  whether an alert happens to be open yet. */
+  silence_kind?: 'person_quiet' | 'device_dark' | 'unknown' | null
+  /** The line this account is judged against. Null means no usable evidence,
+   *  and therefore no silence alert can fire for them at all (ADR-0037). */
+  threshold_minutes?: number | null
+  threshold_basis?: {
+    has_usable_signal?: boolean | null
+    through_date?: string | null
+    computed_at?: string | null
+    sensitivity?: string | null
+    buffer_minutes?: number | null
+    normal_upper_bound_minutes?: number | null
+    largest_gap_minutes?: number | null
+    gap_count?: number | null
+    evidence_days?: number | null
+    sleep_window_applied?: boolean | null
+  } | null
   muted_until?: string | null
 }
 
