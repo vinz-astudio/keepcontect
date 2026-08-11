@@ -13,6 +13,7 @@ describe('launchUpdate', () => {
         isTauri: () => true,
         isNativePlatform: () => false,
         getTauriInternals: () => ({ invoke }),
+        openExternalBrowser: vi.fn(),
         openCapacitorBrowser: vi.fn(),
         openWindow,
         reload,
@@ -39,6 +40,7 @@ describe('launchUpdate', () => {
         isTauri: () => true,
         isNativePlatform: () => false,
         getTauriInternals: () => ({ invoke }),
+        openExternalBrowser: vi.fn(),
         openCapacitorBrowser: vi.fn(),
         openWindow,
         reload: vi.fn(),
@@ -55,7 +57,33 @@ describe('launchUpdate', () => {
     }
   })
 
-  it('opens the APK URL with Capacitor Browser on native mobile', async () => {
+  it('hands the APK to the real browser, not to an in-app tab', async () => {
+    // A Custom Tab download has no owner the system will let install it: the
+    // file lands and nothing offers to open it, which is how the update died
+    // silently on 0.6.0.
+    const openExternalBrowser = vi.fn().mockResolvedValue(undefined)
+    const openCapacitorBrowser = vi.fn()
+    const openWindow = vi.fn()
+
+    await launchUpdate(
+      { apkUrl: 'https://example.com/app.apk' },
+      {
+        isTauri: () => false,
+        isNativePlatform: () => true,
+        getTauriInternals: () => null,
+        openExternalBrowser,
+        openCapacitorBrowser,
+        openWindow,
+        reload: vi.fn(),
+      },
+    )
+
+    expect(openExternalBrowser).toHaveBeenCalledWith('https://example.com/app.apk')
+    expect(openCapacitorBrowser).not.toHaveBeenCalled()
+    expect(openWindow).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the in-app tab where no external bridge exists', async () => {
     const openCapacitorBrowser = vi.fn().mockResolvedValue(undefined)
     const openWindow = vi.fn()
 
@@ -65,6 +93,7 @@ describe('launchUpdate', () => {
         isTauri: () => false,
         isNativePlatform: () => true,
         getTauriInternals: () => null,
+        openExternalBrowser: vi.fn().mockRejectedValue(new Error('no bridge')),
         openCapacitorBrowser,
         openWindow,
         reload: vi.fn(),
@@ -84,6 +113,7 @@ describe('launchUpdate', () => {
         isTauri: () => false,
         isNativePlatform: () => false,
         getTauriInternals: () => null,
+        openExternalBrowser: vi.fn(),
         openCapacitorBrowser: vi.fn(),
         openWindow: vi.fn(),
         reload,

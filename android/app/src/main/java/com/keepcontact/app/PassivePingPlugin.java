@@ -71,6 +71,47 @@ public class PassivePingPlugin extends Plugin {
         call.resolve(new JSObject());
     }
 
+    /**
+     * Hands a URL to whatever browser the user actually uses, as a separate task.
+     *
+     * The updater used to open the APK in a Chrome Custom Tab, which is a browser
+     * living inside this app rather than a browser of its own. A file downloaded
+     * there belongs to nobody the system trusts to install it: on most builds the
+     * download completes and offers no way to open it, so the update quietly dies
+     * at the last step.
+     *
+     * Sent out to the real browser, the download is Chrome's. Chrome offers to
+     * open it, hands it to the package installer, and Play Protect scans it on the
+     * way in. The permission that matters -- install from unknown sources -- is
+     * then one the user grants to Chrome, which many have already done, instead of
+     * one this app would have to hold.
+     *
+     * Deliberately not REQUEST_INSTALL_PACKAGES. Self-installing would need a
+     * Play-restricted permission justified at review, spent on the sideload
+     * channel that ADR-0039 is retiring in favour of the Play build.
+     */
+    @PluginMethod
+    public void openExternalUrl(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || url.trim().isEmpty()) {
+            call.reject("url is required");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url));
+            // The WebView's activity is not a browser task; without this the
+            // browser would be pushed onto our back stack and closing it would
+            // land the user somewhere they did not come from.
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve(new JSObject());
+        } catch (Exception exception) {
+            // A device with no browser at all is possible. Rejecting lets the web
+            // layer fall back rather than leaving the button dead with no reason.
+            call.reject("no external handler for url", exception);
+        }
+    }
+
     @PluginMethod
     public void pingApp(PluginCall call) {
         PassivePing.pingApp(getContext());

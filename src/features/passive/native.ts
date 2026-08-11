@@ -59,9 +59,22 @@ interface PassivePingPlugin {
 
   // iOS only: HealthKit as a wake source (KC-IOS-HEALTHWAKE-SPIKE-001).
   enableHealthWake(): Promise<{ granted: boolean }>
+
+  // Android only: hand a URL to the user's real browser, in its own task.
+  openExternalUrl(options: { url: string }): Promise<void>
 }
 
 const PassivePing = registerPlugin<PassivePingPlugin>('PassivePing')
+
+/**
+ * Opens a URL in the browser the user actually uses, not in an in-app tab.
+ *
+ * Only meaningful on Android, where a Custom Tab download has no trusted owner
+ * and so offers no way to install what it just fetched.
+ */
+export async function openInExternalBrowser(url: string): Promise<void> {
+  await PassivePing.openExternalUrl({ url })
+}
 
 export async function configureNativePassivePing(
   token: string | null,
