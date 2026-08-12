@@ -2,6 +2,7 @@ import FirebaseCore
 import FirebaseMessaging
 import Foundation
 import UIKit
+import UserNotifications
 
 /// APNs/FCM registration for the iOS app.
 ///
@@ -54,6 +55,19 @@ enum PushRegistrar {
                 }
             }
             completion(granted)
+        }
+    }
+
+    /// Reads the effective system authorization. A Firebase token can survive
+    /// after notifications are disabled, so token presence is not permission.
+    static func status(completion: @escaping (Bool) -> Void) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional:
+                completion(true)
+            default:
+                completion(false)
+            }
         }
     }
 

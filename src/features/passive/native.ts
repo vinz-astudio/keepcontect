@@ -40,6 +40,7 @@ interface PassivePingPlugin {
   openAccessibilitySettings(): Promise<void>
   openAutostartSettings(): Promise<void>
   requestNotificationPermission(): Promise<void>
+  getNotificationPermissionStatus(): Promise<{ granted: boolean }>
   getFcmToken(): Promise<{ token: string }>
   consumeLaunchNotificationKind(): Promise<{ kind: string }>
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>
@@ -103,12 +104,6 @@ export async function configureNativePassivePing(
         appVersion: APP_VERSION,
         collectorContract: 'ios-passive-v1',
       })
-      // Every other iOS evidence source needs KC to already be running when the
-      // user does something, so a force-quit app goes silent until it is opened
-      // again. HealthKit is the one wake that can relaunch it. Asked for here
-      // rather than behind a settings toggle because a guard the user has to go
-      // find is a guard most users will never have.
-      await enableHealthWake()
       await PassivePing.pingApp()
       return
     }
@@ -297,6 +292,24 @@ export async function requestNativeNotificationPermission(): Promise<void> {
     await PassivePing.requestNotificationPermission()
   } catch {
     /* ignore */
+  }
+}
+
+/**
+ * Reads notification authorization from the operating system.
+ *
+ * An FCM token proves registration with Firebase, not that the user currently
+ * allows notifications. Old shells do not expose this method, so failure is
+ * deliberately returned as `false`: onboarding may ask the user to repair the
+ * setting, but must never claim it verified.
+ */
+export async function getNativeNotificationPermissionStatus(): Promise<boolean> {
+  if (!isNativePushPlatform()) return false
+  try {
+    const res = await PassivePing.getNotificationPermissionStatus()
+    return !!res?.granted
+  } catch {
+    return false
   }
 }
 

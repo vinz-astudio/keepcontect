@@ -14,6 +14,7 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "pingApp", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getGuardStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestNotificationPermission", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getNotificationPermissionStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getFcmToken", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "consumeLaunchNotificationKind", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "enableHealthWake", returnType: CAPPluginReturnPromise)
@@ -71,6 +72,12 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func requestNotificationPermission(_ call: CAPPluginCall) {
         PushRegistrar.requestPermission { granted in
+            call.resolve(["granted": granted])
+        }
+    }
+
+    @objc func getNotificationPermissionStatus(_ call: CAPPluginCall) {
+        PushRegistrar.status { granted in
             call.resolve(["granted": granted])
         }
     }

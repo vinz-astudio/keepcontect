@@ -8,6 +8,9 @@ export interface SetupCapability {
   title: string
   description: string
   state: SetupCapabilityState
+  requirement?: 'required' | 'recommended'
+  /** Honest capability-specific wording such as HealthKit's "Set up". */
+  stateLabel?: string
   actionLabel?: string
   onAction?: () => void | Promise<void>
 }

@@ -7,6 +7,7 @@ import android.content.IntentFilter;
 import android.os.PowerManager;
 import android.provider.Settings;
 import androidx.core.content.ContextCompat;
+import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -69,6 +70,14 @@ public class PassivePingPlugin extends Plugin {
             }
         }
         call.resolve(new JSObject());
+    }
+
+    /** Reads the effective OS notification setting, including user revocation. */
+    @PluginMethod
+    public void getNotificationPermissionStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("granted", NotificationManagerCompat.from(getContext()).areNotificationsEnabled());
+        call.resolve(ret);
     }
 
     /**
