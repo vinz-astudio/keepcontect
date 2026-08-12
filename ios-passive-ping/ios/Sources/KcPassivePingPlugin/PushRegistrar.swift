@@ -60,13 +60,15 @@ enum PushRegistrar {
 
     /// Reads the effective system authorization. A Firebase token can survive
     /// after notifications are disabled, so token presence is not permission.
-    static func status(completion: @escaping (Bool) -> Void) {
+    static func status(completion: @escaping (Bool, Bool) -> Void) {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             switch settings.authorizationStatus {
             case .authorized, .provisional:
-                completion(true)
+                completion(true, false)
+            case .notDetermined:
+                completion(false, true)
             default:
-                completion(false)
+                completion(false, false)
             }
         }
     }

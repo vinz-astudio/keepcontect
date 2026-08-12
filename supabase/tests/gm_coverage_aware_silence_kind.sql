@@ -1,6 +1,6 @@
 BEGIN;
 
-SELECT plan(5);
+SELECT plan(6);
 
 INSERT INTO auth.users (id, email, aud, role) VALUES
   ('61000000-0000-4000-8000-000000000001', 'gm-coverage-admin@example.invalid', 'authenticated', 'authenticated'),
@@ -8,7 +8,8 @@ INSERT INTO auth.users (id, email, aud, role) VALUES
   ('61000000-0000-4000-8000-000000000003', 'gm-coverage-android@example.invalid', 'authenticated', 'authenticated'),
   ('61000000-0000-4000-8000-000000000004', 'gm-coverage-expired@example.invalid', 'authenticated', 'authenticated'),
   ('61000000-0000-4000-8000-000000000005', 'gm-coverage-fresh-heartbeat@example.invalid', 'authenticated', 'authenticated'),
-  ('61000000-0000-4000-8000-000000000006', 'gm-coverage-no-heartbeat@example.invalid', 'authenticated', 'authenticated')
+  ('61000000-0000-4000-8000-000000000006', 'gm-coverage-no-heartbeat@example.invalid', 'authenticated', 'authenticated'),
+  ('61000000-0000-4000-8000-000000000007', 'gm-coverage-active@example.invalid', 'authenticated', 'authenticated')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.profiles (id, display_name) VALUES
@@ -17,7 +18,8 @@ INSERT INTO public.profiles (id, display_name) VALUES
   ('61000000-0000-4000-8000-000000000003', 'GM Coverage Android'),
   ('61000000-0000-4000-8000-000000000004', 'GM Coverage Expired'),
   ('61000000-0000-4000-8000-000000000005', 'GM Coverage Fresh Heartbeat'),
-  ('61000000-0000-4000-8000-000000000006', 'GM Coverage No Heartbeat')
+  ('61000000-0000-4000-8000-000000000006', 'GM Coverage No Heartbeat'),
+  ('61000000-0000-4000-8000-000000000007', 'GM Coverage Active')
 ON CONFLICT (id) DO UPDATE SET display_name = EXCLUDED.display_name;
 
 INSERT INTO public.app_admins (user_id)
@@ -38,7 +40,8 @@ INSERT INTO public.device_state (user_id, last_heartbeat_at, updated_at) VALUES
   ('61000000-0000-4000-8000-000000000002', now() - interval '2 days', now() - interval '2 days'),
   ('61000000-0000-4000-8000-000000000003', now() - interval '2 days', now() - interval '2 days'),
   ('61000000-0000-4000-8000-000000000004', now() - interval '2 days', now() - interval '2 days'),
-  ('61000000-0000-4000-8000-000000000005', now() - interval '10 minutes', now() - interval '10 minutes')
+  ('61000000-0000-4000-8000-000000000005', now() - interval '10 minutes', now() - interval '10 minutes'),
+  ('61000000-0000-4000-8000-000000000007', now() - interval '2 days', now() - interval '2 days')
 ON CONFLICT (user_id) DO UPDATE
 SET last_heartbeat_at = EXCLUDED.last_heartbeat_at,
     updated_at = EXCLUDED.updated_at;
@@ -50,7 +53,8 @@ INSERT INTO public.behavior_pings (
   ('61000000-0000-4000-8000-000000000003', 'app', now() - interval '2 days', 'capacitor', now() - interval '2 days', 2, '61100000-0000-4000-8000-000000000003'),
   ('61000000-0000-4000-8000-000000000004', 'app', now() - interval '2 days', 'capacitor', now() - interval '2 days', 2, '61100000-0000-4000-8000-000000000004'),
   ('61000000-0000-4000-8000-000000000005', 'app', now() - interval '2 days', 'capacitor', now() - interval '2 days', 2, '61100000-0000-4000-8000-000000000005'),
-  ('61000000-0000-4000-8000-000000000006', 'app', now() - interval '2 days', 'capacitor', now() - interval '2 days', 2, '61100000-0000-4000-8000-000000000006')
+  ('61000000-0000-4000-8000-000000000006', 'app', now() - interval '2 days', 'capacitor', now() - interval '2 days', 2, '61100000-0000-4000-8000-000000000006'),
+  ('61000000-0000-4000-8000-000000000007', 'app', now() - interval '30 minutes', 'capacitor', now() - interval '30 minutes', 2, '61100000-0000-4000-8000-000000000007')
 ON CONFLICT (user_id, event_id) WHERE event_id IS NOT NULL DO NOTHING;
 
 WITH model_config AS (
@@ -85,7 +89,8 @@ INSERT INTO public.alert_observation_coverage_intervals (
 ) VALUES
   ('61200000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000002', now() - interval '8 hours', now() - interval '30 minutes', 'UTC', 0, 'valid', 'valid', 'valid', now() - interval '30 minutes', now() - interval '30 minutes', 'canonical-v2', repeat('a', 64)),
   ('61200000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000003', now() - interval '8 hours', now() - interval '30 minutes', 'UTC', 0, 'valid', 'valid', 'valid', now() - interval '30 minutes', now() - interval '30 minutes', 'canonical-v2', repeat('b', 64)),
-  ('61200000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000004', now() - interval '4 days', now() - interval '3 days', 'UTC', 0, 'valid', 'valid', 'valid', now() - interval '3 days', now() - interval '3 days', 'canonical-v2', repeat('c', 64));
+  ('61200000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000004', now() - interval '4 days', now() - interval '3 days', 'UTC', 0, 'valid', 'valid', 'valid', now() - interval '3 days', now() - interval '3 days', 'canonical-v2', repeat('c', 64)),
+  ('61200000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000007', now() - interval '8 hours', now() - interval '30 minutes', 'UTC', 0, 'valid', 'valid', 'valid', now() - interval '30 minutes', now() - interval '30 minutes', 'canonical-v2', repeat('d', 64));
 
 SELECT set_config('request.jwt.claim.sub', '61000000-0000-4000-8000-000000000001', true);
 SELECT set_config('request.jwt.claim.role', 'authenticated', true);
@@ -129,6 +134,14 @@ SELECT is(
    WHERE item ->> 'user_id' = '61000000-0000-4000-8000-000000000006'),
   'unknown',
   'no coverage and no heartbeat stays unknown'
+);
+
+SELECT is(
+  (SELECT item ->> 'silence_kind'
+   FROM jsonb_array_elements(public.gm_list_clients()) AS item
+   WHERE item ->> 'user_id' = '61000000-0000-4000-8000-000000000007'),
+  NULL::text,
+  'recent behavior keeps the highest precedence over coverage and heartbeat state'
 );
 
 SELECT * FROM finish();

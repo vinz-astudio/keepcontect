@@ -19,6 +19,7 @@ import {
   isBatteryExempt,
   isUsageStatsEnabled,
   openAutostartSettings,
+  openNativeNotificationSettings,
   openUsageStatsSettings,
   requestActivityRecognitionPermission,
   requestBatteryExemption,
@@ -62,7 +63,7 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
     healthDescription: isZh
       ? '允许读取步数，为 iOS 增加一次低功耗唤醒机会。Apple 不会向 App 显示你是否拒绝了读取权限。'
       : 'Allows step-count reads to add another low-power iOS wake opportunity. Apple does not reveal whether read access was declined.',
-    unavailable: isZh ? '此环境不支持完整的被动守护。安装手机 App 可获得完整保护。' : 'This environment cannot provide full passive protection. Install the phone app for full coverage.',
+    unavailable: isZh ? '此环境不支持手机 App 的被动采集能力。安装手机 App 可使用更多低功耗信号，但系统仍可能延迟后台更新。' : 'This environment cannot use the phone app’s passive collector. The phone app adds more low-power signals, but the OS may still delay background updates.',
     enable: isZh ? '开启' : 'Enable',
     setUp: isZh ? '设置' : 'Set up',
     setUpDone: isZh ? '已设置' : 'Set up',
@@ -87,7 +88,7 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
           isBatteryExempt(),
         ])
         const notification = resolveNativeNotificationReadiness({
-          permissionGranted: notificationPermission,
+          permissionGranted: notificationPermission.granted,
           tokenAvailable: Boolean(pushToken),
         })
         // The battery exemption is not in `requiredReady`: without it the guard
@@ -103,8 +104,11 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
             key: 'notifications', icon: 'notifications_active', title: copy.notifications,
             description: copy.notificationsDescription, state: notification,
             requirement: 'required',
-            actionLabel: copy.enable,
-            onAction: async () => { await requestNativeNotificationPermission(); await refreshCapabilities(false) },
+            actionLabel: notificationPermission.canRequest ? copy.enable : copy.review,
+            onAction: async () => {
+              if (notificationPermission.canRequest) await requestNativeNotificationPermission()
+              else await openNativeNotificationSettings()
+            },
           },
           {
             key: 'motion', icon: 'directions_walk', title: copy.motion,
@@ -133,8 +137,8 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
             key: 'battery', icon: 'battery_saver',
             title: lang === 'zh' ? '允许后台运行' : 'Allow background running',
             description: lang === 'zh'
-              ? '允许 Keep Contact 后台运行,让 App 能安静和稳定地守护您,以尽可能即时地反映您的状态给予关心您的人。'
-              : 'Allow Keep Contact to run in the background, so it can watch over you quietly and reliably, and let the people who care about you know how you are.',
+              ? '允许 Keep Contact 获得更多后台唤醒机会；Android 仍可能延迟这些唤醒。'
+              : 'Allow Keep Contact to use more background wake opportunities. Android may still delay them.',
             state: batteryExempt ? 'ready' : 'action',
             requirement: 'recommended',
             actionLabel: copy.enable,
@@ -156,9 +160,9 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
         ])
         // Before APNs authorization, Firebase cannot mint an iOS token and the
         // native bridge would spend its retry window waiting for the impossible.
-        const pushToken = notificationPermission ? await getNativeFcmToken() : null
+        const pushToken = notificationPermission.granted ? await getNativeFcmToken() : null
         const notification = resolveNativeNotificationReadiness({
-          permissionGranted: notificationPermission,
+          permissionGranted: notificationPermission.granted,
           tokenAvailable: Boolean(pushToken),
         })
         requiredReady = isIosRequiredSetupReady({
@@ -177,8 +181,11 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
             key: 'notifications', icon: 'notifications_active', title: copy.notifications,
             description: copy.notificationsDescription, state: notification,
             requirement: 'required',
-            actionLabel: copy.enable,
-            onAction: async () => { await requestNativeNotificationPermission(); await refreshCapabilities(false) },
+            actionLabel: notificationPermission.canRequest ? copy.enable : copy.review,
+            onAction: async () => {
+              if (notificationPermission.canRequest) await requestNativeNotificationPermission()
+              else await openNativeNotificationSettings()
+            },
           },
           {
             key: 'guard', icon: 'shield', title: copy.guard,

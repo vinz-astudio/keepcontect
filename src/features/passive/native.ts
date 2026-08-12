@@ -40,7 +40,8 @@ interface PassivePingPlugin {
   openAccessibilitySettings(): Promise<void>
   openAutostartSettings(): Promise<void>
   requestNotificationPermission(): Promise<void>
-  getNotificationPermissionStatus(): Promise<{ granted: boolean }>
+  getNotificationPermissionStatus(): Promise<{ granted: boolean; canRequest: boolean }>
+  openNotificationSettings(): Promise<void>
   getFcmToken(): Promise<{ token: string }>
   consumeLaunchNotificationKind(): Promise<{ kind: string }>
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>
@@ -303,13 +304,28 @@ export async function requestNativeNotificationPermission(): Promise<void> {
  * deliberately returned as `false`: onboarding may ask the user to repair the
  * setting, but must never claim it verified.
  */
-export async function getNativeNotificationPermissionStatus(): Promise<boolean> {
-  if (!isNativePushPlatform()) return false
+export interface NativeNotificationPermissionStatus {
+  granted: boolean
+  canRequest: boolean
+}
+
+export async function getNativeNotificationPermissionStatus(): Promise<NativeNotificationPermissionStatus> {
+  if (!isNativePushPlatform()) return { granted: false, canRequest: false }
   try {
     const res = await PassivePing.getNotificationPermissionStatus()
-    return !!res?.granted
+    return { granted: !!res?.granted, canRequest: !!res?.canRequest }
   } catch {
-    return false
+    return { granted: false, canRequest: false }
+  }
+}
+
+/** Opens this app's OS notification page after the one-time prompt is spent. */
+export async function openNativeNotificationSettings(): Promise<void> {
+  if (!isNativePushPlatform()) return
+  try {
+    await PassivePing.openNotificationSettings()
+  } catch {
+    /* Old shell: the surrounding setup remains honestly unverified. */
   }
 }
 

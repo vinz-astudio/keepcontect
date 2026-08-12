@@ -1,5 +1,6 @@
 import Capacitor
 import Foundation
+import UIKit
 
 /// iOS half of the `PassivePing` bridge. The JS name matches the Android
 /// plugin so `src/features/passive/native.ts` talks to both through one
@@ -15,6 +16,7 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getGuardStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestNotificationPermission", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getNotificationPermissionStatus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openNotificationSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getFcmToken", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "consumeLaunchNotificationKind", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "enableHealthWake", returnType: CAPPluginReturnPromise)
@@ -77,8 +79,24 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func getNotificationPermissionStatus(_ call: CAPPluginCall) {
-        PushRegistrar.status { granted in
-            call.resolve(["granted": granted])
+        PushRegistrar.status { granted, canRequest in
+            call.resolve(["granted": granted, "canRequest": canRequest])
+        }
+    }
+
+    @objc func openNotificationSettings(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            let urlString: String
+            if #available(iOS 16.0, *) {
+                urlString = UIApplication.openNotificationSettingsURLString
+            } else {
+                urlString = UIApplication.openSettingsURLString
+            }
+            guard let url = URL(string: urlString) else {
+                call.reject("notification settings URL unavailable")
+                return
+            }
+            UIApplication.shared.open(url) { _ in call.resolve() }
         }
     }
 

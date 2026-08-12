@@ -7,6 +7,7 @@ const nativeHarness = vi.hoisted(() => ({
     clear: vi.fn().mockResolvedValue(undefined),
     pingApp: vi.fn().mockResolvedValue(undefined),
     getNotificationPermissionStatus: vi.fn(),
+    openNotificationSettings: vi.fn().mockResolvedValue(undefined),
     enableHealthWake: vi.fn().mockResolvedValue({ granted: true }),
   },
 }))
@@ -33,16 +34,21 @@ describe('native passive setup truth', () => {
   })
 
   it('reads notification authorization from the native OS bridge', async () => {
-    nativeHarness.plugin.getNotificationPermissionStatus.mockResolvedValue({ granted: true })
-    await expect(native.getNativeNotificationPermissionStatus()).resolves.toBe(true)
+    nativeHarness.plugin.getNotificationPermissionStatus.mockResolvedValue({ granted: true, canRequest: false })
+    await expect(native.getNativeNotificationPermissionStatus()).resolves.toEqual({ granted: true, canRequest: false })
 
-    nativeHarness.plugin.getNotificationPermissionStatus.mockResolvedValue({ granted: false })
-    await expect(native.getNativeNotificationPermissionStatus()).resolves.toBe(false)
+    nativeHarness.plugin.getNotificationPermissionStatus.mockResolvedValue({ granted: false, canRequest: true })
+    await expect(native.getNativeNotificationPermissionStatus()).resolves.toEqual({ granted: false, canRequest: true })
   })
 
   it('treats a missing or broken permission bridge as not verified', async () => {
     nativeHarness.plugin.getNotificationPermissionStatus.mockRejectedValue(new Error('old shell'))
-    await expect(native.getNativeNotificationPermissionStatus()).resolves.toBe(false)
+    await expect(native.getNativeNotificationPermissionStatus()).resolves.toEqual({ granted: false, canRequest: false })
+  })
+
+  it('opens the native notification settings repair surface', async () => {
+    await native.openNativeNotificationSettings()
+    expect(nativeHarness.plugin.openNotificationSettings).toHaveBeenCalledOnce()
   })
 
   it('does not surprise an iOS user with the HealthKit sheet during routine configuration', async () => {
