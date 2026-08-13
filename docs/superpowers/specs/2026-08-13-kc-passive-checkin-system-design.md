@@ -6,7 +6,7 @@
 |---|---|
 | ID | KC-PASSIVE-CHECKIN-SPEC-001 |
 | Revision | 3 |
-| Status | Proposed; conceptual direction approved 2026-08-13; revision 3 Codex self-review passed, Claude review pending |
+| Status | Proposed; conceptual direction approved 2026-08-13; revision 3 Codex self-review and independent Claude Sonnet audit passed; written human acceptance pending |
 | Change class | Product-UX / M3 |
 | Proposed decision | ADR-0041 |
 | Replaces if accepted | ADR-0037 learned silence as live alert authority; ADR-0040 D2 automatic contextual thresholds; legacy inactivity and dark-device alert triggers for accounts migrated to the passive-check-in engine |
@@ -225,12 +225,16 @@ Decision deadlines bound how long a no-evidence window may remain pending:
 | Tauri continuous runtime + native idle contract | 12 minutes |
 | Android UsageStats history contract | 35 minutes |
 
-For an account with multiple enrolled witness-capable collectors:
+For an account with one or more enrolled witness-capable collectors:
 
 ```text
-account_decision_deadline =
-  window_end + max(enrolled witness-capable report lags)
+account_collector_grace(v) =
+  max(report_lag for each witness-capable device enrolled in contract v)
+
+account_decision_deadline = window_end + account_collector_grace(v)
 ```
+
+`account_collector_grace` is a versioned derived contract value, not a user setting. If no witness-capable device is enrolled, it is undefined: the account is Positive-only, has no inactivity-alert authority, and cannot produce `missed`.
 
 The server waits to this account deadline before creating `missed`, even if one witness reports earlier, so another enrolled device still has its bounded opportunity to upload positive evidence. A device that misses its own report does not veto another eligible witness. The values preserve the verified 5-minute Tauri and 15-minute Android/server collection cadences and allow bounded missed beats. A future collector contract may use another deadline only through a versioned design change and real-device evidence.
 
@@ -252,7 +256,7 @@ The accepted local-wall-clock sleep model remains authoritative:
 - `sleep_start_local`, `sleep_end_local` and the IANA timezone retain their existing meaning;
 - cross-midnight handling remains;
 - `private.sleep_relaxed` retains the existing two-hour post-wake grace;
-- the accepted bounded dynamic sleep extension remains;
+- the accepted bounded dynamic sleep extension remains pinned to the current `private.is_in_sleep_window` contract: qualifying activity inside the hour before configured sleep may extend the end to `min(last_active + configured window duration, configured end + 3 hours)`;
 - changing timezone changes how “now” is interpreted but does not rewrite the configured local clock numbers.
 
 That gate applies only when the account contract records the explicit Configured sleep protection choice. The explicit No sleep gate choice makes every wall-clock period eligible for normal miss-chain evaluation. A null/equal sleep window without either recorded choice is an onboarding/migration-incomplete state and cannot activate passive protection.
