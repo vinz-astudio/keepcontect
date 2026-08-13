@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The adaptive source-manifest test compares protected migrations
+          # with its historical audit base (46b73a7).
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24

@@ -11,17 +11,25 @@ import {
 } from '@/features/onboarding/onboardingPresentation'
 import { getPushStatus } from '@/features/push/pushApi'
 import {
+  enableHealthWake,
   getGuardStatus,
   getNativeFcmToken,
+  getNativeNotificationPermissionStatus,
   isActivityRecognitionEnabled,
   isBatteryExempt,
   isUsageStatsEnabled,
   openAutostartSettings,
+  openNativeNotificationSettings,
   openUsageStatsSettings,
   requestActivityRecognitionPermission,
   requestBatteryExemption,
   requestNativeNotificationPermission,
 } from './native'
+import {
+  isAndroidRequiredSetupReady,
+  isIosRequiredSetupReady,
+  resolveNativeNotificationReadiness,
+} from './onboardingReadiness'
 
 interface OnboardingWizardProps {
   isGm: boolean
@@ -51,9 +59,16 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
     autostartDescription: isZh ? '部分 Android 手机需要允许自动启动。' : 'Some Android phones require autostart to be allowed.',
     guard: isZh ? '后台守护' : 'Background guard',
     guardDescription: isZh ? '确认这台手机的后台守护已经连接。' : 'Confirms that this phone’s background guard is connected.',
-    unavailable: isZh ? '此环境不支持完整的被动守护。安装手机 App 可获得完整保护。' : 'This environment cannot provide full passive protection. Install the phone app for full coverage.',
+    health: isZh ? '健康数据唤醒' : 'Health wake',
+    healthDescription: isZh
+      ? '允许读取步数，为 iOS 增加一次低功耗唤醒机会。Apple 不会向 App 显示你是否拒绝了读取权限。'
+      : 'Allows step-count reads to add another low-power iOS wake opportunity. Apple does not reveal whether read access was declined.',
+    unavailable: isZh ? '此环境不支持手机 App 的被动采集能力。安装手机 App 可使用更多低功耗信号，但系统仍可能延迟后台更新。' : 'This environment cannot use the phone app’s passive collector. The phone app adds more low-power signals, but the OS may still delay background updates.',
     enable: isZh ? '开启' : 'Enable',
+    setUp: isZh ? '设置' : 'Set up',
+    setUpDone: isZh ? '已设置' : 'Set up',
     review: isZh ? '检查' : 'Review',
+    reviewed: isZh ? '已检查' : 'Reviewed',
   }), [isZh])
 
   const refreshCapabilities = useCallback(async (moveToResult = true) => {
@@ -64,40 +79,55 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
       let unavailable = false
 
       if (platform === 'android') {
-        const [pushToken, motionReady, usageReady, guard, batteryExempt] = await Promise.all([
+        const [notificationPermission, pushToken, motionReady, usageReady, guard, batteryExempt] = await Promise.all([
+          getNativeNotificationPermissionStatus(),
           getNativeFcmToken(),
           isActivityRecognitionEnabled(),
           isUsageStatsEnabled(),
           getGuardStatus(),
           isBatteryExempt(),
         ])
-        const notificationReady = Boolean(pushToken)
+        const notification = resolveNativeNotificationReadiness({
+          permissionGranted: notificationPermission.granted,
+          tokenAvailable: Boolean(pushToken),
+        })
         // The battery exemption is not in `requiredReady`: without it the guard
         // still works, it just has to fall back to the visible resident mode.
         // Blocking setup on it would turn a preference for quiet into a wall.
-        requiredReady = notificationReady && motionReady && usageReady && Boolean(guard?.enabled)
+        requiredReady = isAndroidRequiredSetupReady({
+          notification,
+          usageGranted: usageReady,
+          guardEnabled: Boolean(guard?.enabled),
+        })
         next = [
           {
             key: 'notifications', icon: 'notifications_active', title: copy.notifications,
-            description: copy.notificationsDescription, state: notificationReady ? 'ready' : 'action',
-            actionLabel: copy.enable,
-            onAction: async () => { await requestNativeNotificationPermission(); await refreshCapabilities(false) },
+            description: copy.notificationsDescription, state: notification,
+            requirement: 'required',
+            actionLabel: notificationPermission.canRequest ? copy.enable : copy.review,
+            onAction: async () => {
+              if (notificationPermission.canRequest) await requestNativeNotificationPermission()
+              else await openNativeNotificationSettings()
+            },
           },
           {
             key: 'motion', icon: 'directions_walk', title: copy.motion,
             description: copy.motionDescription, state: motionReady ? 'ready' : 'action',
+            requirement: 'recommended',
             actionLabel: copy.enable,
             onAction: async () => { await requestActivityRecognitionPermission(); await refreshCapabilities(false) },
           },
           {
             key: 'usage', icon: 'schedule', title: copy.usage,
             description: copy.usageDescription, state: usageReady ? 'ready' : 'action',
+            requirement: 'required',
             actionLabel: copy.enable,
             onAction: async () => { await openUsageStatsSettings() },
           },
           {
             key: 'guard', icon: 'shield', title: copy.guard,
             description: copy.guardDescription, state: guard?.enabled ? 'ready' : 'unknown',
+            requirement: 'required',
           },
           {
             // Asked before the autostart step because this one is a single tap
@@ -107,33 +137,68 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
             key: 'battery', icon: 'battery_saver',
             title: lang === 'zh' ? '允许后台运行' : 'Allow background running',
             description: lang === 'zh'
-              ? '允许 Keep Contact 后台运行,让 App 能安静和稳定地守护您,以尽可能即时地反映您的状态给予关心您的人。'
-              : 'Allow Keep Contact to run in the background, so it can watch over you quietly and reliably, and let the people who care about you know how you are.',
+              ? '允许 Keep Contact 获得更多后台唤醒机会；Android 仍可能延迟这些唤醒。'
+              : 'Allow Keep Contact to use more background wake opportunities. Android may still delay them.',
             state: batteryExempt ? 'ready' : 'action',
+            requirement: 'recommended',
             actionLabel: copy.enable,
             onAction: async () => { await requestBatteryExemption(); await refreshCapabilities(false) },
           },
           {
             key: 'autostart', icon: 'restart_alt', title: copy.autostart,
             description: copy.autostartDescription, state: autostartReviewed ? 'ready' : 'action',
+            requirement: 'recommended',
+            stateLabel: autostartReviewed ? copy.reviewed : undefined,
             actionLabel: copy.review,
             onAction: async () => { await openAutostartSettings(); setAutostartReviewed(true) },
           },
         ]
       } else if (platform === 'ios') {
-        const [pushToken, guard] = await Promise.all([getNativeFcmToken(), getGuardStatus()])
-        const notificationReady = Boolean(pushToken)
-        requiredReady = notificationReady && Boolean(guard?.enabled)
+        const [notificationPermission, guard] = await Promise.all([
+          getNativeNotificationPermissionStatus(),
+          getGuardStatus(),
+        ])
+        // Before APNs authorization, Firebase cannot mint an iOS token and the
+        // native bridge would spend its retry window waiting for the impossible.
+        const pushToken = notificationPermission.granted ? await getNativeFcmToken() : null
+        const notification = resolveNativeNotificationReadiness({
+          permissionGranted: notificationPermission.granted,
+          tokenAvailable: Boolean(pushToken),
+        })
+        requiredReady = isIosRequiredSetupReady({
+          notification,
+          guardEnabled: Boolean(guard?.enabled),
+        })
+        const healthState = guard?.health?.observing
+          ? 'ready'
+          : guard?.health?.supported === false
+            ? 'limited'
+            : guard?.health?.supported
+              ? 'action'
+              : 'unknown'
         next = [
           {
             key: 'notifications', icon: 'notifications_active', title: copy.notifications,
-            description: copy.notificationsDescription, state: notificationReady ? 'ready' : 'action',
-            actionLabel: copy.enable,
-            onAction: async () => { await requestNativeNotificationPermission(); await refreshCapabilities(false) },
+            description: copy.notificationsDescription, state: notification,
+            requirement: 'required',
+            actionLabel: notificationPermission.canRequest ? copy.enable : copy.review,
+            onAction: async () => {
+              if (notificationPermission.canRequest) await requestNativeNotificationPermission()
+              else await openNativeNotificationSettings()
+            },
           },
           {
             key: 'guard', icon: 'shield', title: copy.guard,
             description: copy.guardDescription, state: guard?.enabled ? 'ready' : 'unknown',
+            requirement: 'required',
+          },
+          {
+            key: 'health', icon: 'health_and_safety', title: copy.health,
+            description: copy.healthDescription, state: healthState,
+            requirement: 'recommended',
+            stateLabel: healthState === 'ready' ? copy.setUpDone : undefined,
+            actionLabel: copy.setUp,
+            onAction: async () => { await enableHealthWake(); await refreshCapabilities(false) },
           },
         ]
       } else if (isTauri()) {

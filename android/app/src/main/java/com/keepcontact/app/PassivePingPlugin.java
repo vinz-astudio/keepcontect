@@ -7,6 +7,7 @@ import android.content.IntentFilter;
 import android.os.PowerManager;
 import android.provider.Settings;
 import androidx.core.content.ContextCompat;
+import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -59,6 +60,8 @@ public class PassivePingPlugin extends Plugin {
     @PluginMethod
     public void requestNotificationPermission(PluginCall call) {
         if (android.os.Build.VERSION.SDK_INT >= 33) {
+            getContext().getSharedPreferences("kc.passive", Context.MODE_PRIVATE)
+                .edit().putBoolean("notificationPermissionRequested", true).apply();
             android.app.Activity activity = getActivity();
             if (activity != null &&
                 androidx.core.content.ContextCompat.checkSelfPermission(
@@ -69,6 +72,62 @@ public class PassivePingPlugin extends Plugin {
             }
         }
         call.resolve(new JSObject());
+    }
+
+    /** Reads the effective OS notification setting, including user revocation. */
+    @PluginMethod
+    public void getNotificationPermissionStatus(PluginCall call) {
+        boolean granted = NotificationManagerCompat.from(getContext()).areNotificationsEnabled();
+        boolean canRequest = false;
+        if (!granted && android.os.Build.VERSION.SDK_INT >= 33) {
+            boolean requested = getContext()
+                .getSharedPreferences("kc.passive", Context.MODE_PRIVATE)
+                .getBoolean("notificationPermissionRequested", false);
+            android.app.Activity activity = getActivity();
+            canRequest = !requested || (activity != null &&
+                androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                    activity, "android.permission.POST_NOTIFICATIONS"));
+        }
+        JSObject ret = new JSObject();
+        ret.put("granted", granted);
+        ret.put("canRequest", canRequest);
+        call.resolve(ret);
+    }
+
+    /** Opens the app-specific notification page after the runtime prompt is spent. */
+    @PluginMethod
+    public void openNotificationSettings(PluginCall call) {
+        int sdk = android.os.Build.VERSION.SDK_INT;
+        Intent intent = notificationSettingsIntent(sdk);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            getContext().startActivity(intent);
+        } catch (android.content.ActivityNotFoundException exception) {
+            // Some OEM Android 8+ builds omit the notification-specific page.
+            Intent fallback = applicationDetailsSettingsIntent();
+            fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(fallback);
+        }
+        call.resolve(new JSObject());
+    }
+
+    static String notificationSettingsActionForSdk(int sdk) {
+        return sdk >= 26
+            ? Settings.ACTION_APP_NOTIFICATION_SETTINGS
+            : Settings.ACTION_APPLICATION_DETAILS_SETTINGS;
+    }
+
+    private Intent notificationSettingsIntent(int sdk) {
+        if (sdk < 26) return applicationDetailsSettingsIntent();
+        Intent intent = new Intent(notificationSettingsActionForSdk(sdk));
+        intent.putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+        return intent;
+    }
+
+    private Intent applicationDetailsSettingsIntent() {
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+        intent.setData(android.net.Uri.fromParts("package", getContext().getPackageName(), null));
+        return intent;
     }
 
     /**

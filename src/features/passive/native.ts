@@ -40,6 +40,8 @@ interface PassivePingPlugin {
   openAccessibilitySettings(): Promise<void>
   openAutostartSettings(): Promise<void>
   requestNotificationPermission(): Promise<void>
+  getNotificationPermissionStatus(): Promise<{ granted: boolean; canRequest: boolean }>
+  openNotificationSettings(): Promise<void>
   getFcmToken(): Promise<{ token: string }>
   consumeLaunchNotificationKind(): Promise<{ kind: string }>
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>
@@ -103,12 +105,6 @@ export async function configureNativePassivePing(
         appVersion: APP_VERSION,
         collectorContract: 'ios-passive-v1',
       })
-      // Every other iOS evidence source needs KC to already be running when the
-      // user does something, so a force-quit app goes silent until it is opened
-      // again. HealthKit is the one wake that can relaunch it. Asked for here
-      // rather than behind a settings toggle because a guard the user has to go
-      // find is a guard most users will never have.
-      await enableHealthWake()
       await PassivePing.pingApp()
       return
     }
@@ -297,6 +293,39 @@ export async function requestNativeNotificationPermission(): Promise<void> {
     await PassivePing.requestNotificationPermission()
   } catch {
     /* ignore */
+  }
+}
+
+/**
+ * Reads notification authorization from the operating system.
+ *
+ * An FCM token proves registration with Firebase, not that the user currently
+ * allows notifications. Old shells do not expose this method, so failure is
+ * deliberately returned as `false`: onboarding may ask the user to repair the
+ * setting, but must never claim it verified.
+ */
+export interface NativeNotificationPermissionStatus {
+  granted: boolean
+  canRequest: boolean
+}
+
+export async function getNativeNotificationPermissionStatus(): Promise<NativeNotificationPermissionStatus> {
+  if (!isNativePushPlatform()) return { granted: false, canRequest: false }
+  try {
+    const res = await PassivePing.getNotificationPermissionStatus()
+    return { granted: !!res?.granted, canRequest: !!res?.canRequest }
+  } catch {
+    return { granted: false, canRequest: false }
+  }
+}
+
+/** Opens this app's OS notification page after the one-time prompt is spent. */
+export async function openNativeNotificationSettings(): Promise<void> {
+  if (!isNativePushPlatform()) return
+  try {
+    await PassivePing.openNotificationSettings()
+  } catch {
+    /* Old shell: the surrounding setup remains honestly unverified. */
   }
 }
 

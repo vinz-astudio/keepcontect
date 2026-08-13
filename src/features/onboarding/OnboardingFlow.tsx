@@ -25,12 +25,12 @@ interface OnboardingFlowProps {
 
 const resultCopy = {
   en: {
-    ready: ['You’re ready', 'This phone can keep your safety status up to date in the background.'],
+    ready: ['You’re ready', 'Required settings are on. Keep Contact will keep checking this phone’s collector; iOS or Android may still delay background updates.'],
     limited: ['Limited protection', 'Keep Contact can still help, but this phone may update less reliably. You can finish now and repair setup later.'],
     unknown: ['Setup not verified', 'We could not verify this phone yet. Check the items below and try again.'],
   },
   zh: {
-    ready: ['已经准备好', '这台手机可以在后台持续更新你的安全状态。'],
+    ready: ['已经准备好', '必需设置已开启。Keep Contact 会继续检查这台手机的采集状态；iOS 或 Android 仍可能延迟后台更新。'],
     limited: ['保护能力有限', 'Keep Contact 仍然可以帮助你，但这台手机的后台更新可能较不稳定。你可以先完成，之后再修复设置。'],
     unknown: ['尚未验证设置', '目前还无法确认这台手机的状态。请检查下方项目后重试。'],
   },
@@ -48,6 +48,15 @@ export function OnboardingFlow({
 }: OnboardingFlowProps) {
   const progress = getProgressLabel(step)
   const isZh = lang === 'zh'
+  const stateLabel = (capability: SetupCapability) => capability.stateLabel
+    ?? (isZh
+      ? ({ ready: '已开启', limited: '受限', unknown: '未知', action: '需处理' } as const)[capability.state]
+      : capability.state)
+  const requirementLabel = (capability: SetupCapability) => capability.requirement
+    ? (isZh
+      ? (capability.requirement === 'required' ? '必需' : '建议')
+      : (capability.requirement === 'required' ? 'Required' : 'Recommended'))
+    : null
 
   return (
     <main className="onboarding-flow">
@@ -66,8 +75,8 @@ export function OnboardingFlow({
           <h1>{isZh ? '保持联系，不必整天报平安' : 'Stay connected without checking in all day'}</h1>
           <p>
             {isZh
-              ? 'Keep Contact 会根据这台手机的日常活动判断你是否平安。只有出现异常时，才会逐步提醒你和你信任的人。'
-              : 'Keep Contact uses everyday activity on this phone to understand whether you are okay. It only escalates when something looks unusual.'}
+              ? 'Keep Contact 会记录这台手机支持的粗粒度活动时间，并逐渐学习你平常的安静间隔。间隔异常时，它会先询问你，再通知你信任的人。'
+              : 'Keep Contact records coarse activity timestamps supported by this phone and gradually learns your usual quiet gaps. When a gap looks unusual, it can ask you first and then alert people you trust.'}
           </p>
           <PrototypeCard className="onboarding-flow__value-card">
             <PrototypeRow icon="phone_iphone" title={isZh ? '自动识别这台手机' : 'This phone is detected automatically'} subtitle={isZh ? '不需要选择设备或使用身份。' : 'No device or role selection is needed.'} />
@@ -92,10 +101,13 @@ export function OnboardingFlow({
                 key={capability.key}
                 icon={capability.icon}
                 title={capability.title}
-                subtitle={capability.description}
+                subtitle={<>
+                  {requirementLabel(capability) && <><strong>{requirementLabel(capability)}</strong> · </>}
+                  {capability.description}
+                </>}
                 trailing={capability.state === 'action' && capability.onAction
                   ? <button type="button" className="prototype-button prototype-button--ghost onboarding-flow__action" disabled={busy} onClick={() => void capability.onAction?.()}>{capability.actionLabel}</button>
-                  : <PrototypeBadge tone={capability.state}>{isZh ? ({ ready: '已开启', limited: '受限', unknown: '未知', action: '需处理' } as const)[capability.state] : capability.state}</PrototypeBadge>}
+                  : <PrototypeBadge tone={capability.state}>{stateLabel(capability)}</PrototypeBadge>}
               />
             ))}
           </PrototypeCard>
@@ -119,7 +131,7 @@ export function OnboardingFlow({
           {capabilities.length > 0 && (
             <PrototypeCard compact>
               {capabilities.map((capability) => (
-                <PrototypeRow key={capability.key} icon={capability.icon} title={capability.title} trailing={<PrototypeBadge tone={capability.state}>{capability.state}</PrototypeBadge>} />
+                <PrototypeRow key={capability.key} icon={capability.icon} title={capability.title} trailing={<PrototypeBadge tone={capability.state}>{stateLabel(capability)}</PrototypeBadge>} />
               ))}
             </PrototypeCard>
           )}

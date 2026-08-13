@@ -48,6 +48,7 @@ describe('S1 Android AAB repository contracts', () => {
 describe('S1 iOS Native repository contracts', () => {
   test('ADR0039-IOS-01 background location is not a relaunch-only hack', () => {
     expect(infoPlist).not.toMatch(/<string>location<\/string>[\s\S]*restart its guardian/i)
+    expect(passiveGuard).not.toMatch(/CoreLocation|CLLocationManager|requestAlwaysAuthorization|startMonitoringSignificantLocationChanges/)
   })
 
   test('ADR0039-IOS-02 native project carries APNs and HealthKit capabilities', () => {
