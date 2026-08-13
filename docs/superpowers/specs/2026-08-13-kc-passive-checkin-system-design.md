@@ -5,8 +5,8 @@
 | Field | Value |
 |---|---|
 | ID | KC-PASSIVE-CHECKIN-SPEC-001 |
-| Revision | 2 |
-| Status | Proposed; conceptual direction approved 2026-08-13; revision 2 written review pending |
+| Revision | 3 |
+| Status | Proposed; conceptual direction approved 2026-08-13; revision 3 Codex self-review passed, Claude review pending |
 | Change class | Product-UX / M3 |
 | Proposed decision | ADR-0041 |
 | Replaces if accepted | ADR-0037 learned silence as live alert authority; ADR-0040 D2 automatic contextual thresholds; legacy inactivity and dark-device alert triggers for accounts migrated to the passive-check-in engine |
@@ -32,7 +32,7 @@ The configured silence horizon is:
 H = D × N
 ```
 
-`H` is always shown in plain language. A collector decision deadline can add bounded processing delay after the last window; a configured sleep/post-wake gate can delay alert creation further. Those delays are shown separately and never hidden inside `H`.
+`H` is always shown in plain language. A bounded number of technically unknown windows, the collector decision deadline and a configured sleep/post-wake gate can delay alert creation. Each delay and its consequence is shown separately and never hidden inside `H`.
 
 Learning continuously estimates a personal reference `R` and converts it into a recommendation. It has no authority to modify active `D`, active `N`, a miss counter or an alert.
 
@@ -63,7 +63,7 @@ A `missed` result means “no signal supported by the declared collector contrac
 
 1. Every enabled monitoring window is deterministically `checked_in`, `missed`, `unknown` or internally `superseded`.
 2. Only `missed` advances the consecutive-miss counter.
-3. `checked_in`, `unknown`, `superseded`, an explicit alert resolution and a monitoring-epoch change terminate the current consecutive-miss chain.
+3. `checked_in`, `superseded`, an explicit alert resolution and a monitoring-epoch change terminate the current consecutive-miss chain. `unknown` pauses a live chain only inside a strict count/time budget; exceeding either budget terminates it.
 4. Any qualified evidence from any correctly bound signed-in surface makes the account window `checked_in`.
 5. Collector failure, permission loss, shutdown, force-stop, missing history, background delay and upload failure can never be converted into `missed`.
 6. A late positive event may correct history, but late absence/coverage may never retroactively create a miss.
@@ -94,9 +94,11 @@ A `missed` result means “no signal supported by the declared collector contrac
 | Protected account | The Ward/self account whose inactivity is evaluated. |
 | Surface | A native installation, Tauri installation, PWA/browser session or Shortcut credential. |
 | Collector | Platform code that qualifies evidence and/or proves coverage. |
-| Decision-grade collector | A collector allowed to contribute complete coverage and therefore participate in a `missed` decision. |
+| Decision-grade collector | A collector whose observed domain has valid negative meaning and can therefore act as a window witness. |
+| Witness-capable device | A decision-grade collector explicitly enrolled by the user as normally used/carried by them and allowed to witness missed check-ins. |
+| Eligible witness | A witness-capable device that actually proves complete coverage for the current window before the account deadline. |
 | Positive-only surface | A surface that may check in the account but can never prove absence or create `missed`. |
-| Account contract version | Immutable settings and enrolled decision-grade collector roster used for a sequence of windows. |
+| Account contract version | Immutable settings, sleep-policy choice and enrolled witness-capable roster used for a sequence of windows. |
 | Monitoring epoch | A continuous counter lifetime beginning at enablement, settings/roster replacement or explicit alert resolution. |
 | Coverage | Proof that a declared collector contract observed or reconstructed an exact interval, independent of whether activity occurred. |
 | Evidence | A qualified user/device-associated event with a real occurrence time. |
@@ -110,7 +112,7 @@ A `missed` result means “no signal supported by the declared collector contrac
 - An accessible numeric-duration input exposes the same range and value.
 - No platform silently rounds the stored value.
 - A shorter `D` creates more windows. It does not guarantee that an operating system will wake a collector exactly every `D`.
-- If a device cannot satisfy the selected interval and its decision deadline, affected windows become `unknown` and protection becomes `Limited`.
+- If no witness can satisfy the selected interval and decision deadline, affected windows become `unknown` and protection becomes `Limited`. Brief unknown gaps may delay an existing miss chain; sustained gaps invalidate it and can prevent an alert.
 
 ### Consecutive-miss count `N`
 
@@ -122,15 +124,26 @@ A `missed` result means “no signal supported by the declared collector contrac
 
 ### Initial active values
 
-- A new user who explicitly enables passive protection starts with active `D = 120 minutes` and active `N = 3`.
+- A new user who explicitly enables passive protection starts with active `D = 120 minutes` and active `N = 3` only after completing the sleep-policy choice below.
 - Existing users are not silently migrated to these values.
 - The initial values are editable before confirmation.
+
+### Required sleep-policy choice
+
+Passive protection cannot become active until the user explicitly chooses one of:
+
+1. **Configured sleep protection (recommended):** save a valid local sleep start/end and IANA timezone; or
+2. **No sleep gate:** acknowledge that overnight inactivity counts toward missed check-ins and can trigger the alert funnel.
+
+There is no preselected answer. `sleep_start_local`/`sleep_end_local` being null or equal is not itself consent to count overnight inactivity. A user may deliberately choose No sleep gate without accepting a minimum `H`; this preserves user control for shift work and irregular schedules.
+
+Changing the sleep-policy choice or configured sleep window is alert-affecting. It follows the same version/epoch rules as changing `D`, `N` or the witness roster.
 
 ### Saving settings
 
 - A settings save becomes authoritative only after authenticated server acknowledgement.
 - If no alert is open, the server transaction timestamp is `effective_at`; client clocks do not choose it.
-- Saving `D`, `N` or the decision-grade collector roster then creates a new account contract version and monitoring epoch at `effective_at`.
+- Saving `D`, `N`, the sleep-policy choice/window or the witness-capable roster then creates a new account contract version and monitoring epoch at `effective_at`.
 - The partial old window becomes `superseded`; it cannot become a miss. The old chain terminates and the new version starts with counter zero.
 - If an alert is open, the save creates an acknowledged `pending_after_resolution` version with `created_at` but no `effective_at`. It cannot change the open alert, its causal snapshot or its escalation. The latest acknowledged pending version becomes effective at `resolved_at` and starts the new post-resolution epoch.
 - Offline edits are drafts only. They do not affect protection until acknowledged.
@@ -164,23 +177,38 @@ Windows are evaluated chronologically. A later window may receive evidence early
 
 | State | Public | Meaning | Counter effect |
 |---|---:|---|---|
-| `pending` | No | Window has not ended or required reports have not reached their deadline. | None yet. |
+| `pending` | No | Window has not ended or the account decision deadline has not arrived. | None yet. |
 | `checked_in` | Yes | At least one qualified event occurred inside the window. | Set counter to zero. |
-| `missed` | Yes | No qualified event exists and every enrolled decision-grade collector proved complete coverage before its deadline. | Increment by one. |
-| `unknown` | Yes | No qualified event exists and completeness was not proven by the decision deadline. | Set counter to zero and show `Limited`. |
+| `missed` | Yes | No qualified event exists and at least one enrolled witness-capable device became an eligible witness by proving complete coverage before the account deadline. | Increment confirmed misses by one. |
+| `unknown` | Yes | No qualified event exists and no enrolled witness-capable device became an eligible witness by the account deadline. | Do not increment confirmed misses. Pause an active chain inside the unknown budget; show `Limited`. |
 | `superseded` | No | A settings/roster/epoch change ended a partial window. | Set counter to zero. |
 
-`unknown` terminates a consecutive chain. The following sequence contains two separate one-miss chains, not two consecutive misses:
+`unknown` is not a negative observation, so it cannot count as a miss. It also does not erase a nearly complete chain after one isolated collector failure. Revision 3 uses a bounded-pause contract:
+
+In this specification, “consecutive confirmed misses” means no intervening `checked_in`, `superseded` or epoch reset; up to the bounded number of `unknown` windows may be interleaved but are never counted as misses.
 
 ```text
-missed -> unknown -> missed
+Umax = max(1, ceil(0.1 × N))
+chain_max_span = (N + Umax) × D + account_collector_grace
 ```
+
+For one live candidate chain, store `confirmed_misses`, `unknown_windows`, `chain_started_at` and `chain_deadline`.
+
+- The first `missed` starts the chain at that window's `window_start`, with `confirmed_misses = 1` and `unknown_windows = 0`.
+- A later `missed` increments `confirmed_misses`.
+- An `unknown` during a live chain increments `unknown_windows` but not `confirmed_misses`.
+- If `unknown_windows > Umax` or the chain has not reached `N` misses by `chain_deadline`, evaluate all receipts accepted through that deadline, then invalidate the chain and clear its counters. Protection remains `Limited` until a witness recovers.
+- An `unknown` before any first miss creates no chain and promises no alert deadline.
+- `checked_in`, `superseded`, settings/roster/sleep-policy change and explicit alert resolution immediately terminate the chain.
+- A trusted late positive correction to any live-chain window terminates that chain. It may correct window history but never resurrect an already invalidated chain or resolve an alert that already opened.
+
+Therefore `missed -> unknown -> missed` yields two confirmed misses and one bounded unknown when `Umax >= 1`; it is not equivalent to three misses. This keeps technical blindness out of the safety conclusion while bounding how long prior misses may be carried.
 
 ### State precedence and transitions
 
 1. Qualified evidence immediately establishes `checked_in`.
 2. Before `window_end`, a no-evidence result cannot establish `missed` or `unknown`.
-3. At or after `window_end`, complete reports from all enrolled decision-grade collectors with no evidence establish `missed`.
+3. At the account decision deadline, at least one eligible witness with no account evidence establishes `missed`; incomplete enrolled devices do not veto that witness.
 4. If completeness is absent at the account decision deadline, the window becomes `unknown`.
 5. A terminal `missed` or `unknown` may become `checked_in` only through trusted late positive evidence within the correction horizon.
 6. A terminal `unknown` can never become `missed`.
@@ -196,25 +224,26 @@ Decision deadlines bound how long a no-evidence window may remain pending:
 |---|---:|
 | Tauri continuous runtime + native idle contract | 12 minutes |
 | Android UsageStats history contract | 35 minutes |
-| iOS Core Motion history contract | 35 minutes |
 
-For an account with multiple enrolled collectors:
+For an account with multiple enrolled witness-capable collectors:
 
 ```text
 account_decision_deadline =
-  window_end + max(enrolled collector report lags)
+  window_end + max(enrolled witness-capable report lags)
 ```
 
-The values preserve the verified 5-minute Tauri and 15-minute native/server collection cadences and allow bounded missed beats. A future collector contract may use another deadline only through a versioned design change and real-device evidence.
+The server waits to this account deadline before creating `missed`, even if one witness reports earlier, so another enrolled device still has its bounded opportunity to upload positive evidence. A device that misses its own report does not veto another eligible witness. The values preserve the verified 5-minute Tauri and 15-minute Android/server collection cadences and allow bounded missed beats. A future collector contract may use another deadline only through a versioned design change and real-device evidence.
 
 The maximum non-sleep decision time shown by the UI is:
 
 ```text
 configured horizon = D × N
 maximum collector grace = max enrolled report lag
+bounded unknown extension = Umax × D
+maximum live-chain span = (N + Umax) × D + maximum collector grace
 ```
 
-The grace is not added to `D`, does not create extra misses and does not change the recommendation formula.
+The grace and bounded unknown extension do not create extra misses and do not change the recommendation formula. They are displayed separately. If no first miss has started or the unknown budget expires, no maximum alert time is promised; the UI must say protection is Limited and an alert may not occur.
 
 ## Sleep and Post-Wake Interaction
 
@@ -226,12 +255,14 @@ The accepted local-wall-clock sleep model remains authoritative:
 - the accepted bounded dynamic sleep extension remains;
 - changing timezone changes how “now” is interpreted but does not rewrite the configured local clock numbers.
 
+That gate applies only when the account contract records the explicit Configured sleep protection choice. The explicit No sleep gate choice makes every wall-clock period eligible for normal miss-chain evaluation. A null/equal sleep window without either recorded choice is an onboarding/migration-incomplete state and cannot activate passive protection.
+
 Passive windows and evidence collection continue during sleep. This is necessary so activity during the night can check in the account and collector failures remain visible.
 
 Miss windows may accumulate during sleep, but the system must not open or escalate an inactivity alert while the canonical sleep/post-wake gate is active. On the first evaluator run after the gate ends:
 
-- if the current chain still contains at least `N` consecutive misses, open the self-confirmation alert;
-- if a `checked_in`, `unknown`, `superseded` or epoch reset occurred, do not open from the old chain.
+- if the current bounded chain still contains at least `N` confirmed misses, open the self-confirmation alert;
+- if a `checked_in`, `superseded`, epoch reset or unknown-budget expiry occurred, do not open from the old chain.
 
 Sleep delays alert creation; it does not fabricate a check-in and does not reset a miss chain.
 
@@ -241,6 +272,7 @@ The settings UI therefore shows:
 
 - nominal `H`;
 - maximum collector grace;
+- bounded unknown extension and the condition under which no alert time can be promised;
 - “Your sleep and post-wake window can delay alerts” when configured.
 
 ## Device Identity, Account Binding and Roles
@@ -381,16 +413,18 @@ A complete coverage assertion contains:
 - client/app version;
 - stable idempotency identity and payload hash.
 
+Only a decision-grade platform contract may emit a complete coverage assertion. A positive-only collector may reuse transport fields for diagnostics or positive evidence, but absence, a zero result or successful execution can never be represented as complete coverage.
+
 A heartbeat proves only that a collector ran. It is not activity, and it is not complete coverage unless a declared continuous-runtime contract uses adjacent authenticated leases to construct exact intervals.
 
 The ADR-0040 four runtime states map as follows:
 
 | Runtime state | Coverage meaning | Alert effect |
 |---|---|---|
-| `app_foreground` | May support complete coverage under the platform contract. | Normal window evaluation. |
-| `app_background` | May support complete coverage if the collector independently observes/reconstructs the interval. | Normal window evaluation. |
-| `app_killed` | Incomplete coverage; server may attempt a platform-permitted wake and show one protection-health repair notice. | `unknown`, never human-safety alert. |
-| `device_off` | Incomplete known technical state. | `unknown`, never human-safety alert. |
+| `app_foreground` | May support complete coverage only under a decision-grade platform contract. | Device may become an eligible witness; otherwise positive-only evaluation. |
+| `app_background` | May support complete coverage only if a decision-grade collector independently observes/reconstructs the interval. | Device may become an eligible witness; otherwise positive-only evaluation. |
+| `app_killed` | Incomplete coverage; server may attempt a platform-permitted wake and show one protection-health repair notice. | Device is ineligible; account is `unknown` only if there is no evidence and no other eligible witness. |
+| `device_off` | Incomplete known technical state. | Device is ineligible; account is `unknown` only if there is no evidence and no other eligible witness. |
 
 Push delivery outcome may support the diagnostic distinction between `app_killed` and `device_off`, but because delivery is best-effort it cannot by itself establish either state or complete coverage.
 
@@ -417,20 +451,17 @@ Android’s `UsageStatsManager.queryEvents` uses inclusive begin/exclusive end U
 
 ### iOS Native
 
-Decision-grade contract: `ios_pedometer_history_v1`.
+Positive-only contract: `ios_pedometer_positive_v1`.
 
-- Requires Motion permission and a successful `CMPedometer.queryPedometerData` result for the exact window.
-- Positive steps/floors are `personal_device_motion`.
-- A successful exact-window query with zero qualifying motion may assert complete coverage for the **personal-motion contract only**.
-- The resulting `missed` means no qualified personal motion was observed; it does not mean the iPhone was unused.
-- Foreground user interaction and captured power transitions are additional positive evidence, but their absence cannot support complete coverage because iOS does not provide a general retrospective stream for them.
-- Silent APNs, BGTask, HealthKit/Core Motion wake and foreground launch are execution opportunities only.
-- If iOS does not wake KC and the exact-window result is not uploaded by the 35-minute deadline, the window is `unknown`.
-- Force-quit, Motion denial, unavailable pedometer data, query failure or insufficient result bounds are incomplete.
-- Core Motion historical queries are limited to the past seven days; KC’s alert deadline is intentionally much shorter.
+- With explicit Motion permission, a successful `CMPedometer.queryPedometerData` result may contribute positive steps/floors as `personal_device_motion`.
+- A zero-step result proves only that the pedometer observed no qualifying pedestrian motion. It does **not** prove that the person was inactive or that the iPhone was unused. It can never assert complete decision-grade coverage, become an eligible witness, or produce `missed`.
+- Foreground user interaction and captured power transitions are additional positive evidence. Their absence likewise has no negative meaning because iOS provides no general retrospective foreground-use stream.
+- Silent APNs, BGTask, Core Motion wake and foreground launch are collection opportunities only. Wake success, failure or lateness cannot create a negative conclusion.
+- Force-quit, Motion denial/revocation, unavailable pedometer data and query failure reduce positive collection or protection health; none produces `missed`.
+- Core Motion historical availability may recover positive evidence inside the seven-day correction horizon. Late zero-motion or coverage claims are discarded.
 - Raw motion/Health data, routes and time series remain on-device.
 
-This contract is decision-grade only after the real-device release gate passes. Until then, iOS Native is positive-only and must display `Limited`.
+This Core Motion contract remains positive-only even if acquisition reliability exceeds the real-device gate. A longer `H` cannot repair the semantic mismatch for sedentary, bedridden, wheelchair-using or otherwise low-step users. An iOS-only account therefore cannot open a passive inactivity alert under this contract.
 
 Screen Time/DeviceActivity is not a core dependency. A future direct-use contract requires a separate accepted design, explicit person authorization, the required Family Controls/App and Website Usage entitlements, Apple distribution approval, privacy review and Store evidence. It cannot be silently substituted into this contract.
 
@@ -456,48 +487,67 @@ Decision-grade contract: `tauri_idle_runtime_v1`.
 - A scoped user-configured Shortcut may contribute a timestamped qualified event.
 - Shortcut credentials are revocable, subject-bound and positive-only.
 - Shortcut/manual evidence cannot train `R`.
-- iOS PWA is not a substitute for the iOS Native decision-grade history contract.
+- iOS PWA and iOS Native are both positive-only under this revision. Neither can substitute for a decision-grade witness.
 
 ## Multi-Device Account Aggregation
 
-Only explicitly enrolled decision-grade collectors participate in completeness. Any correctly bound positive-only surface may contribute positive evidence.
+Any correctly bound surface may contribute qualified positive evidence. Negative authority is narrower: only an explicitly enrolled **witness-capable device** can become an eligible witness.
+
+Witness enrollment is never automatic. It requires the user to confirm that the device is sufficiently representative of them **on its own**—normally used or carried—and that its complete no-evidence windows may support an inactivity alert even when another device is incomplete. Enrollment copy must explain that a shared, spare, drawer-stored, intermittently borrowed or routinely sleeping device is unsuitable. Every enrolled witness has equal authority; there is no primary or secondary device.
 
 The enrolled roster is snapshotted in the account contract version. A roster change supersedes the partial window and begins a new epoch.
 
 ```text
 if qualified evidence exists from any correctly bound surface:
     checked_in
-else if no decision-grade collector is enrolled:
-    unknown
-else if every enrolled collector reported complete exact-window coverage
-        by the account decision deadline:
+else if at least one enrolled witness-capable device became an eligible witness
+        for this exact window by the account decision deadline:
     missed
 else:
     unknown
 ```
 
-A stale enrolled collector is never silently removed. It remains a visible `Limited` cause until the user repairs, disables, signs out or removes it.
+An incomplete, stale or sleeping device cannot veto another device's valid witness. It remains visible with its own health state until the user repairs, disables, signs out or removes it. It becomes eligible again only after it supplies complete exact-window coverage under its enrolled contract; no stale status is silently converted into negative evidence.
 
-Global passive protection Off creates no new monitoring windows. Enabling it requires at least one surface, but the UI must distinguish:
+Global passive protection Off creates no new monitoring windows. Positive check-in collection may run with at least one bound surface, but inactivity-alert authority additionally requires the explicit sleep-policy choice and at least one enrolled witness-capable device. The UI must distinguish:
 
-- **Ready**: at least one decision-grade collector is enrolled and every enrolled collector is currently healthy;
-- **Limited**: protection is enabled but a collector/permission/deadline/capability problem prevents dependable miss decisions;
-- **Positive-only**: check-ins can occur but no decision-grade collector is enrolled;
+- **Ready**: at least one enrolled witness-capable device is currently healthy enough to become an eligible witness; other device problems are shown per-device and do not demote the account;
+- **Limited**: witness protection is configured but no enrolled witness-capable device is currently healthy enough to support dependable miss decisions;
+- **Positive-only**: check-ins can occur but no witness-capable device is enrolled;
 - **Off**: no passive monitoring epoch is active.
 
 ## Consecutive Miss and Alert State Machine
 
-The counter is derived from ordered terminal windows in the current monitoring epoch.
+The chain is derived from ordered terminal windows in the current monitoring epoch. It stores `confirmed_misses`, `unknown_windows`, `chain_started_at`, `unknown_budget` and `chain_deadline`.
 
 ```text
-checked_in  => streak = 0
-missed      => streak = streak + 1
-unknown     => streak = 0
-superseded  => streak = 0
-new epoch   => streak = 0
+checked_in  => clear chain
+missed      => start chain if absent; confirmed_misses += 1
+unknown     => if no chain: remain unstarted
+               else: unknown_windows += 1; pause without adding a miss
+               invalidate when unknown_windows > Umax or chain_deadline passes
+superseded  => clear chain
+new epoch   => clear chain
 ```
 
-When `streak >= N`:
+`Umax = max(1, ceil(0.10 × N))`. This allows a small acquisition margin while keeping blindness bounded; the percentage term is twice the maximum 5% missed-deadline rate allowed for a healthy contract, while the minimum of one prevents a single acquisition glitch from erasing short chains. `chain_deadline = chain_started_at + (N + Umax) × D + account_collector_grace`. `Umax` is a versioned safety constant, not a user setting. It is recomputed only when a new settings/roster epoch starts.
+
+Thus `missed -> unknown -> missed` contains two confirmed misses and one unknown while inside budget. The unknown neither becomes a miss nor erases already established silence. Repeated or prolonged blindness invalidates the chain rather than accumulating indefinitely.
+
+### Reliability regression model
+
+For a true-silence model, let `q` be the probability that at least one enrolled device becomes an eligible witness in a window. It is an account-level OR result, not the product of every device's success probability. Let `E0` be expected windows to alert with no live chain and `E(m,u)` the expectation after `m` confirmed misses and `u` unknown windows:
+
+```text
+E0 = 1 + q × E(1,0) + (1-q) × E0
+E(m,u) = 1
+         + q × (0 if m+1=N else E(m+1,u))
+         + (1-q) × (E0 if u=Umax else E(m,u+1))
+```
+
+The recurrence is evaluated in tests with exact decimal/rational arithmetic. At the healthy-contract floor `q=0.95`, `D=20 minutes`, `N=18`, `Umax=2`, it yields 19.8732 windows or 6.6244 hours **before the separately displayed final collector grace**. This is the acceptance baseline that prevents a smaller `D` from silently reintroducing the old 10.1-hour reset behavior while the UI says nominal `H=6 hours`.
+
+When `confirmed_misses >= N` within both bounds:
 
 1. wait for the canonical sleep/post-wake gate to be inactive;
 2. acquire an account-level idempotent alert lock;
@@ -507,13 +557,13 @@ When `streak >= N`:
 
 The evaluator runs on the existing one-minute server schedule. After the final required window and collector deadline are eligible, server scheduling adds at most one normal evaluator minute unless the scheduler is unhealthy. Scheduler failure makes protection `Limited`; it does not silently extend `H`.
 
-The causal snapshot contains:
+The causal snapshot contains the ordered window IDs/outcomes, eligible witness IDs and coverage contracts, confirmed miss count, unknown-window IDs/count, `Umax`, chain start/deadline, account collector grace, settings/roster/monitoring epochs, sleep-gate decision and all evidence IDs used to derive the result.
 
 - account contract and monitoring-epoch IDs;
 - active `D` and `N`;
-- the exact `N` missed window IDs;
+- the exact `N` confirmed-miss window IDs and any intervening bounded `unknown` window IDs;
 - evidence cutoff and account decision deadline;
-- collector roster and coverage result IDs;
+- witness-capable roster, per-window eligible-witness and coverage result IDs;
 - sleep-gate result and evaluation time;
 - alert-policy version.
 
@@ -531,7 +581,7 @@ After an accepted explicit resolution:
 
 - close/pause the existing alert according to its canonical reason;
 - start a new monitoring epoch at `resolved_at` using the latest acknowledged account contract;
-- set streak to zero;
+- clear the miss chain;
 - start the first new window at `resolved_at`.
 
 Late evidence from before `resolved_at` cannot affect the new epoch.
@@ -550,6 +600,7 @@ This prevents a technical outage from bypassing the user’s selected `D/N` cont
 ## Protection Health and User Notices
 
 - The server owns Ready/Limited/Positive-only/Off truth.
+- Account Ready depends on at least one currently healthy witness-capable device, not on every enrolled device. Per-device failures remain visible without vetoing a valid witness.
 - One incident has a stable incident ID, start, reason, affected collectors and recovery evidence.
 - Dismissing a notice does not restore Ready.
 - Recovery requires new valid coverage under the current collector contract.
@@ -566,7 +617,7 @@ The learner can write only recommendation and provenance state. Database privile
 
 - active `D` or `N`;
 - account contract versions;
-- window outcomes or streak;
+- window outcomes or miss-chain state;
 - alert creation, resolution, escalation or notification.
 
 ### Eligible personal silence episodes
@@ -589,7 +640,7 @@ Configured sleep and accepted post-wake intervals are unioned and subtracted fro
 - Use the deduplicated activity episodes defined above.
 - Rolling lookback is 30 complete UTC days ending at the last completed day.
 - Evidence days count distinct user-local dates containing eligible decision-grade coverage.
-- The false-recommendation budget `B` is fixed at 1 per 30 evidence days for revision 2.
+- The false-recommendation budget `B` is fixed at 1 per 30 evidence days for revision 3.
 
 ### Personal reference estimator
 
@@ -649,7 +700,7 @@ For `R = 6 hours`:
 
 The UI shows source, lookback, episode count, evidence days, confidence and last calculation time.
 
-Contextual sleep/day/workday/weekend recommendations are outside revision 2. Adding them requires separately visible advice and cannot introduce automatic context-dependent active rules.
+Contextual sleep/day/workday/weekend recommendations are outside revision 3. Adding them requires separately visible advice and cannot introduce automatic context-dependent active rules.
 
 ## Privacy, Security and Store-Review Contract
 
@@ -718,13 +769,14 @@ The settings surface must:
 
 - expose one-minute `D` slider and numeric alternative;
 - expose numeric `N` input;
-- show active `D`, active `N`, nominal `H`, maximum collector grace and sleep-delay note;
+- show active `D`, active `N`, nominal `H`, maximum collector grace, `Umax`, maximum live-chain span and sleep-delay note;
 - show recommendation separately with Apply, evidence period, counts and confidence;
 - never auto-apply a recommendation;
 - show Ready/Limited/Positive-only/Off at account level;
-- show each device’s platform, last healthy coverage, decision-grade/positive-only capability and exact repair reason;
+- show each device’s platform, last healthy coverage, witness-capable/eligible/positive-only state and exact repair reason;
 - avoid primary/secondary device language;
-- allow explicit enrollment, disable, sign-out and removal;
+- allow explicit witness enrollment, disable, sign-out and removal;
+- require the Configured sleep protection or No sleep gate choice before enablement, with neither choice preselected;
 - explain shared/borrowed-device limitations;
 - explain that evidence is not proof of safety;
 - show saved state only after server acknowledgement.
@@ -737,9 +789,15 @@ Accessibility requirements:
 - color is never the only readiness/confidence signal;
 - focus order, dynamic recommendation updates and validation messages are announced without stealing focus.
 
-If a selected `D` is shorter than a device’s proven capability, the value remains allowed but the device displays:
+If a selected `D` is shorter than a device’s proven capability, the value remains allowed. If a live chain exists, the device displays:
 
-> This device may not complete every selected window. Unobserved windows become Unknown, not missed check-ins.
+> This device may not complete every selected window. Brief Unknown gaps can delay an alert by up to [remaining bounded extension]. Repeated or prolonged gaps invalidate the current miss sequence; if no other healthy witness covers those windows, protection may not alert. Repair, disable or remove this device.
+
+If no live chain exists or the previous chain was invalidated, it displays:
+
+> This device may not complete every selected window. There is currently no maximum alert time: without another healthy witness, protection may not alert. Repair, disable or remove this device.
+
+In both states, the account line says whether another healthy witness keeps the account Ready or the absence of one makes it Limited.
 
 ## Compatibility and Migration
 
@@ -759,14 +817,14 @@ Both engines must never create inactivity alerts for the same account.
 
 1. Deploy schema/collectors disabled and run local/integration verification.
 2. Run `shadow` for at least 14 consecutive days.
-3. Offer an explicit migration screen showing `D`, `N`, `H`, device capability and recommendation source.
-4. Migrate only after user acknowledgement and server creation of the first passive contract.
+3. Offer an explicit migration screen showing `D`, `N`, `H`, device capability, proposed witness roster and recommendation source.
+4. Require an explicit Configured sleep protection or No sleep gate choice and explicit witness enrollment acknowledgement before creating the first passive contract.
 5. Existing users who do not choose remain `legacy`; no default values are silently activated.
 6. An open legacy alert completes under its original causal lifecycle. Engine migration begins only after it closes.
 
 ### New users
 
-After production promotion, onboarding may offer passive protection with initial active 2 hours × 3 misses. Permission and device enrollment remain explicit.
+After production promotion, onboarding may offer passive protection with initial active 2 hours × 3 misses. Permission, sleep-policy choice and witness enrollment remain explicit. Accounts with only iOS Native/PWA or other positive-only surfaces may collect check-ins but must be labelled Positive-only and cannot enable inactivity alerts.
 
 ### Old clients
 
@@ -781,7 +839,7 @@ After production promotion, onboarding may offer passive protection with initial
 - Historical raw evidence may seed `R` only after it passes the new identity, qualification, coverage, deduplication, sleep and outage rules.
 - Unknown or unverifiable history is excluded.
 - If fewer than three eligible episodes/days remain, use the transparent 6-hour default recommendation.
-- The uncommitted iOS device-sample promotion migration/test are candidate implementation material only and must be rebased onto this contract.
+- The uncommitted iOS device-sample promotion migration/test are candidate implementation material only and must be rebased to promote **positive evidence only**. They must never turn zero steps, missing motion or iOS acquisition reliability into complete coverage, an eligible witness or `missed`.
 - The withdrawn coverage-learning migration remains withdrawn.
 
 ### Rollback
@@ -797,12 +855,13 @@ Required metrics, segmented by platform/contract/client version without raw pers
 
 - pending, checked-in, missed, unknown and superseded window counts;
 - pending beyond deadline;
-- unknown reason and duration;
+- unknown reason/duration, per-chain `unknown_windows`, `Umax`, budget expiry and chain-age distributions;
+- enrolled witness-capable and per-window eligible-witness counts;
 - collector deadline success rate;
 - late positive correction count;
 - duplicate/replay/conflicting-ID rejection count;
 - cross-account/binding rejection count;
-- miss streak and alert-eligibility transitions;
+- confirmed-miss chain, bounded-pause, invalidation and alert-eligibility transitions;
 - passive alert opens and duplicate-lock suppressions;
 - passive evidence received after open alert;
 - recommendation source/confidence/change rate;
@@ -811,6 +870,9 @@ Required metrics, segmented by platform/contract/client version without raw pers
 Hard invariant alarms:
 
 - any `unknown -> missed` transition;
+- any iOS zero-motion result or other positive-only absence producing coverage, an eligible witness or `missed`;
+- any incomplete device vetoing a valid eligible witness;
+- any alert chain surviving `unknown_windows > Umax` or `chain_deadline`;
 - any passive event resolving an alert;
 - any Guardian/external event becoming Ward evidence;
 - any cross-account collector acceptance;
@@ -820,7 +882,7 @@ Hard invariant alarms:
 Operational degradation rules:
 
 - an account evaluator or window-finalizer schedule gap greater than three minutes marks server protection Limited;
-- a nominally healthy platform/contract version missing more than 5% of decision deadlines over a rolling 24 hours is removed from Ready and rollout stops;
+- a nominally healthy witness contract version missing more than 5% of decision deadlines over a rolling 24 hours cannot support Ready and its rollout stops;
 - one subject failure must not abort processing for other accounts;
 - scheduler, cleanup and notification jobs expose last success, last error and skipped-subject counts.
 
@@ -832,18 +894,23 @@ Operational degradation rules:
 2. DST and timezone changes do not change UTC window duration.
 3. A settings/roster change supersedes the partial window and starts counter zero at server `effective_at`.
 4. Any qualified bound-device event produces `checked_in`.
-5. All enrolled decision-grade collectors complete with no evidence produces `missed`.
-6. Any incomplete enrolled collector with no positive evidence produces `unknown`.
-7. No enrolled decision-grade collector produces Positive-only/Limited and `unknown`, never `missed`.
-8. `missed -> unknown -> missed` leaves streak 1.
-9. Exactly `N` chronologically consecutive misses creates one self-confirmation alert.
-10. No later missed window duplicates an open alert.
-11. Passive evidence after alert creation cannot resolve it.
-12. Explicit resolution starts a new epoch/window at `resolved_at`.
-13. Sleep permits window collection and miss accumulation but suppresses alert creation until canonical grace ends.
-14. A sleep-time check-in resets the chain.
-15. A sleep-time unknown terminates the chain.
-16. Legacy threshold and dark-device rules cannot create passive-mode inactivity alerts.
+5. At least one eligible witness with no evidence produces `missed`.
+6. An incomplete second device does not veto another device's eligible witness or change that `missed` to `unknown`.
+7. No eligible witness produces `unknown`; positive-only surfaces never produce `missed`.
+8. `missed -> unknown -> missed` leaves two confirmed misses and one unknown while inside `Umax` and `chain_deadline`.
+9. The `(Umax + 1)`th unknown, or passage of `chain_deadline`, invalidates and clears the chain.
+10. An unknown before the first miss creates no chain and promises no alert time.
+11. Exactly `N` confirmed misses inside both bounds creates one self-confirmation alert.
+12. For the review floor `q=0.95`, `D=20 minutes`, `N=18`, `Umax=2`, the pinned Markov calculation yields an expected 19.8732 windows (6.6244 hours) during true silence before final collector grace; regression of this window component above 6.7 hours fails acceptance.
+13. A late positive correction to any live-chain window clears that chain; a correction after invalidation does not resurrect it.
+14. No later missed window duplicates an open alert.
+15. Passive evidence after alert creation cannot resolve it.
+16. Explicit resolution starts a new epoch/window at `resolved_at`.
+17. Sleep permits window collection and miss accumulation but suppresses alert creation until canonical grace ends.
+18. A sleep-time check-in resets the chain.
+19. A sleep-time unknown pauses inside budget and invalidates only when the budget/deadline is exceeded.
+20. Missing sleep-policy choice prevents passive enablement; explicit No sleep gate permits overnight misses.
+21. Legacy threshold and dark-device rules cannot create passive-mode inactivity alerts.
 
 ### Trust and identity cases
 
@@ -863,13 +930,16 @@ Operational degradation rules:
 1. Android keyguard-hidden/foreground interaction qualifies; screen-on alone does not.
 2. Android package names never leave the device.
 3. Positive pedestrian steps/floors qualify; automotive-only motion does not.
-4. Initial charging state does not qualify.
-5. Confirmed stable connect/disconnect qualifies.
-6. Callback flap/current charge/battery increase does not qualify.
-7. Tauri keyboard/mouse input uses its reconstructed time.
-8. PWA deliberate interaction qualifies; push/service-worker/page visibility alone does not.
-9. Heartbeat, wake, notification acknowledgement and network success never check in.
-10. Cross-source duplicates do not distort learning sessions.
+4. An iOS exact-window zero-step result never proves complete coverage, becomes a witness or produces `missed`.
+5. Sedentary, bedridden, wheelchair/assistive-mobility and desk-use scenarios produce no false iOS negative conclusion.
+6. An iOS-only account remains Positive-only and cannot open an inactivity alert.
+7. Initial charging state does not qualify.
+8. Confirmed stable connect/disconnect qualifies.
+9. Callback flap/current charge/battery increase does not qualify.
+10. Tauri keyboard/mouse input uses its reconstructed time.
+11. PWA deliberate interaction qualifies; push/service-worker/page visibility alone does not.
+12. Heartbeat, wake, notification acknowledgement and network success never check in.
+13. Cross-source duplicates do not distort learning sessions.
 
 ### Learning cases
 
@@ -881,7 +951,7 @@ Operational degradation rules:
 6. A single >150% exceptional gap cannot change `R`.
 7. Two different-date gaps within the 1.25 ratio may change `R`.
 8. Recommendation mapping uses `ceil(R/D)`.
-9. Recommendation writes cannot mutate active settings, windows, streaks or alerts.
+9. Recommendation writes cannot mutate active settings, windows, miss chains or alerts.
 10. Changing `D` previews advice only.
 
 ### Privacy and ACL cases
@@ -910,11 +980,12 @@ iOS Native/TestFlight:
 - at least three supported iPhone/OS combinations;
 - 20-minute, 2-hour and 6-hour settings;
 - foreground use, sedentary/no-motion, pedestrian motion, charging transition, Motion denial/revocation, suspension, force-quit, restart, network outage and silent-push delay/drop;
-- exact-window pedometer result-bound verification;
-- at least 95% deadline completion while the contract claims healthy over seven consecutive days;
-- zero false complete-coverage assertions.
+- exact-window pedometer positive-result bound and seven-day positive-recovery verification;
+- zero zero-motion/absence result promoted to complete coverage, eligible witness or `missed`;
+- truthful Positive-only status and iOS-only alert-authority denial;
+- sedentary, bedridden and wheelchair/assistive-mobility semantic tests with zero false negative conclusions.
 
-If the iOS gate fails, iOS Native remains positive-only/Limited. PWA cannot replace the failed gate.
+Failure of this gate blocks the iOS positive collector release. Passing it does not promote iOS to witness-capable. PWA cannot replace a missing witness contract.
 
 Tauri:
 
@@ -928,7 +999,8 @@ Tauri:
 - 14 days shadow with zero hard-invariant violation;
 - no account receives alerts from both engines;
 - shadow replay explains every checked-in/missed/unknown outcome by causal IDs;
-- alert-time comparison includes `H`, collector grace and sleep delay;
+- alert-time comparison separately includes `H`, collector grace, bounded unknown extension/invalidation and sleep delay;
+- multi-device replay proves that an incomplete non-witnessing device never vetoes an eligible witness;
 - user migration flow and accessibility pass;
 - rollback/kill switch tested without production mutation;
 - independent non-author safety review has no blocker;
@@ -936,12 +1008,12 @@ Tauri:
 
 ## Implementation Package Boundaries After Written Acceptance
 
-1. Database contracts: engine mode, account contract version, monitoring epoch, windows, collector roster, evidence/coverage, causal snapshot, RLS and pgTAP.
+1. Database contracts: engine mode, account contract version, monitoring epoch, windows, witness-capable roster, evidence/coverage, causal snapshot, RLS and pgTAP.
 2. Trust/ingest: device binding, credential revocation, idempotency, sequence, timestamp, correction and retention.
 3. Android AAB collector and device tests.
-4. iOS Native collector and TestFlight evidence.
+4. iOS Native positive-only collector and TestFlight semantic evidence.
 5. Tauri collector and Windows/macOS evidence.
-6. Account aggregation, sleep integration, alert idempotency and legacy-trigger retirement.
+6. Eligible-witness aggregation, bounded miss-chain state, sleep integration, alert idempotency and legacy-trigger retirement.
 7. Advisory learner and provenance.
 8. Settings/device/protection-health/migration UX and accessibility.
 9. Shadow comparison, observability, rollback and integrated verification.
