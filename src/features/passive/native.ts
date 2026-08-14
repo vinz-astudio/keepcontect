@@ -3,6 +3,11 @@ import { SUPABASE_URL } from '@/lib/config'
 import { isSensorEnabled } from '@/features/signals/sensors'
 import { getClientId } from '@/lib/clientReport'
 import { APP_VERSION } from '@/lib/version'
+import { supabase } from '@/lib/supabase'
+import { bindPassiveCollector, revokePassiveCollector } from './evidenceContract'
+
+const NATIVE_BINDING_ID_KEY = 'kc.passiveEvidence.bindingId'
+const NATIVE_BINDING_OWNER_KEY = 'kc.passiveEvidence.ownerId'
 
 export interface HealthWakeStatus {
   /** Device has HealthKit at all (an iPad does not). */
@@ -34,7 +39,10 @@ interface PassivePingPlugin {
     clientId: string
     appVersion: string
     collectorContract: 'android-passive-v1' | 'ios-passive-v1'
-  }): Promise<void>
+    bindingId?: string
+    evidenceCredential?: string
+    evidenceCollectorContract?: 'android-passive-evidence-v1' | 'ios-passive-evidence-v1'
+  }): Promise<{ evidenceConfigured?: boolean } | void>
   clear(): Promise<void>
   pingApp(): Promise<void>
   openAccessibilitySettings(): Promise<void>
@@ -85,6 +93,16 @@ export async function configureNativePassivePing(
   if (platform !== 'android' && platform !== 'ios') return
   try {
     if (!token) {
+      const bindingId = safeStorageGet(NATIVE_BINDING_ID_KEY)
+      if (bindingId) {
+        try {
+          await revokePassiveCollector(bindingId)
+        } catch {
+          // Revocation is best-effort here; the native credential and queue are
+          // still erased immediately, so a stale upload cannot cross accounts.
+        }
+      }
+      clearStoredNativeBinding()
       await PassivePing.clear()
       return
     }
@@ -112,20 +130,93 @@ export async function configureNativePassivePing(
     const allowCharging = isSensorEnabled('phone_charger')
     const allowUsageStats = isSensorEnabled('app_activity')
     const allowActivityRecognition = isSensorEnabled('motion')
+    const clientId = getClientId()
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id ?? null
+    let bindingId = safeStorageGet(NATIVE_BINDING_ID_KEY)
+    let evidenceCredential: string | undefined
+    const storedOwner = safeStorageGet(NATIVE_BINDING_OWNER_KEY)
 
-    await PassivePing.configure({
+    if (!userId || (storedOwner && storedOwner !== userId)) {
+      clearStoredNativeBinding()
+      bindingId = null
+      await PassivePing.clear()
+    }
+    if (userId && !bindingId) {
+      try {
+        const binding = await bindPassiveCollector(clientId, 'android_native', APP_VERSION)
+        bindingId = binding.bindingId
+        evidenceCredential = binding.credential
+        safeStorageSet(NATIVE_BINDING_ID_KEY, binding.bindingId)
+        safeStorageSet(NATIVE_BINDING_OWNER_KEY, userId)
+      } catch {
+        // Legacy accounts keep their existing heartbeat collector. The native
+        // evidence path stays empty/fail-closed until the passive contract is active.
+        bindingId = null
+      }
+    }
+
+    const configureOptions = {
       supabaseUrl: SUPABASE_URL,
       token,
       allowCharging,
       allowUsageStats,
       allowActivityRecognition,
-      clientId: getClientId(),
+      clientId,
       appVersion: APP_VERSION,
-      collectorContract: 'android-passive-v1',
-    })
+      collectorContract: 'android-passive-v1' as const,
+      ...(bindingId ? {
+        bindingId,
+        evidenceCollectorContract: 'android-passive-evidence-v1' as const,
+      } : {}),
+      ...(evidenceCredential ? { evidenceCredential } : {}),
+    }
+    const configured = await PassivePing.configure(configureOptions)
+    if (bindingId && !evidenceCredential && configured && configured.evidenceConfigured === false && userId) {
+      try {
+        await revokePassiveCollector(bindingId)
+      } catch {
+        // A revoked/missing binding is exactly the state this repair handles.
+      }
+      clearStoredNativeBinding()
+      const replacement = await bindPassiveCollector(clientId, 'android_native', APP_VERSION)
+      safeStorageSet(NATIVE_BINDING_ID_KEY, replacement.bindingId)
+      safeStorageSet(NATIVE_BINDING_OWNER_KEY, userId)
+      await PassivePing.configure({
+        ...configureOptions,
+        bindingId: replacement.bindingId,
+        evidenceCredential: replacement.credential,
+        evidenceCollectorContract: 'android-passive-evidence-v1',
+      })
+    }
     await PassivePing.pingApp()
   } catch {
     // Native bridge is best-effort; PWA ping URLs remain the fallback.
+  }
+}
+
+function safeStorageGet(key: string): string | null {
+  try {
+    return globalThis.localStorage?.getItem(key) ?? null
+  } catch {
+    return null
+  }
+}
+
+function safeStorageSet(key: string, value: string): void {
+  try {
+    globalThis.localStorage?.setItem(key, value)
+  } catch {
+    /* native secure state remains authoritative */
+  }
+}
+
+function clearStoredNativeBinding(): void {
+  try {
+    globalThis.localStorage?.removeItem(NATIVE_BINDING_ID_KEY)
+    globalThis.localStorage?.removeItem(NATIVE_BINDING_OWNER_KEY)
+  } catch {
+    /* native clear still erases the credential and queue */
   }
 }
 

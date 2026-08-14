@@ -133,6 +133,8 @@ public class NotifyWorker extends Worker {
 
         // UsageStats passive ping backfill check
         if (PassivePing.isUsageStatsAllowed(context) && PassivePing.isUsageAccessGranted(context)) {
+            PassiveEvidenceContract.Evidence evidence = PassivePing.queryLatestUsageEvidence(context);
+            PassivePing.enqueueEvidence(context, evidence);
             long lastActive = PassivePing.queryLastActiveTime(context);
             long lastPing = PassivePing.lastPingAt(context);
             if (lastActive > lastPing) {

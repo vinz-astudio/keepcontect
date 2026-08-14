@@ -25,6 +25,9 @@ public class PassivePingPlugin extends Plugin {
         String clientId = call.getString("clientId");
         String appVersion = call.getString("appVersion");
         String collectorContract = call.getString("collectorContract");
+        String evidenceBindingId = call.getString("bindingId");
+        String evidenceCredential = call.getString("evidenceCredential");
+        String evidenceCollectorContract = call.getString("evidenceCollectorContract");
         Boolean allowChargingValue = call.getBoolean("allowCharging");
         Boolean allowUsageStatsValue = call.getBoolean("allowUsageStats");
         Boolean allowActivityRecognitionValue = call.getBoolean("allowActivityRecognition");
@@ -40,12 +43,15 @@ public class PassivePingPlugin extends Plugin {
 
         PassivePing.configure(
             getContext(), supabaseUrl, token, allowCharging, allowUsageStats,
-            allowActivityRecognition, clientId, appVersion, collectorContract);
+            allowActivityRecognition, clientId, appVersion, collectorContract,
+            evidenceBindingId, evidenceCredential, evidenceCollectorContract);
         refreshEventReceiver();
 
         // Logged in + configured -> keep the background notification poll alive.
         NotifyWorker.schedule(getContext());
-        call.resolve(new JSObject());
+        JSObject result = new JSObject();
+        result.put("evidenceConfigured", PassivePing.isEvidenceConfigured(getContext()));
+        call.resolve(result);
     }
 
     @PluginMethod
@@ -433,6 +439,7 @@ public class PassivePingPlugin extends Plugin {
                 if (intent == null) return;
                 String action = intent.getAction();
                 android.util.Log.d("KeepContactPassive", "receiver onReceive: " + action);
+                PassivePing.recordPowerBroadcast(receiverContext, action);
                 if (PassivePing.shouldPingForAction(receiverContext, action)) {
                     PassivePing.ping(receiverContext);
                 }
