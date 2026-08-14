@@ -4,6 +4,10 @@ use tauri::{
     Emitter, Manager,
 };
 
+fn elapsed_tick_ms(current: u32, last_input: u32) -> u64 {
+    current.wrapping_sub(last_input) as u64
+}
+
 #[cfg(target_os = "windows")]
 mod sys_idle {
     use std::mem;
@@ -24,7 +28,7 @@ mod sys_idle {
         fn GetTickCount() -> u32;
     }
 
-    pub fn get_idle_time_ms() -> Option<u32> {
+    pub fn get_idle_time_ms() -> Option<u64> {
         let mut lii = LastInputInfo {
             cb_size: mem::size_of::<LastInputInfo>() as u32,
             dw_time: 0,
@@ -32,7 +36,7 @@ mod sys_idle {
         unsafe {
             if GetLastInputInfo(&mut lii) != 0 {
                 let current_tick = GetTickCount();
-                Some(current_tick.wrapping_sub(lii.dw_time))
+                Some(super::elapsed_tick_ms(current_tick, lii.dw_time))
             } else {
                 None
             }
@@ -47,11 +51,11 @@ mod sys_idle {
         fn CGEventSourceSecondsSinceLastEventType(source_state: i32, event_type: u32) -> f64;
     }
 
-    pub fn get_idle_time_ms() -> Option<u32> {
+    pub fn get_idle_time_ms() -> Option<u64> {
         unsafe {
             let seconds = CGEventSourceSecondsSinceLastEventType(0, 0xFFFFFFFF);
             if seconds >= 0.0 {
-                Some((seconds * 1000.0) as u32)
+                Some((seconds * 1000.0) as u64)
             } else {
                 None
             }
@@ -61,14 +65,52 @@ mod sys_idle {
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
 mod sys_idle {
-    pub fn get_idle_time_ms() -> Option<u32> {
+    pub fn get_idle_time_ms() -> Option<u64> {
         None
     }
 }
 
 #[tauri::command]
-fn get_system_idle_time_ms() -> Option<u32> {
+fn get_system_idle_time_ms() -> Option<u64> {
     sys_idle::get_idle_time_ms()
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TauriInputEvidenceSample {
+    collector_contract: &'static str,
+    channel: &'static str,
+    probe_available: bool,
+    sample_time_ms: u64,
+    idle_duration_ms: u64,
+    last_input_at_ms: u64,
+}
+
+fn reconstruct_input_sample(
+    sample_time_ms: u64,
+    idle_duration_ms: Option<u64>,
+) -> Option<TauriInputEvidenceSample> {
+    let idle_duration_ms = idle_duration_ms?;
+    let last_input_at_ms = sample_time_ms.checked_sub(idle_duration_ms)?;
+    Some(TauriInputEvidenceSample {
+        collector_contract: "tauri-passive-evidence-v1",
+        channel: "tauri",
+        probe_available: true,
+        sample_time_ms,
+        idle_duration_ms,
+        last_input_at_ms,
+    })
+}
+
+#[tauri::command]
+fn get_tauri_input_evidence_sample() -> Option<TauriInputEvidenceSample> {
+    let sample_time_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis()
+        .try_into()
+        .ok()?;
+    reconstruct_input_sample(sample_time_ms, sys_idle::get_idle_time_ms())
 }
 
 #[derive(serde::Serialize)]
@@ -272,6 +314,7 @@ pub fn run() {
     })
     .invoke_handler(tauri::generate_handler![
       get_system_idle_time_ms,
+      get_tauri_input_evidence_sample,
       get_alert_shadow_coverage_capability,
       download_and_install,
       open_in_browser
@@ -298,5 +341,35 @@ mod shadow_coverage_tests {
         assert_eq!(value.collector_state, "operational");
         assert_eq!(value.channel, "tauri");
         assert_eq!(value.app_version, "0.5.20");
+    }
+}
+
+#[cfg(test)]
+mod passive_input_evidence_tests {
+    use super::*;
+
+    #[test]
+    fn reconstructs_last_input_from_the_same_sample_clock() {
+        let sample = reconstruct_input_sample(1_800_000, Some(300_000)).unwrap();
+        assert_eq!(sample.sample_time_ms, 1_800_000);
+        assert_eq!(sample.idle_duration_ms, 300_000);
+        assert_eq!(sample.last_input_at_ms, 1_500_000);
+        assert_eq!(sample.channel, "tauri");
+        assert_eq!(sample.collector_contract, "tauri-passive-evidence-v1");
+    }
+
+    #[test]
+    fn tick_count_wrap_is_elapsed_time_not_future_input() {
+        assert_eq!(elapsed_tick_ms(25, u32::MAX - 24), 50);
+    }
+
+    #[test]
+    fn unavailable_probe_returns_no_sample() {
+        assert!(reconstruct_input_sample(1_800_000, None).is_none());
+    }
+
+    #[test]
+    fn clock_guard_rejects_an_idle_duration_before_unix_epoch() {
+        assert!(reconstruct_input_sample(1_000, Some(1_001)).is_none());
     }
 }

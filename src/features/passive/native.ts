@@ -4,7 +4,9 @@ import { isSensorEnabled } from '@/features/signals/sensors'
 import { getClientId } from '@/lib/clientReport'
 import { APP_VERSION } from '@/lib/version'
 import { supabase } from '@/lib/supabase'
+import { isTauri } from '@/lib/platform'
 import { bindPassiveCollector, revokePassiveCollector } from './evidenceContract'
+import { clearTauriPassiveEvidence } from './shadowCoverage'
 
 const NATIVE_BINDING_ID_KEY = 'kc.passiveEvidence.bindingId'
 const NATIVE_BINDING_OWNER_KEY = 'kc.passiveEvidence.ownerId'
@@ -89,6 +91,10 @@ export async function openInExternalBrowser(url: string): Promise<void> {
 export async function configureNativePassivePing(
   token: string | null,
 ): Promise<void> {
+  if (isTauri()) {
+    if (!token) await clearTauriPassiveEvidence()
+    return
+  }
   const platform = Capacitor.getPlatform()
   if (platform !== 'android' && platform !== 'ios') return
   try {
