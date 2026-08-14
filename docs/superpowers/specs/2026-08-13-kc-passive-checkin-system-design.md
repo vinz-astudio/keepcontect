@@ -5,12 +5,12 @@
 | Field | Value |
 |---|---|
 | ID | KC-PASSIVE-CHECKIN-SPEC-001 |
-| Revision | 8 |
-| Status | Proposed. Revision 5 cut the design to the revision 4 goal; Codex peer review agreed the cuts and option A, returning five findings. Revisions 6–8 closed them across three review passes, each pass catching a contradiction the previous revision had introduced. Codex re-review of revision 8 pending; human written acceptance pending. Two Open Decisions remain, both requiring the human or real-device data rather than more design. |
+| Revision | 9 |
+| Status | Proposed. Revision 5 cut the design to the revision 4 goal; Codex peer review agreed the cuts, returning seven findings across four passes, all now CLOSED with revision 8 judged implementable as written. Revision 9 records the human's resolution of Open Decision 1 (ADR-0039 amendment one, accepted 2026-08-14) and replaces the iOS floor estimate with production measurement. Human written acceptance of the engine itself still pending. |
 | Change class | Product-UX / M3 |
 | Proposed decision | ADR-0042 (renumbered 2026-08-14; ADR-0041 is the accepted Brain-global “Caveman Internal Communication”) |
 | Replaces if accepted | ADR-0037 learned silence as live alert authority; ADR-0040 D2 automatic contextual thresholds |
-| Preserves if accepted | ADR-0039 explicit alert resolution and Guardian/Ward boundaries (**with one flagged conflict, see Open Decision 1**); ADR-0040 platform-specific collection with platform-neutral normalization; existing self → group → community escalation |
+| Preserves if accepted | ADR-0039 explicit alert resolution and Guardian/Ward boundaries (ADR-0039 amendment one, accepted 2026-08-14, limits the outage clause; see Open Decision 1); ADR-0040 platform-specific collection with platform-neutral normalization; existing self → group → community escalation |
 | Implementation authority | None. Human acceptance required before any implementation plan, source change, migration, deployment, release or Store action. |
 
 ## Goal (authoritative; do not remove or reword in later revisions)
@@ -63,24 +63,38 @@ gate (all must hold, per platform-mix cohort):
 
 “Must”, “must not”, “only”, “never” and exact formulas are implementation requirements. “May” describes an allowed option. An implementation cannot claim conformance by substituting a different alert-affecting rule.
 
-## Open Decisions (human must resolve before acceptance)
+## Open Decisions
 
-### Open Decision 1 — may a silent collector eventually reach the group?
+### ~~Open Decision 1~~ — RESOLVED 2026-08-14, option A
 
-Revisions 1–4 held that technical failure can never become a safety escalation (ADR-0039, and invariant “collector failure can never be converted into `missed`”). That is why `unknown` existed as a blocking state and why the coverage/witness machinery existed to produce it.
+A dead collector is treated the same as a missed manual check-in: it counts. Recorded as **ADR-0039 amendment one**, accepted 2026-08-14, which limits the scope of “technical outage never automatically becomes a personal-safety alert” rather than overturning it.
 
-Revision 5's goal accepts the cost of a wrongly derived `missed`, which removes the reason for that machinery. But it also means: **a phone whose battery dies produces no evidence, accrues misses, and — if the user never answers the first-stage prompt — eventually reaches the group.**
+The limited rule: an outage still never becomes a **personal-safety** alert on its own, but under `engine_mode='passive_checkin'` a silent collector **combined with the subject not answering** may enter the existing funnel — because at that point the evidence is no longer “the collector did not report” but “this person did not answer a direct question”, which is a fact about the person.
 
-| Option | Behaviour | Cost |
-|---|---|---|
-| **A (recommended)** | A dead collector is treated the same as a missed manual check-in. It counts. The group message must say KC lost contact, not that the person is in danger. | Contradicts ADR-0039's technical/safety separation. Requires an explicit ADR-0039 amendment. |
-| **B** | `unknown` remains a blocking state; a dead collector never counts. | Brings back coverage proof, per-device health gating, and the multi-device veto problem. Keeps KC silent in the case a manual check-in App would have caught. |
+**Binding wording constraint:** any message reaching group or community must say **KC lost contact**, never that the person is in danger. This is the same standard ADR-0039 already set for its own “device/App coverage interrupted, this does not mean danger” notice, and it must hold through both escalation levels without being rewritten into a danger claim on the way up.
 
-Revision 5 is **written for option A**, because option B reintroduces exactly the complexity this revision removed and produces behaviour worse than the manual-check-in baseline. **This is flagged, not decided.** If the human chooses B, the aggregation and chain sections must be rewritten.
+Unaffected and still in force: outage intervals do not train (an episode overlapping a non-reporting surface is excluded — that is the ADR-0037 defect itself); passive evidence never resolves an open alert; Concern, Guardian external confirmation and notification acknowledgement are not the subject's own activity; collector failure must still be shown honestly and dismissing a notice does not restore Ready.
 
 ### Open Decision 2 — the iOS `H_floor` number
 
-The platform floor for an iOS-only account is currently a provisional engineering estimate (6–8 hours), not a measured value. It must be replaced by measured data before it can be a production default. See “Platform floor”.
+The floor is now **12 hours**, raised from a 6–8 hour engineering estimate after measuring production. It is still provisional.
+
+Measured 2026-08-14 over 30 days of `ios-passive-v1` samples, taking gaps between consecutive positive-evidence arrivals (steps, floors, foreground or unlock; automotive excluded):
+
+| Account | Gaps | p50 | p90 | **p95** | Max |
+|---|---:|---:|---:|---:|---:|
+| A, all hours | 57 | 1.00 h | 7.66 h | **11.40 h** | 16.04 h |
+| B, all hours | 215 | 0.25 h | 2.76 h | **6.79 h** | 22.74 h |
+| A, local 08:00–22:00 | 45 | 1.00 h | 5.83 h | **12.31 h** | 16.04 h |
+| B, local 08:00–22:00 | 173 | 0.25 h | 1.65 h | **2.36 h** | 19.83 h |
+
+Three things this says, none of which the earlier estimate captured:
+
+1. **The estimate was optimistic.** A's p95 exceeds 8 hours in both views.
+2. **Excluding sleep does not uniformly improve the number.** B improves sharply (6.79 → 2.36 h) as expected once night gaps are removed, but A gets *worse* (11.40 → 12.31 h): A has genuinely long daytime gaps, so A's problem is not sleep.
+3. **The spread between two accounts is more than five-fold at p95** (2.36 h vs 12.31 h). A single global floor is a blunt instrument, and this is the strongest argument for the real-device gate rather than more estimation.
+
+Why this does **not** close the decision: `n = 2` accounts, far below this document's own cohort minimum of 20; and a gap between positive-evidence arrivals conflates “iOS failed to deliver” with “this person genuinely did not move”, which is the exact iOS semantic limitation described in the iOS contract. Only the real-device gate, which controls the scenario, can separate them. Until it runs, 12 hours is the honest conservative choice: it covers both observed accounts and matches the manual-baseline floor.
 
 ## What Revisions 6–8 Closed
 
@@ -242,7 +256,7 @@ Every quantity in this document that is defined “per surface” reads from one
 | `tauri_native` (Windows, macOS) | 12 min | 5 min | 10 min | 30 min |
 | `tauri_native_linux` | 12 min | 5 min | 360 min | 12 h |
 | `android_native` | 35 min | 15 min | 35 min | 2 h |
-| `ios_native` | 90 min | 60 min | 60 min | 6–8 h *(provisional, Open Decision 2)* |
+| `ios_native` | 90 min | 60 min | 60 min | 12 h *(provisional, Open Decision 2)* |
 | `pwa_browser` | 5 min | — | 360 min | 12 h |
 | `shortcut` | 5 min | — | 360 min | 12 h |
 
