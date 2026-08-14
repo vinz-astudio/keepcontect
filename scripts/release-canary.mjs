@@ -106,7 +106,7 @@ function uploadRelease(tag, versionName, assets) {
   const quotedAssets = assets.map((asset) => `"${asset}"`).join(' ')
   if (existing) {
     run(`gh release upload ${tag} ${quotedAssets} --repo ${REPO} --clobber`)
-    run(`gh release edit ${tag} --repo ${REPO} --prerelease --title "Keep Contact ${tag} — Canary"`)
+    run(`gh release edit ${tag} --repo ${REPO} --prerelease --latest=false --title "Keep Contact ${tag} — Canary"`)
   } else {
     run(`gh release create ${tag} ${quotedAssets} --repo ${REPO} --prerelease --latest=false --title "Keep Contact ${tag} — Canary" --notes "GM canary build. Promote through Supabase app_versions after verification."`)
   }
