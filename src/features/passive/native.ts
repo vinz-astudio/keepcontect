@@ -113,16 +113,62 @@ export async function configureNativePassivePing(
       // The unlock watcher is the whole iOS guard, so the same toggle that
       // labels it has to be able to switch it off.
       if (!isSensorEnabled('app_activity')) {
+        const oldBindingId = safeStorageGet(NATIVE_BINDING_ID_KEY)
+        if (oldBindingId) {
+          try { await revokePassiveCollector(oldBindingId) } catch { /* fail closed locally */ }
+        }
+        clearStoredNativeBinding()
         await PassivePing.clear()
         return
       }
-      await PassivePing.configure({
+      const clientId = getClientId()
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData.user?.id ?? null
+      let bindingId = safeStorageGet(NATIVE_BINDING_ID_KEY)
+      let evidenceCredential: string | undefined
+      const storedOwner = safeStorageGet(NATIVE_BINDING_OWNER_KEY)
+      if (!userId || (storedOwner && storedOwner !== userId)) {
+        clearStoredNativeBinding()
+        bindingId = null
+        await PassivePing.clear()
+      }
+      if (userId && !bindingId) {
+        try {
+          const binding = await bindPassiveCollector(clientId, 'ios_native', APP_VERSION)
+          bindingId = binding.bindingId
+          evidenceCredential = binding.credential
+          safeStorageSet(NATIVE_BINDING_ID_KEY, binding.bindingId)
+          safeStorageSet(NATIVE_BINDING_OWNER_KEY, userId)
+        } catch {
+          bindingId = null
+        }
+      }
+      const configureOptions = {
         supabaseUrl: SUPABASE_URL,
         token,
-        clientId: getClientId(),
+        clientId,
         appVersion: APP_VERSION,
-        collectorContract: 'ios-passive-v1',
-      })
+        collectorContract: 'ios-passive-v1' as const,
+        ...(bindingId ? {
+          bindingId,
+          evidenceCollectorContract: 'ios-passive-evidence-v1' as const,
+        } : {}),
+        ...(evidenceCredential ? { evidenceCredential } : {}),
+      }
+      const configured = await PassivePing.configure(configureOptions)
+      if (bindingId && !evidenceCredential && configured && configured.evidenceConfigured === false && userId) {
+        try { await revokePassiveCollector(bindingId) } catch { /* rotate missing credential */ }
+        clearStoredNativeBinding()
+        const replacement = await bindPassiveCollector(clientId, 'ios_native', APP_VERSION)
+        safeStorageSet(NATIVE_BINDING_ID_KEY, replacement.bindingId)
+        safeStorageSet(NATIVE_BINDING_OWNER_KEY, userId)
+        await PassivePing.configure({
+          ...configureOptions,
+          bindingId: replacement.bindingId,
+          evidenceCredential: replacement.credential,
+          evidenceCollectorContract: 'ios-passive-evidence-v1',
+        })
+      }
       await PassivePing.pingApp()
       return
     }

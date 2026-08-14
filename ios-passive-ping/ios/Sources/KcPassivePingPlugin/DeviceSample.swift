@@ -13,13 +13,9 @@ import UIKit
 /// weak on its own and they fail for unrelated reasons, which is precisely what
 /// makes collecting them together worth doing.
 ///
-/// Two of them — battery level and the pasteboard counter — are worth more than
-/// the rest, because they describe the *interval* since the previous sample
-/// rather than the instant of the wake. Wakes are scarce and unpredictable, so
-/// a reading that summarises the whole gap beats one that describes a single
-/// second. Neither is computed here: the raw values are shipped and the deltas
-/// are derived server-side, where a change of mind about the model does not
-/// require a new build on everybody's phone.
+/// Motion and Health readings are evaluated locally. Only the resulting
+/// positive evidence fact and its interval leave the device; raw motion,
+/// step, floor, and activity values never enter the shadow sample payload.
 ///
 /// Every field is optional, and nil means "this device or this OS would not
 /// give it to us". That distinction is the entire point — it is how one run on
@@ -28,8 +24,7 @@ import UIKit
 ///
 /// Nothing here reads content. The pasteboard counter is a counter, never the
 /// clipboard; the audio check is a boolean about whether *something* is
-/// playing, never what; motion is reduced to a single variance number before it
-/// leaves this file.
+/// playing, never what.
 struct DeviceSample {
     let eventId: String
     let observedAt: Date
@@ -45,9 +40,19 @@ struct DeviceSample {
     var motionSampleCount: Int?
     var stepsSinceLastSample: Int?
     var floorsSinceLastSample: Int?
+    var motionIntervalStart: Date?
     var dominantActivity: String?
     var activityConfidence: Int?
     var volumeAvailableBytes: Int64?
+
+    /// Positive pedestrian motion only. Zero is absence of evidence, and an
+    /// automotive-dominant interval cannot be promoted even if the pedometer
+    /// reported incidental vibration as steps.
+    var hasPositivePedestrianMotion: Bool {
+        let stepsPositive = (stepsSinceLastSample ?? 0) > 0
+        let floorsPositive = (floorsSinceLastSample ?? 0) > 0
+        return (stepsPositive || floorsPositive) && dominantActivity != "automotive"
+    }
 
     func asPayload(clientId: String?, appVersion: String?, contract: String) -> [String: Any] {
         var body: [String: Any] = [
@@ -68,12 +73,6 @@ struct DeviceSample {
         put("low_power_mode", lowPowerMode)
         put("system_uptime_seconds", systemUptimeSeconds)
         put("other_audio_playing", otherAudioPlaying)
-        put("motion_variance", motionVariance)
-        put("motion_sample_count", motionSampleCount)
-        put("steps_since_last_sample", stepsSinceLastSample)
-        put("floors_since_last_sample", floorsSinceLastSample)
-        put("dominant_activity", dominantActivity)
-        put("activity_confidence", activityConfidence)
         put("volume_available_bytes", volumeAvailableBytes)
         put("client_id", clientId)
         put("app_version", appVersion)
@@ -98,6 +97,10 @@ final class DeviceSampleCollector {
     private let motionManager = CMMotionManager()
     private let pedometer = CMPedometer()
     private let activityManager = CMMotionActivityManager()
+
+    func resetHistoryAnchor() {
+        defaults.set(Date().timeIntervalSince1970, forKey: Key.lastSampleAt)
+    }
 
     /// Collects a sample and hands it back. Every reading is individually
     /// guarded: a device that refuses one of them still returns everything
@@ -143,6 +146,7 @@ final class DeviceSampleCollector {
         }
 
         let since = lastSampleAt()
+        sample.motionIntervalStart = since
         let group = DispatchGroup()
 
         group.enter()

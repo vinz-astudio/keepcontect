@@ -3,12 +3,9 @@ import HealthKit
 
 /// Wake source built on HealthKit background delivery (KC-IOS-HEALTHWAKE-SPIKE-001).
 ///
-/// Everything else KC has on iOS needs the app to already be executing when the
-/// human does something: `protectedDataDidBecomeAvailable` is only delivered to
-/// a running process, and APNs background pushes are not delivered at all once
-/// the user has swiped the app away. So a force-quit KC currently produces no
-/// evidence until the user opens it again, which is indistinguishable from the
-/// user being in trouble.
+/// Apple documents relaunch after system termination. Whether HealthKit or the
+/// significant-change wake recovers after an explicit user force-quit remains
+/// unproven until the TestFlight device gate; source code must not claim it.
 ///
 /// HealthKit is one of the few documented mechanisms that can relaunch a
 /// terminated app, and unlike DeviceActivity/FamilyControls it needs no
@@ -17,13 +14,9 @@ import HealthKit
 /// so the carrier and the proof are the same event rather than two mechanisms
 /// that have to line up.
 ///
-/// This type deliberately does not read step counts. The spike answers one
-/// question only: does a force-quit app get relaunched at all? Reading history
-/// to backfill a silent window is the follow-up, and it is worthless until this
-/// answer is known.
-///
-/// No health data leaves the device. The observer fires, KC records that a wake
-/// happened, and the ping carries a timestamp and nothing else.
+/// The wake itself is health telemetry, never a check-in. It starts a bounded
+/// positive-history query; only a positive step/floor sample is normalized and
+/// sent, with its real sample end time. Counts and raw samples stay on-device.
 final class HealthWake {
     static let shared = HealthWake()
 
@@ -32,12 +25,17 @@ final class HealthWake {
     /// status — that would leak whether the user has any step data — so the
     /// only honest thing to track is whether we have asked.
     private static let askedKey = "kc.health.asked"
+    private static let lastQueryKey = "kc.health.lastPositiveQueryEnd"
 
     private let store = HKHealthStore()
     private var observerQuery: HKObserverQuery?
 
     private var stepType: HKQuantityType? {
         HKQuantityType.quantityType(forIdentifier: .stepCount)
+    }
+
+    private var floorType: HKQuantityType? {
+        HKQuantityType.quantityType(forIdentifier: .flightsClimbed)
     }
 
     static var isSupported: Bool {
@@ -58,7 +56,9 @@ final class HealthWake {
             completion?(false)
             return
         }
-        store.requestAuthorization(toShare: [], read: [stepType]) { [weak self] granted, _ in
+        var readTypes: Set<HKObjectType> = [stepType]
+        if let floorType { readTypes.insert(floorType) }
+        store.requestAuthorization(toShare: [], read: readTypes) { [weak self] granted, _ in
             guard let self else { return }
             UserDefaults.standard.set(true, forKey: Self.askedKey)
             // `granted` only reports that the sheet completed, not that the user
@@ -80,14 +80,11 @@ final class HealthWake {
         guard Self.isSupported, let stepType, hasAsked, observerQuery == nil else { return }
 
         let query = HKObserverQuery(sampleType: stepType, predicate: nil) { [weak self] _, completionHandler, error in
-            defer {
-                // Not calling this is treated by iOS as a failed delivery and it
-                // will back off, then stop waking the app entirely. It has to run
-                // on every path, including the error path.
+            guard error == nil, let self else {
                 completionHandler()
+                return
             }
-            guard error == nil else { return }
-            self?.onWake()
+            self.onWake(completion: completionHandler)
         }
         observerQuery = query
         store.execute(query)
@@ -102,26 +99,68 @@ final class HealthWake {
         }
     }
 
-    /// The whole point of the spike: something ran while the app was not open.
-    ///
-    /// Recorded through the same local record every other iOS observation goes
-    /// through, so it inherits the 30-second collapse and the retry-on-failure
-    /// behaviour, and it is labelled `steps` so it can be told apart from a ping
-    /// the user produced by opening KC. Without that label the result would be
-    /// unreadable — which is exactly the position the `unlock`/`foreground`
-    /// distinction is in today.
-    private func onWake() {
+    private func onWake(completion: @escaping () -> Void) {
         // The lease goes first and unconditionally. It says "the watcher was
         // awake here", which is true of this wake whether or not the sample
         // below finds anything worth reporting.
         PassiveGuard.shared.reportCoverageLease()
-        PassiveGuard.shared.recordEvent(reason: "health-wake", kind: "steps")
-        // The wake fired because new step data exists, so movement is already
-        // implied. The sample is taken anyway for the signals movement cannot
-        // supply — whether the screen is unlocked right now, how hard the
-        // battery has been working, whether anything was copied. Motion says a
-        // body moved; those say a person was operating the device.
-        PassiveGuard.shared.captureSample(trigger: "health-wake")
+        queryPositiveHistory { observedAt, stepsPositive, floorsPositive, queryStart, queryEnd in
+            if let observedAt {
+                PassiveGuard.shared.recordMotionEvidence(
+                    observedAt: observedAt,
+                    stepsPositive: stepsPositive,
+                    floorsPositive: floorsPositive,
+                    automotive: false,
+                    queryStart: queryStart,
+                    queryEnd: queryEnd
+                )
+            }
+            PassiveGuard.shared.captureSample(trigger: "health-wake", completion: completion)
+        }
+    }
+
+    private func queryPositiveHistory(
+        completion: @escaping (Date?, Bool, Bool, Date, Date) -> Void
+    ) {
+        let end = Date()
+        let stored = UserDefaults.standard.double(forKey: Self.lastQueryKey)
+        let start = stored > 0
+            ? Date(timeIntervalSince1970: stored)
+            : end.addingTimeInterval(-6 * 3600)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var latest: Date?
+        var stepsPositive = false
+        var floorsPositive = false
+
+        func run(_ type: HKQuantityType?, floors: Bool) {
+            guard let type else { return }
+            group.enter()
+            let query = HKSampleQuery(
+                sampleType: type,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
+            ) { _, samples, error in
+                defer { group.leave() }
+                guard error == nil, let samples = samples as? [HKQuantitySample] else { return }
+                lock.lock()
+                defer { lock.unlock() }
+                for sample in samples where sample.quantity.doubleValue(for: HKUnit.count()) > 0 {
+                    if floors { floorsPositive = true } else { stepsPositive = true }
+                    if latest == nil || sample.endDate > latest! { latest = sample.endDate }
+                }
+            }
+            store.execute(query)
+        }
+
+        run(stepType, floors: false)
+        run(floorType, floors: true)
+        group.notify(queue: .main) {
+            UserDefaults.standard.set(end.timeIntervalSince1970, forKey: Self.lastQueryKey)
+            completion(latest, stepsPositive, floorsPositive, start, end)
+        }
     }
 
     /// Sign-out. The authorization itself is the user's to revoke in the Health
@@ -135,6 +174,10 @@ final class HealthWake {
         }
         guard Self.isSupported, let stepType else { return }
         store.disableBackgroundDelivery(for: stepType) { _, _ in }
+    }
+
+    func resetHistoryAnchor() {
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.lastQueryKey)
     }
 
     /// Whether a relaunch-capable wake is actually armed right now, as opposed

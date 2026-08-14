@@ -41,9 +41,12 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
             supabaseUrl: supabaseUrl,
             token: token,
             clientId: call.getString("clientId"),
-            appVersion: call.getString("appVersion")
+            appVersion: call.getString("appVersion"),
+            evidenceBindingId: call.getString("bindingId"),
+            evidenceCredential: call.getString("evidenceCredential"),
+            evidenceCollectorContract: call.getString("evidenceCollectorContract")
         )
-        call.resolve()
+        call.resolve(["evidenceConfigured": PassiveGuard.shared.isEvidenceConfigured])
     }
 
     @objc func clear(_ call: CAPPluginCall) {
@@ -53,6 +56,7 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func pingApp(_ call: CAPPluginCall) {
         PassiveGuard.shared.recordEvent(reason: "app")
+        PassiveGuard.shared.recordDirectEvidence(observedAt: Date())
         call.resolve()
     }
 

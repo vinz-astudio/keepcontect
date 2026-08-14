@@ -84,7 +84,15 @@ describe('native passive setup truth', () => {
   it('does not surprise an iOS user with the HealthKit sheet during routine configuration', async () => {
     await native.configureNativePassivePing('session-token')
 
+    expect(nativeHarness.binding.bind).toHaveBeenCalledWith(
+      'native-test-client', 'ios_native', '0.6.0-test',
+    )
     expect(nativeHarness.plugin.configure).toHaveBeenCalledOnce()
+    expect(nativeHarness.plugin.configure).toHaveBeenCalledWith(expect.objectContaining({
+      bindingId: '00000000-0000-4000-8000-000000000001',
+      evidenceCredential: 'a'.repeat(64),
+      evidenceCollectorContract: 'ios-passive-evidence-v1',
+    }))
     expect(nativeHarness.plugin.pingApp).toHaveBeenCalledOnce()
     expect(nativeHarness.plugin.enableHealthWake).not.toHaveBeenCalled()
   })
