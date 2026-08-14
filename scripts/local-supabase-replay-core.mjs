@@ -138,6 +138,8 @@ async function assertResolvedDisposableContainment(supabaseRoot, boundary, outpu
 // Without this it failed with a bare ENOENT, which reads as a broken test
 // rather than as "the thing under test moved".
 const ARCHIVE_FROM_REPO = join('migrations-archive', 'from-repo');
+const FOLDED_BASELINE_FILENAME = '20260808160000_baseline_from_production.sql';
+const FOLDED_FIXTURE_FILENAME = '20260808170000_local_replay_admin_fixture.sql';
 
 /** Where a given repository currently keeps the pinned replay inputs. */
 export async function resolveMigrationsRootFor(repoRoot) {
@@ -247,9 +249,14 @@ async function listFiles(root, prefix = '') {
 // The copied tree always lands in <disposable>/supabase/migrations, but the
 // source may be supabase/migrations or the archive the pinned inputs moved to,
 // so a relative path is not enough to find the original on disk.
-function sourcePathFor(sourceSupabaseRoot, sourceMigrationsRoot, relativePath) {
+function sourcePathFor(sourceSupabaseRoot, sourceMigrationsRoot, relativePath, additiveSet) {
   return relativePath.startsWith(`migrations${sep}`)
-    ? join(sourceMigrationsRoot, relativePath.slice(`migrations${sep}`.length))
+    ? join(
+        additiveSet.has(relativePath.slice(`migrations${sep}`.length))
+          ? join(sourceSupabaseRoot, 'migrations')
+          : sourceMigrationsRoot,
+        relativePath.slice(`migrations${sep}`.length),
+      )
     : join(sourceSupabaseRoot, relativePath);
 }
 
@@ -258,10 +265,13 @@ async function verifyCopiedTree(
   sourceMigrationsRoot,
   copiedSupabaseRoot,
   adaptedRoutine,
+  additiveFilenames,
 ) {
+  const additiveSet = new Set(additiveFilenames);
   const sourceFiles = [
     'config.toml',
     ...await listFiles(sourceMigrationsRoot, 'migrations'),
+    ...additiveFilenames.map((filename) => join('migrations', filename)),
     ...await listFiles(join(sourceSupabaseRoot, 'tests'), 'tests'),
   ];
   const copiedFiles = [
@@ -284,7 +294,7 @@ async function verifyCopiedTree(
 
   for (const relativePath of sourceFiles) {
     const source = await readFile(
-      sourcePathFor(sourceSupabaseRoot, sourceMigrationsRoot, relativePath),
+      sourcePathFor(sourceSupabaseRoot, sourceMigrationsRoot, relativePath, additiveSet),
     );
     let expected = source;
 
@@ -316,6 +326,40 @@ async function verifyCopiedTree(
   }
 }
 
+async function verifyFoldedReplayTree(sourceSupabaseRoot, copiedSupabaseRoot) {
+  const liveMigrationsRoot = join(sourceSupabaseRoot, 'migrations');
+  const sourceFiles = [
+    'config.toml',
+    ...await listFiles(liveMigrationsRoot, 'migrations'),
+    ...await listFiles(join(sourceSupabaseRoot, 'tests'), 'tests'),
+  ];
+  const copiedFiles = [
+    'config.toml',
+    ...await listFiles(join(copiedSupabaseRoot, 'migrations'), 'migrations'),
+    ...await listFiles(join(copiedSupabaseRoot, 'tests'), 'tests'),
+  ];
+  const expectedFiles = new Set([
+    ...sourceFiles,
+    join('migrations', INSPECTION_FIXTURE_FILENAME),
+  ]);
+  if (copiedFiles.length !== expectedFiles.size
+    || copiedFiles.some((relativePath) => !expectedFiles.has(relativePath))) {
+    throw new Error('Folded replay tree contains an unauthorized file change.');
+  }
+  for (const relativePath of sourceFiles) {
+    const sourcePath = relativePath.startsWith(`migrations${sep}`)
+      ? join(liveMigrationsRoot, relativePath.slice(`migrations${sep}`.length))
+      : join(sourceSupabaseRoot, relativePath);
+    if (!(await readFile(sourcePath)).equals(await readFile(join(copiedSupabaseRoot, relativePath)))) {
+      throw new Error(`Folded replay copy differs from source: ${relativePath}.`);
+    }
+  }
+  const inspection = await readFile(join(copiedSupabaseRoot, 'migrations', INSPECTION_FIXTURE_FILENAME));
+  if (!inspection.equals(Buffer.from(INSPECTION_FIXTURE_SQL, 'utf8'))) {
+    throw new Error('Folded replay inspection fixture differs from the authorized fixture.');
+  }
+}
+
 export function adaptLegacyRoutineSql(sourceText) {
   const matches = sourceText.match(/<\/loop>/g) ?? [];
 
@@ -339,8 +383,15 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
   const boundary = join(supabaseRoot, '.temp');
   const verifiedInputs = await verifyPinnedInputs(migrationsRoot);
   const bomSources = await verifyAuthorizedBomInputs(migrationsRoot);
+  const liveMigrationsRoot = join(supabaseRoot, 'migrations');
+  const usesFoldedBaseline = resolve(liveMigrationsRoot) !== resolve(migrationsRoot);
+  const fixtureFilename = usesFoldedBaseline ? FOLDED_FIXTURE_FILENAME : FIXTURE_FILENAME;
+  if (usesFoldedBaseline) await readFile(join(liveMigrationsRoot, FOLDED_BASELINE_FILENAME));
   const disposableSupabaseRoot = join(output, 'supabase');
   const disposableMigrationsRoot = join(disposableSupabaseRoot, 'migrations');
+  const compatibilityMigrationsRoot = usesFoldedBaseline
+    ? join(output, 'compatibility-inputs')
+    : disposableMigrationsRoot;
 
   await assertResolvedDisposableContainment(supabaseRoot, boundary, output);
   await rm(output, { recursive: true, force: true });
@@ -348,19 +399,27 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
   await assertResolvedDisposableContainment(supabaseRoot, boundary, output);
   await Promise.all([
     cp(join(supabaseRoot, 'config.toml'), join(disposableSupabaseRoot, 'config.toml')),
-    cp(migrationsRoot, disposableMigrationsRoot, { recursive: true }),
+    cp(usesFoldedBaseline ? liveMigrationsRoot : migrationsRoot, disposableMigrationsRoot, { recursive: true }),
     cp(join(supabaseRoot, 'tests'), join(disposableSupabaseRoot, 'tests'), { recursive: true }),
   ]);
+  if (usesFoldedBaseline) await cp(migrationsRoot, compatibilityMigrationsRoot, { recursive: true });
 
-  await verifyCopiedSources(migrationsRoot, disposableMigrationsRoot);
+  await verifyCopiedSources(migrationsRoot, compatibilityMigrationsRoot);
 
-  const fixtureMigration = join(disposableMigrationsRoot, FIXTURE_FILENAME);
+  // The folded production baseline no longer needs the historical GM admin
+  // seed. Keep it beside the archived compatibility inputs for inspection,
+  // but do not replay it after the baseline: doing so creates a live profile
+  // and contaminates alert-path immutability tests.
+  const fixtureMigration = join(
+    usesFoldedBaseline ? compatibilityMigrationsRoot : disposableMigrationsRoot,
+    fixtureFilename,
+  );
   const inspectionFixtureMigration = join(
     disposableMigrationsRoot,
     INSPECTION_FIXTURE_FILENAME,
   );
   const patchedMigration = join(
-    disposableMigrationsRoot,
+    compatibilityMigrationsRoot,
     '20260624140000_adaptive_routine_impl.sql',
   );
   const adaptedRoutine = adaptLegacyRoutineSql(await readFile(patchedMigration, 'utf8'));
@@ -370,8 +429,10 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
   await writeFile(inspectionFixtureMigration, INSPECTION_FIXTURE_SQL, 'utf8');
   await writeFile(patchedMigration, adaptedRoutine.sql, 'utf8');
   compatibilityActions.push({
-    type: 'add-local-admin-fixture',
-    filename: FIXTURE_FILENAME,
+    type: usesFoldedBaseline
+      ? 'retain-legacy-admin-fixture-for-inspection'
+      : 'add-local-admin-fixture',
+    filename: fixtureFilename,
     resultingHash: await hashFile(fixtureMigration),
   });
   compatibilityActions.push({
@@ -387,7 +448,7 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
   });
 
   for (const filename of BOM_FILENAMES) {
-    const patchedBomMigration = join(disposableMigrationsRoot, filename);
+    const patchedBomMigration = join(compatibilityMigrationsRoot, filename);
     const adaptedBom = stripLeadingUtf8Bom(bomSources.get(filename));
 
     await writeFile(patchedBomMigration, adaptedBom);
@@ -399,12 +460,17 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
     });
   }
 
-  await verifyCopiedTree(
-    supabaseRoot,
-    migrationsRoot,
-    disposableSupabaseRoot,
-    adaptedRoutine,
-  );
+  if (usesFoldedBaseline) {
+    await verifyFoldedReplayTree(supabaseRoot, disposableSupabaseRoot);
+  } else {
+    await verifyCopiedTree(
+      supabaseRoot,
+      migrationsRoot,
+      disposableSupabaseRoot,
+      adaptedRoutine,
+      [],
+    );
+  }
   const verifiedAfter = await verifyPinnedInputs(migrationsRoot);
 
   if (JSON.stringify(verifiedAfter) !== JSON.stringify(verifiedInputs)) {
@@ -417,8 +483,10 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
     fixtureMigration,
     inspectionFixtureMigration,
     patchedMigration,
+    compatibilityMigrationsRoot,
     replacementCount: adaptedRoutine.replacementCount,
     compatibilityActions,
+    replayMode: usesFoldedBaseline ? 'folded-baseline' : 'legacy-history',
   };
 }
 

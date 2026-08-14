@@ -11,6 +11,11 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.BatteryManager;
+import android.os.SystemClock;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
+import android.util.Base64;
 import android.util.Log;
 import androidx.core.content.ContextCompat;
 import com.google.android.gms.location.ActivityRecognition;
@@ -24,10 +29,19 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+import org.json.JSONArray;
 
 final class PassivePing {
     private static final String TAG = "KeepContactPassive";
@@ -43,8 +57,24 @@ final class PassivePing {
     private static final String KEY_COLLECTOR_CONTRACT = "collector_contract";
     private static final String KEY_LAST_SHADOW_COVERAGE_LEASE_AT =
         "last_shadow_coverage_lease_at";
+    private static final String KEY_EVIDENCE_BINDING_ID = "evidence_binding_id";
+    private static final String KEY_EVIDENCE_CONTRACT = "evidence_contract";
+    private static final String KEY_EVIDENCE_CREDENTIAL_CIPHER = "evidence_credential_cipher";
+    private static final String KEY_EVIDENCE_CREDENTIAL_IV = "evidence_credential_iv";
+    private static final String KEY_EVIDENCE_NEXT_SEQUENCE = "evidence_next_sequence";
+    private static final String KEY_EVIDENCE_QUEUE = "evidence_queue";
+    private static final String KEY_LAST_USAGE_EVIDENCE_AT = "last_usage_evidence_at";
+    private static final String KEY_LAST_USAGE_QUERY_END = "last_usage_query_end";
+    private static final String KEY_POWER_STABLE_STATE = "power_stable_state";
+    private static final String KEY_POWER_PENDING_STATE = "power_pending_state";
+    private static final String KEY_POWER_PENDING_SINCE = "power_pending_since";
+    private static final String KEY_POWER_CORRELATION_ID = "power_correlation_id";
+    private static final String KEY_POWER_CORRELATION_STARTED = "power_correlation_started";
+    private static final String EVIDENCE_KEY_ALIAS = "keep_contact_passive_evidence_v1";
     private static final long APP_THROTTLE_MS = 5 * 60 * 1000;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final ScheduledExecutorService SCHEDULER =
+        Executors.newSingleThreadScheduledExecutor();
 
     private PassivePing() {}
 
@@ -57,9 +87,13 @@ final class PassivePing {
         boolean allowActivityRecognition,
         String clientId,
         String appVersion,
-        String collectorContract
+        String collectorContract,
+        String evidenceBindingId,
+        String evidenceCredential,
+        String evidenceCollectorContract
     ) {
-        prefs(context)
+        SharedPreferences prefs = prefs(context);
+        prefs
             .edit()
             .putString(KEY_SUPABASE_URL, trimSlash(supabaseUrl))
             .putString(KEY_TOKEN, token)
@@ -70,6 +104,10 @@ final class PassivePing {
             .putString(KEY_APP_VERSION, appVersion)
             .putString(KEY_COLLECTOR_CONTRACT, collectorContract)
             .apply();
+
+        configureEvidenceBinding(
+            context, evidenceBindingId, evidenceCredential, evidenceCollectorContract);
+        initializePowerBaseline(context);
 
         updateBackgroundServices(context);
     }
@@ -82,6 +120,7 @@ final class PassivePing {
         } catch (Exception e) {
             Log.e(TAG, "Failed to unregister transitions on clear", e);
         }
+        clearEvidenceBinding(context);
         prefs(context).edit().clear().apply();
     }
 
@@ -284,6 +323,74 @@ final class PassivePing {
         }
     }
 
+    static PassiveEvidenceContract.Evidence queryLatestUsageEvidence(Context context) {
+        if (!isEvidenceConfigured(context)
+            || !isUsageStatsAllowed(context)
+            || !isUsageAccessGranted(context)) return null;
+        try {
+            UsageStatsManager usm =
+                (UsageStatsManager) context.getSystemService(Context.USAGE_STATS_SERVICE);
+            if (usm == null) return null;
+            SharedPreferences prefs = prefs(context);
+            long now = System.currentTimeMillis();
+            long previousEnd = prefs.getLong(KEY_LAST_USAGE_QUERY_END, 0L);
+            long queryStart = previousEnd > 0L
+                ? Math.max(previousEnd - 120_000L, now - 7L * 24L * 60L * 60L * 1000L)
+                : now - 24L * 60L * 60L * 1000L;
+            UsageEvents usageEvents = usm.queryEvents(queryStart, now);
+            UsageEvents.Event event = new UsageEvents.Event();
+            long latest = prefs.getLong(KEY_LAST_USAGE_EVIDENCE_AT, 0L);
+            while (usageEvents.hasNextEvent()) {
+                usageEvents.getNextEvent(event);
+                if (PassiveEvidenceContract.qualifiesUsageEvent(event.getEventType())
+                    && event.getTimeStamp() > latest
+                    && event.getTimeStamp() <= now) {
+                    latest = event.getTimeStamp();
+                }
+            }
+            prefs.edit().putLong(KEY_LAST_USAGE_QUERY_END, now).apply();
+            if (latest <= prefs.getLong(KEY_LAST_USAGE_EVIDENCE_AT, 0L)) return null;
+            return PassiveEvidenceContract.directUse(latest, queryStart, now);
+        } catch (Exception e) {
+            Log.d(TAG, "Usage evidence query unavailable", e);
+            return null;
+        }
+    }
+
+    static void recordPedestrianTransition(Context context, int activityType, long elapsedRealtimeNanos) {
+        if (!isEvidenceConfigured(context)
+            || !isActivityRecognitionAllowed(context)
+            || !PassiveEvidenceContract.qualifiesPedestrianTransition(activityType)) return;
+        long ageNanos = Math.max(0L, SystemClock.elapsedRealtimeNanos() - elapsedRealtimeNanos);
+        long observedAt = System.currentTimeMillis() - TimeUnit.NANOSECONDS.toMillis(ageNanos);
+        enqueueEvidence(context, PassiveEvidenceContract.pedestrianMotion(observedAt));
+    }
+
+    static void recordPowerBroadcast(Context context, String action) {
+        if (!isEvidenceConfigured(context)
+            || !prefs(context).getBoolean(KEY_ALLOW_CHARGING, false)) return;
+        final boolean charging;
+        if (Intent.ACTION_POWER_CONNECTED.equals(action)) charging = true;
+        else if (Intent.ACTION_POWER_DISCONNECTED.equals(action)) charging = false;
+        else return;
+        SharedPreferences prefs = prefs(context);
+        String stable = prefs.getString(KEY_POWER_STABLE_STATE, null);
+        if (stable != null && Boolean.parseBoolean(stable) == charging) {
+            prefs.edit().remove(KEY_POWER_PENDING_STATE).remove(KEY_POWER_PENDING_SINCE).apply();
+            return;
+        }
+        long now = System.currentTimeMillis();
+        prefs.edit()
+            .putString(KEY_POWER_PENDING_STATE, String.valueOf(charging))
+            .putLong(KEY_POWER_PENDING_SINCE, now)
+            .apply();
+        Context appContext = context.getApplicationContext();
+        SCHEDULER.schedule(
+            () -> confirmPowerTransition(appContext, charging),
+            PassiveEvidenceContract.POWER_STABLE_MS,
+            TimeUnit.MILLISECONDS);
+    }
+
     // —— Foreground Service & GMS transition lifecycle managers ——
 
     static void updateBackgroundServices(Context context) {
@@ -454,10 +561,28 @@ final class PassivePing {
                 String observedAt = sdf.format(new java.util.Date(now));
                 String eventId = java.util.UUID.randomUUID().toString();
 
+                // We have always known, from UsageStats, when the phone was last
+                // actually used — and have always thrown it away, reporting only
+                // "I am awake now". Waking from Doze at 14:00 able to prove the
+                // user unlocked at 13:35 and saying nothing about 13:35 is the
+                // whole defect. Send it; the server records it at its real time.
+                //
+                // Runs inside the executor because a UsageStats event scan is not
+                // something to do on whatever thread happened to call ping().
+                // Returns 0 when Usage Access is not granted, in which case the
+                // field is simply absent and the request is unchanged.
+                long lastActive = queryLastActiveTime(appContext);
+                String lastActiveField = "";
+                if (lastActive > 0 && lastActive <= now) {
+                    lastActiveField =
+                        "\"last_active_at\":\"" + sdf.format(new java.util.Date(lastActive)) + "\",";
+                }
+
                 String bodyJson = "{" +
                     "\"token\":\"" + token + "\"," +
                     "\"event_id\":\"" + eventId + "\"," +
                     "\"observed_at\":\"" + observedAt + "\"," +
+                    lastActiveField +
                     "\"source\":\"capacitor\"" +
                     "}";
 
@@ -492,6 +617,266 @@ final class PassivePing {
                 if (conn != null) conn.disconnect();
             }
         });
+    }
+
+    static boolean isEvidenceConfigured(Context context) {
+        SharedPreferences prefs = prefs(context);
+        String bindingId = prefs.getString(KEY_EVIDENCE_BINDING_ID, null);
+        String contract = prefs.getString(KEY_EVIDENCE_CONTRACT, null);
+        return bindingId != null
+            && PassiveEvidenceContract.COLLECTOR_CONTRACT.equals(contract)
+            && decryptEvidenceCredential(context) != null;
+    }
+
+    static void enqueueEvidence(Context context, PassiveEvidenceContract.Evidence evidence) {
+        if (evidence == null || !isEvidenceConfigured(context)) return;
+        Context appContext = context.getApplicationContext();
+        synchronized (PassivePing.class) {
+            SharedPreferences prefs = prefs(appContext);
+            String bindingId = prefs.getString(KEY_EVIDENCE_BINDING_ID, null);
+            if (bindingId == null) return;
+            long sequence = prefs.getLong(KEY_EVIDENCE_NEXT_SEQUENCE, 0L);
+            JSONArray queue = readEvidenceQueue(prefs);
+            queue.put(evidence.toQueuedJson(bindingId, sequence));
+            prefs.edit()
+                .putLong(KEY_EVIDENCE_NEXT_SEQUENCE, sequence + 1L)
+                .putString(KEY_EVIDENCE_QUEUE, queue.toString())
+                .apply();
+            if (evidence.querySucceeded && "direct_device_use".equals(evidence.evidenceClass)) {
+                prefs.edit().putLong(KEY_LAST_USAGE_EVIDENCE_AT, evidence.observedAtMs).apply();
+            }
+        }
+        EXECUTOR.execute(() -> drainEvidenceQueue(appContext));
+    }
+
+    private static void drainEvidenceQueue(Context context) {
+        while (true) {
+            String queued;
+            synchronized (PassivePing.class) {
+                JSONArray queue = readEvidenceQueue(prefs(context));
+                if (queue.length() == 0) return;
+                queued = queue.optString(0, null);
+            }
+            String credential = decryptEvidenceCredential(context);
+            String base = prefs(context).getString(KEY_SUPABASE_URL, null);
+            if (queued == null || credential == null || base == null) return;
+
+            HttpURLConnection conn = null;
+            try {
+                conn = (HttpURLConnection) new URL(base + "/functions/v1/passive-evidence").openConnection();
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                conn.setDoOutput(true);
+                byte[] body = PassiveEvidenceContract.attachCredential(queued, credential)
+                    .getBytes(StandardCharsets.UTF_8);
+                try (java.io.OutputStream output = conn.getOutputStream()) {
+                    output.write(body);
+                }
+                int code = conn.getResponseCode();
+                InputStream stream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                if (stream != null) {
+                    try (BufferedReader ignored = new BufferedReader(new InputStreamReader(stream))) {
+                        while (ignored.readLine() != null) { /* drain */ }
+                    }
+                }
+                if (code >= 500) return;
+                if (code == 409) {
+                    clearEvidenceBinding(context);
+                    return;
+                }
+                removeFirstQueuedEvidence(context);
+            } catch (Exception e) {
+                Log.d(TAG, "passive evidence upload deferred");
+                return;
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        }
+    }
+
+    private static void removeFirstQueuedEvidence(Context context) {
+        synchronized (PassivePing.class) {
+            SharedPreferences prefs = prefs(context);
+            JSONArray current = readEvidenceQueue(prefs);
+            JSONArray remaining = new JSONArray();
+            for (int i = 1; i < current.length(); i++) remaining.put(current.opt(i));
+            prefs.edit().putString(KEY_EVIDENCE_QUEUE, remaining.toString()).apply();
+        }
+    }
+
+    private static JSONArray readEvidenceQueue(SharedPreferences prefs) {
+        try {
+            return new JSONArray(prefs.getString(KEY_EVIDENCE_QUEUE, "[]"));
+        } catch (Exception ignored) {
+            return new JSONArray();
+        }
+    }
+
+    private static void configureEvidenceBinding(
+        Context context,
+        String bindingId,
+        String credential,
+        String contract
+    ) {
+        SharedPreferences prefs = prefs(context);
+        String previous = prefs.getString(KEY_EVIDENCE_BINDING_ID, null);
+        boolean valid = bindingId != null
+            && PassiveEvidenceContract.COLLECTOR_CONTRACT.equals(contract);
+        if (!valid) {
+            clearEvidenceBinding(context);
+            return;
+        }
+        if (previous != null && !previous.equals(bindingId)) clearEvidenceBinding(context);
+        prefs.edit()
+            .putString(KEY_EVIDENCE_BINDING_ID, bindingId)
+            .putString(KEY_EVIDENCE_CONTRACT, contract)
+            .apply();
+        if (credential != null && credential.length() >= 32) {
+            encryptEvidenceCredential(context, credential);
+        }
+        if (previous == null || !previous.equals(bindingId)) {
+            prefs.edit()
+                .putLong(KEY_EVIDENCE_NEXT_SEQUENCE, 0L)
+                .putString(KEY_EVIDENCE_QUEUE, "[]")
+                .apply();
+        }
+        if (isEvidenceConfigured(context)) EXECUTOR.execute(() -> drainEvidenceQueue(context));
+    }
+
+    private static void clearEvidenceBinding(Context context) {
+        prefs(context).edit()
+            .remove(KEY_EVIDENCE_BINDING_ID)
+            .remove(KEY_EVIDENCE_CONTRACT)
+            .remove(KEY_EVIDENCE_CREDENTIAL_CIPHER)
+            .remove(KEY_EVIDENCE_CREDENTIAL_IV)
+            .remove(KEY_EVIDENCE_NEXT_SEQUENCE)
+            .remove(KEY_EVIDENCE_QUEUE)
+            .remove(KEY_LAST_USAGE_EVIDENCE_AT)
+            .remove(KEY_LAST_USAGE_QUERY_END)
+            .remove(KEY_POWER_PENDING_STATE)
+            .remove(KEY_POWER_PENDING_SINCE)
+            .apply();
+        try {
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            if (keyStore.containsAlias(EVIDENCE_KEY_ALIAS)) keyStore.deleteEntry(EVIDENCE_KEY_ALIAS);
+        } catch (Exception ignored) { /* fail closed: encrypted bytes are already gone */ }
+    }
+
+    private static void encryptEvidenceCredential(Context context, String credential) {
+        try {
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            SecretKey key;
+            if (keyStore.containsAlias(EVIDENCE_KEY_ALIAS)) {
+                key = ((KeyStore.SecretKeyEntry) keyStore.getEntry(EVIDENCE_KEY_ALIAS, null)).getSecretKey();
+            } else {
+                KeyGenerator generator = KeyGenerator.getInstance(
+                    KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+                generator.init(new KeyGenParameterSpec.Builder(
+                    EVIDENCE_KEY_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .build());
+                key = generator.generateKey();
+            }
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+            byte[] encrypted = cipher.doFinal(credential.getBytes(StandardCharsets.UTF_8));
+            prefs(context).edit()
+                .putString(KEY_EVIDENCE_CREDENTIAL_CIPHER, Base64.encodeToString(encrypted, Base64.NO_WRAP))
+                .putString(KEY_EVIDENCE_CREDENTIAL_IV, Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP))
+                .apply();
+        } catch (Exception e) {
+            Log.e(TAG, "Unable to protect passive evidence credential", e);
+            clearEvidenceBinding(context);
+        }
+    }
+
+    private static String decryptEvidenceCredential(Context context) {
+        try {
+            SharedPreferences prefs = prefs(context);
+            String encoded = prefs.getString(KEY_EVIDENCE_CREDENTIAL_CIPHER, null);
+            String encodedIv = prefs.getString(KEY_EVIDENCE_CREDENTIAL_IV, null);
+            if (encoded == null || encodedIv == null) return null;
+            KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
+            keyStore.load(null);
+            KeyStore.SecretKeyEntry entry =
+                (KeyStore.SecretKeyEntry) keyStore.getEntry(EVIDENCE_KEY_ALIAS, null);
+            if (entry == null) return null;
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                entry.getSecretKey(),
+                new GCMParameterSpec(128, Base64.decode(encodedIv, Base64.NO_WRAP)));
+            return new String(
+                cipher.doFinal(Base64.decode(encoded, Base64.NO_WRAP)),
+                StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static void initializePowerBaseline(Context context) {
+        Boolean charging = currentChargingState(context);
+        SharedPreferences.Editor editor = prefs(context).edit()
+            .remove(KEY_POWER_PENDING_STATE)
+            .remove(KEY_POWER_PENDING_SINCE);
+        if (charging == null) editor.remove(KEY_POWER_STABLE_STATE);
+        else editor.putString(KEY_POWER_STABLE_STATE, String.valueOf(charging));
+        editor.apply();
+    }
+
+    private static Boolean currentChargingState(Context context) {
+        try {
+            Intent battery = context.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if (battery == null) return null;
+            int status = battery.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+            return status == BatteryManager.BATTERY_STATUS_CHARGING
+                || status == BatteryManager.BATTERY_STATUS_FULL;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static void confirmPowerTransition(Context context, boolean expected) {
+        SharedPreferences prefs = prefs(context);
+        String pending = prefs.getString(KEY_POWER_PENDING_STATE, null);
+        long since = prefs.getLong(KEY_POWER_PENDING_SINCE, 0L);
+        Boolean actual = currentChargingState(context);
+        long now = System.currentTimeMillis();
+        if (pending == null || actual == null || actual != expected
+            || Boolean.parseBoolean(pending) != expected
+            || now - since < PassiveEvidenceContract.POWER_STABLE_MS) return;
+        String priorText = prefs.getString(KEY_POWER_STABLE_STATE, null);
+        prefs.edit()
+            .putString(KEY_POWER_STABLE_STATE, String.valueOf(expected))
+            .remove(KEY_POWER_PENDING_STATE)
+            .remove(KEY_POWER_PENDING_SINCE)
+            .apply();
+        if (priorText == null || Boolean.parseBoolean(priorText) == expected) return;
+
+        long correlationStarted = prefs.getLong(KEY_POWER_CORRELATION_STARTED, 0L);
+        String correlationId = prefs.getString(KEY_POWER_CORRELATION_ID, null);
+        if (correlationId == null
+            || since - correlationStarted >= PassiveEvidenceContract.POWER_CORRELATION_MS) {
+            correlationId = "power-" + UUID.randomUUID();
+            prefs.edit()
+                .putString(KEY_POWER_CORRELATION_ID, correlationId)
+                .putLong(KEY_POWER_CORRELATION_STARTED, since)
+                .apply();
+        }
+        String prior = Boolean.parseBoolean(priorText) ? "charging" : "not_charging";
+        String next = expected ? "charging" : "not_charging";
+        String facts = "{\"prior_power_state\":\"" + prior
+            + "\",\"new_power_state\":\"" + next
+            + "\",\"stable_for_ms\":" + PassiveEvidenceContract.POWER_STABLE_MS + "}";
+        enqueueEvidence(context, new PassiveEvidenceContract.Evidence(
+            UUID.randomUUID().toString(), since, "power_transition", correlationId,
+            facts, 0L, 0L, false));
     }
 
     static String calculateHMAC(String data, String key) {

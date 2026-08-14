@@ -48,16 +48,32 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Passive Event & Boot Receiver -->
+        <!-- Passive Event & Boot Receiver
+
+             Only BOOT_COMPLETED and MY_PACKAGE_REPLACED belong here.
+
+             ACTION_POWER_CONNECTED / ACTION_POWER_DISCONNECTED / ACTION_USER_PRESENT
+             / SCREEN_ON were declared here until 2026-08-14 and never fired on any
+             device running API 26+: none of them is on Android 8.0's implicit
+             broadcast exemption list, so a manifest registration is silently
+             ignored. Exactly the failure mode PLAY-CONSTRAINTS.md warns about —
+             the code reads correctly, review reads correctly, and the path was
+             dead the whole time.
+
+             Those four are still registered at runtime (PassivePing.passiveIntentFilter,
+             used by PassivePingPlugin and KcForegroundService), which works only
+             while a process is alive. Treat unlock/charging as opportunistic extras
+             available in the foreground, never as background coverage. Background
+             evidence comes from the UsageStats look-back that NotifyWorker and the
+             FCM wake path perform, which reconstructs history without needing to
+             have been running at the time.
+
+             Do not re-add them here. -->
         <receiver
             android:name=".PassivePingReceiver"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
-                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
-                <action android:name="android.intent.action.ACTION_USER_PRESENT" />
-                <action android:name="android.intent.action.SCREEN_ON" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>

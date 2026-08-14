@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLivenessContext } from '@/features/baseline/LivenessProvider'
 import { useRoutineInsights } from '@/features/baseline/RoutineInsights'
 import { ActiveStatusBox } from '@/features/passive/ActiveStatusBox'
+import { PassiveCheckinSettings } from '@/features/passive/PassiveCheckinSettings'
 import { setSensitivity } from '@/features/baseline/configStore'
 import {
   getSleepWindow,
@@ -267,6 +268,7 @@ export function RoutineSettings() {
 
   return (
     <div className="routine-prototype-settings">
+      <PassiveCheckinSettings />
       <PrototypeSection
         title={lang === 'zh' ? '夜间休息与晨间缓冲' : 'Sleep & Morning Grace'}
         subtitle={lang === 'zh' ? '休息期间与起床后的短暂缓冲不会被误判为异常安静。' : 'Sleep and a short morning grace period are excluded from quiet-time judgement.'}

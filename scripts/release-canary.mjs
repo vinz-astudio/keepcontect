@@ -46,12 +46,9 @@ function bumpVersions(versionName, apkUrl, exeUrl) {
   verTs = verTs.replace(/APP_VERSION\s*=\s*'[^']*'/, `APP_VERSION = '${versionName}'`)
   writeFileSync(verTsPath, verTs)
 
-  const verJsonPath = join(root, 'public/version.json')
-  const verJson = JSON.parse(readFileSync(verJsonPath, 'utf8'))
-  verJson.version = versionName
-  verJson.apkUrl = apkUrl
-  verJson.exeUrl = exeUrl
-  writeFileSync(verJsonPath, JSON.stringify(verJson, null, 2) + '\n')
+  // public/version.json intentionally NOT bumped here: it is the public manifest
+  // served by Vercel and must only move at full release (readiness: publish
+  // version.json last). Canary visibility is gated by app_versions.
 
   const tauriConfPath = join(root, 'src-tauri/tauri.conf.json')
   if (existsSync(tauriConfPath)) {
@@ -70,20 +67,22 @@ function bumpVersions(versionName, apkUrl, exeUrl) {
   const gradlePath = join(root, 'android/app/build.gradle')
   if (existsSync(gradlePath)) {
     let gradle = readFileSync(gradlePath, 'utf8')
-    const match = gradle.match(/versionCode\s+(\d+)/)
-    if (!match) throw new Error('Could not parse Android versionCode.')
-    const nextCode = parseInt(match[1], 10) + 1
-    gradle = gradle
-      .replace(/versionCode\s+\d+/, `versionCode ${nextCode}`)
-      .replace(/versionName\s+"[^"]*"/, `versionName "${versionName}"`)
-    writeFileSync(gradlePath, gradle)
+    const currentName = (gradle.match(/versionName\s+"([^"]*)"/) || [])[1]
+    if (currentName !== versionName) {
+      const match = gradle.match(/versionCode\s+(\d+)/)
+      if (!match) throw new Error('Could not parse Android versionCode.')
+      const nextCode = parseInt(match[1], 10) + 1
+      gradle = gradle
+        .replace(/versionCode\s+\d+/, `versionCode ${nextCode}`)
+        .replace(/versionName\s+"[^"]*"/, `versionName "${versionName}"`)
+      writeFileSync(gradlePath, gradle)
+    }
   }
 }
 
 function commitVersionBump(versionName) {
   const files = [
     'src/lib/version.ts',
-    'public/version.json',
     'android/app/build.gradle',
     'src-tauri/tauri.conf.json',
     'src-tauri/Cargo.toml',
@@ -107,7 +106,7 @@ function uploadRelease(tag, versionName, assets) {
   const quotedAssets = assets.map((asset) => `"${asset}"`).join(' ')
   if (existing) {
     run(`gh release upload ${tag} ${quotedAssets} --repo ${REPO} --clobber`)
-    run(`gh release edit ${tag} --repo ${REPO} --prerelease --title "Keep Contact ${tag} — Canary"`)
+    run(`gh release edit ${tag} --repo ${REPO} --prerelease --latest=false --title "Keep Contact ${tag} — Canary"`)
   } else {
     run(`gh release create ${tag} ${quotedAssets} --repo ${REPO} --prerelease --latest=false --title "Keep Contact ${tag} — Canary" --notes "GM canary build. Promote through Supabase app_versions after verification."`)
   }

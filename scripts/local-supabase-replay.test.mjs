@@ -77,6 +77,7 @@ describe('local Supabase replay compatibility harness', () => {
     const manifest = await prepareReplayProject({ repoRoot: REAL_REPO_ROOT });
 
     expect(manifest.replacementCount).toBe(1);
+    expect(manifest.replayMode).toBe('folded-baseline');
     expect(await readFile(ADMIN_SOURCE)).toEqual(beforeAdmin);
     expect(await readFile(ADAPTIVE_SOURCE)).toEqual(beforeAdaptive);
     expect(await readFile(manifest.patchedMigration, 'utf8')).not.toContain('</loop>');
@@ -115,8 +116,7 @@ describe('local Supabase replay compatibility harness', () => {
 
     for (const [index, filename] of BOM_FILENAMES.entries()) {
       const copied = await readFile(join(
-        manifest.disposableProjectRoot,
-        'supabase/migrations',
+        manifest.compatibilityMigrationsRoot,
         filename,
       ));
       const expected = sources[index].subarray(3);

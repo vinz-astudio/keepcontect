@@ -1,4 +1,6 @@
+import CoreLocation
 import Foundation
+import Security
 import UIKit
 
 /// Unlock-evidence collector for the iOS passive guard (KC-IOS-UNLOCK-SPIKE-001).
@@ -20,7 +22,11 @@ import UIKit
 /// sampled evidence rather than an event stream, which is enough because the
 /// alert model sessionises activity at thirty minutes and never sees finer
 /// detail anyway.
-final class PassiveGuard: NSObject {
+///
+/// Location appears here only as significant-change monitoring. Apple
+/// documents relaunch after system termination; user force-quit remains unproven
+/// until the device gate. No coordinate is ever read, stored, or sent.
+final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     static let shared = PassiveGuard()
 
     /// Matches the Android collector's contract: same endpoint, same body,
@@ -29,6 +35,11 @@ final class PassiveGuard: NSObject {
     /// Real unlocks are minutes apart; this only collapses lock/unlock fidgeting.
     private static let minRecordInterval: TimeInterval = 30
     private static let maxRecordEntries = 500
+    private static let evidenceContract = "ios-passive-evidence-v1"
+    private static let qualificationPolicy = "passive-qualification-v1"
+    private static let powerStableSeconds: TimeInterval = 5
+    private static let powerCorrelationSeconds: TimeInterval = 60
+    private static let keychainService = "com.keepcontact.passive-evidence"
 
     private enum Key {
         static let supabaseUrl = "kc.passive.supabaseUrl"
@@ -40,12 +51,24 @@ final class PassiveGuard: NSObject {
         static let lastPingAt = "kc.passive.lastPingAt"
         static let lastEventAt = "kc.passive.lastEventAt"
         static let connectedAt = "kc.passive.connectedAt"
+        static let evidenceBindingId = "kc.passive.evidenceBindingId"
+        static let evidenceCollectorContract = "kc.passive.evidenceContract"
+        static let evidenceQueue = "kc.passive.evidenceQueue"
+        static let evidenceNextSequence = "kc.passive.evidenceNextSequence"
+        static let stablePowerState = "kc.passive.stablePowerState"
+        static let pendingPowerState = "kc.passive.pendingPowerState"
+        static let pendingPowerSince = "kc.passive.pendingPowerSince"
+        static let powerCorrelationId = "kc.passive.powerCorrelationId"
+        static let powerCorrelationStarted = "kc.passive.powerCorrelationStarted"
     }
 
     private let defaults = UserDefaults.standard
+    private let locationManager = CLLocationManager()
     private let session: URLSession
     private var observers: [NSObjectProtocol] = []
     private var armed = false
+    private let evidenceLock = NSLock()
+    private var evidenceSending = false
 
     private override init() {
         let configuration = URLSessionConfiguration.default
@@ -53,6 +76,7 @@ final class PassiveGuard: NSObject {
         configuration.timeoutIntervalForResource = 20
         session = URLSession(configuration: configuration)
         super.init()
+        locationManager.delegate = self
     }
 
     // MARK: - Lifecycle
@@ -69,7 +93,15 @@ final class PassiveGuard: NSObject {
         flushRecord()
     }
 
-    func configure(supabaseUrl: String, token: String, clientId: String?, appVersion: String?) {
+    func configure(
+        supabaseUrl: String,
+        token: String,
+        clientId: String?,
+        appVersion: String?,
+        evidenceBindingId: String?,
+        evidenceCredential: String?,
+        evidenceCollectorContract: String?
+    ) {
         defaults.set(supabaseUrl, forKey: Key.supabaseUrl)
         defaults.set(token, forKey: Key.token)
         // Provenance for the multi-signal samples. The web layer has always sent
@@ -83,8 +115,15 @@ final class PassiveGuard: NSObject {
         // Anchored here rather than on the first push, so a fresh install never
         // replays a week of history as if it had just happened.
         NotifyFeed.primeCursorIfNeeded()
+        configureEvidenceBinding(
+            bindingId: evidenceBindingId,
+            credential: evidenceCredential,
+            contract: evidenceCollectorContract
+        )
+        initializePowerBaseline()
         arm()
         flushRecord()
+        flushEvidenceQueue()
     }
 
     func clear() {
@@ -93,6 +132,7 @@ final class PassiveGuard: NSObject {
         // The cursor goes too: the next account to configure this install must
         // start from its own "now", not inherit the previous one's position.
         NotifyFeed.resetCursor()
+        clearEvidenceBinding()
         for key in [Key.supabaseUrl, Key.token, Key.clientId, Key.appVersion, Key.record, Key.lastPingAt, Key.lastEventAt, Key.lastRecordedAt, Key.connectedAt] {
             defaults.removeObject(forKey: key)
         }
@@ -104,7 +144,8 @@ final class PassiveGuard: NSObject {
             "connectedAt": defaults.double(forKey: Key.connectedAt) * 1000,
             "lastEventAt": defaults.double(forKey: Key.lastEventAt) * 1000,
             "lastPingAt": defaults.double(forKey: Key.lastPingAt) * 1000,
-            "pendingRecords": recordSize()
+            "pendingRecords": recordSize(),
+            "evidenceConfigured": isEvidenceConfigured
         ]
     }
 
@@ -124,6 +165,7 @@ final class PassiveGuard: NSObject {
                 queue: .main
             ) { [weak self] _ in
                 self?.recordEvent(reason: "unlock")
+                self?.recordDirectEvidence(observedAt: Date())
                 self?.captureSample(trigger: "unlock")
             }
         )
@@ -137,6 +179,7 @@ final class PassiveGuard: NSObject {
                 queue: .main
             ) { [weak self] _ in
                 self?.recordEvent(reason: "foreground")
+                self?.recordDirectEvidence(observedAt: Date())
                 // The control case. A foreground sample is the only one taken
                 // while a human is provably present, so it is what every
                 // background sample has to be calibrated against — without it
@@ -146,12 +189,47 @@ final class PassiveGuard: NSObject {
             }
         )
 
+        armRecoveryWake()
     }
 
     private func disarm() {
         armed = false
         observers.forEach(NotificationCenter.default.removeObserver)
         observers.removeAll()
+        locationManager.stopMonitoringSignificantLocationChanges()
+    }
+
+    /// Registers the location wake that Apple documents for system termination.
+    ///
+    /// This is deliberately NOT a keepalive. An earlier version held a
+    /// continuous location session so the in-process unlock notification would
+    /// keep arriving; that session is what put a location indicator in the
+    /// status bar and drew a battery baseline, and it has been removed.
+    ///
+    /// Significant-change monitoring is register-and-forget: nothing runs until
+    /// the device actually moves between cell towers, at which point iOS
+    /// may relaunch the app after system termination. Apple does not document
+    /// recovery after an explicit user force-quit, so that remains unproven and
+    /// must be measured on TestFlight rather than promised in source comments.
+    ///
+    /// Restored 2026-08-14 (human decision) after the 2026-08-10 removal, which
+    /// took out both `UIBackgroundModes: location` and the Always usage
+    /// description. Only the second comes back: significant-change monitoring
+    /// never needed the background mode — that is for a continuous session via
+    /// `startUpdatingLocation` + `allowsBackgroundLocationUpdates` — so what the
+    /// app declares now matches exactly what it does. The original objection
+    /// (declaring a background mode the app never used made KC look more
+    /// protective than it was) still stands and is still honoured.
+    ///
+    /// It fires only when the device moves between cell towers, so it does
+    /// nothing for someone who stays home. That gap is real and is covered by
+    /// HealthKit step delivery instead, which needs no movement between towers.
+    private func armRecoveryWake() {
+        locationManager.requestAlwaysAuthorization()
+        locationManager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
+        // No startUpdatingLocation, no allowsBackgroundLocationUpdates: those
+        // are what a persistent session needs, and we do not want one.
+        locationManager.startMonitoringSignificantLocationChanges()
     }
 
     /// Called when a silent push wakes the process. The push proves the device
@@ -191,6 +269,354 @@ final class PassiveGuard: NSObject {
         // exactly the moments it is most needed.
         captureSample(trigger: "push-wake") {
             completion(unlocked)
+        }
+    }
+
+    // MARK: - CLLocationManagerDelegate
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        // Deliberately empty of any use of `locations`. Coordinates are never
+        // read, stored, or sent — the fix exists only to prove to iOS that this
+        // process is doing work. Any change here turns location into collection.
+        //
+        // Note what is deliberately absent: no `recordEvent`. A significant
+        // location change is not evidence the person is active — a phone in a
+        // passenger seat or in someone else's bag moves between towers just as
+        // well. This wake is a chance to collect and hand over evidence, never
+        // evidence in itself.
+        //
+        // The lease is reported for the same reason `handleWake` reports it: it
+        // says the watcher was awake and looking here, which is true of this
+        // relaunch whether or not the sample below finds anything.
+        reportCoverageLease()
+        flushRecord()
+        captureSample(trigger: "location-relaunch")
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // Keepalive is best effort; a failed fix is not an app-level problem.
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        guard credentials() != nil else { return }
+        switch manager.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            armRecoveryWake()
+        default:
+            break
+        }
+    }
+
+    // MARK: - ADR-0042 positive evidence
+
+    var isEvidenceConfigured: Bool {
+        defaults.string(forKey: Key.evidenceBindingId) != nil
+            && defaults.string(forKey: Key.evidenceCollectorContract) == Self.evidenceContract
+            && keychainCredential() != nil
+    }
+
+    func recordDirectEvidence(observedAt: Date) {
+        enqueueEvidence(
+            observedAt: observedAt,
+            evidenceClass: "direct_device_use",
+            correlationId: nil,
+            facts: ["interaction": true],
+            queryStart: nil,
+            queryEnd: nil,
+            querySucceeded: false
+        )
+
+        observers.append(
+            NotificationCenter.default.addObserver(
+                forName: UIDevice.batteryStateDidChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.observePowerState(self.normalizedPowerState(UIDevice.current.batteryState))
+            }
+        )
+    }
+
+    func recordMotionEvidence(
+        observedAt: Date,
+        stepsPositive: Bool,
+        floorsPositive: Bool,
+        automotive: Bool,
+        queryStart: Date?,
+        queryEnd: Date?
+    ) {
+        guard (stepsPositive || floorsPositive), !automotive else { return }
+        enqueueEvidence(
+            observedAt: observedAt,
+            evidenceClass: "personal_device_motion",
+            correlationId: nil,
+            facts: [
+                "steps_positive": stepsPositive,
+                "floors_positive": floorsPositive,
+                "pedestrian": true,
+                "automotive": false
+            ],
+            queryStart: queryStart,
+            queryEnd: queryEnd,
+            querySucceeded: queryStart != nil && queryEnd != nil
+        )
+    }
+
+    private func enqueueEvidence(
+        observedAt: Date,
+        evidenceClass: String,
+        correlationId: String?,
+        facts: [String: Any],
+        queryStart: Date?,
+        queryEnd: Date?,
+        querySucceeded: Bool
+    ) {
+        guard isEvidenceConfigured else { return }
+        evidenceLock.lock()
+        let sequence = defaults.object(forKey: Key.evidenceNextSequence) == nil
+            ? 0
+            : defaults.integer(forKey: Key.evidenceNextSequence)
+        defaults.set(sequence + 1, forKey: Key.evidenceNextSequence)
+        let entry: [String: Any] = [
+            "binding_id": defaults.string(forKey: Key.evidenceBindingId)!,
+            "event_id": UUID().uuidString,
+            "sequence": sequence,
+            "observed_at": Self.iso8601.string(from: observedAt),
+            "evidence_class": evidenceClass,
+            "qualification_policy_version": Self.qualificationPolicy,
+            "correlation_id": correlationId ?? NSNull(),
+            "qualification_facts": facts,
+            "query_started_at": queryStart.map { Self.iso8601.string(from: $0) } ?? NSNull(),
+            "query_ended_at": queryEnd.map { Self.iso8601.string(from: $0) } ?? NSNull(),
+            "query_succeeded": querySucceeded
+        ]
+        var queue = evidenceQueue()
+        queue.append(entry)
+        if queue.count > Self.maxRecordEntries {
+            queue.removeFirst(queue.count - Self.maxRecordEntries)
+        }
+        saveEvidenceQueue(queue)
+        evidenceLock.unlock()
+        flushEvidenceQueue()
+    }
+
+    private func evidenceQueue() -> [[String: Any]] {
+        guard let data = defaults.data(forKey: Key.evidenceQueue),
+              let value = try? JSONSerialization.jsonObject(with: data),
+              let queue = value as? [[String: Any]] else { return [] }
+        return queue
+    }
+
+    private func saveEvidenceQueue(_ queue: [[String: Any]]) {
+        guard let data = try? JSONSerialization.data(withJSONObject: queue) else { return }
+        defaults.set(data, forKey: Key.evidenceQueue)
+    }
+
+    private func flushEvidenceQueue() {
+        evidenceLock.lock()
+        guard !evidenceSending,
+              let first = evidenceQueue().first,
+              let credential = keychainCredential(),
+              let (baseUrl, _) = credentials(),
+              let url = URL(string: baseUrl + "/functions/v1/passive-evidence") else {
+            evidenceLock.unlock()
+            return
+        }
+        evidenceSending = true
+        evidenceLock.unlock()
+
+        var body = first
+        body["credential"] = credential
+        let sentBindingId = first["binding_id"] as? String
+        guard let payload = try? JSONSerialization.data(withJSONObject: body) else {
+            finishEvidenceSend(
+                sentBindingId: sentBindingId,
+                removeFirst: true,
+                revoked: false
+            )
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.httpBody = payload
+        session.dataTask(with: request) { [weak self] _, response, error in
+            guard let self else { return }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if error != nil || status >= 500 || status == 0 {
+                self.finishEvidenceSend(
+                    sentBindingId: sentBindingId,
+                    removeFirst: false,
+                    revoked: false
+                )
+                return
+            }
+            self.finishEvidenceSend(
+                sentBindingId: sentBindingId,
+                removeFirst: true,
+                revoked: status == 409
+            )
+        }.resume()
+    }
+
+    private func finishEvidenceSend(
+        sentBindingId: String?,
+        removeFirst: Bool,
+        revoked: Bool
+    ) {
+        evidenceLock.lock()
+        guard defaults.string(forKey: Key.evidenceBindingId) == sentBindingId else {
+            evidenceSending = false
+            evidenceLock.unlock()
+            return
+        }
+        if removeFirst {
+            var queue = evidenceQueue()
+            if !queue.isEmpty { queue.removeFirst() }
+            saveEvidenceQueue(queue)
+        }
+        evidenceSending = false
+        evidenceLock.unlock()
+        if revoked {
+            clearEvidenceBinding()
+        } else if removeFirst {
+            flushEvidenceQueue()
+        }
+    }
+
+    private func configureEvidenceBinding(bindingId: String?, credential: String?, contract: String?) {
+        guard let bindingId,
+              contract == Self.evidenceContract else {
+            clearEvidenceBinding()
+            return
+        }
+        let previous = defaults.string(forKey: Key.evidenceBindingId)
+        if let previous, previous != bindingId { clearEvidenceBinding() }
+        defaults.set(bindingId, forKey: Key.evidenceBindingId)
+        defaults.set(Self.evidenceContract, forKey: Key.evidenceCollectorContract)
+        if let credential, credential.count >= 32 { saveKeychainCredential(credential) }
+        if previous != bindingId {
+            defaults.set(0, forKey: Key.evidenceNextSequence)
+            saveEvidenceQueue([])
+            HealthWake.shared.resetHistoryAnchor()
+            DeviceSampleCollector.shared.resetHistoryAnchor()
+        }
+    }
+
+    private func clearEvidenceBinding() {
+        evidenceLock.lock()
+        evidenceSending = false
+        for key in [
+            Key.evidenceBindingId, Key.evidenceCollectorContract,
+            Key.evidenceQueue, Key.evidenceNextSequence,
+            Key.pendingPowerState, Key.pendingPowerSince
+        ] { defaults.removeObject(forKey: key) }
+        evidenceLock.unlock()
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.keychainService
+        ]
+        SecItemDelete(query as CFDictionary)
+        HealthWake.shared.resetHistoryAnchor()
+        DeviceSampleCollector.shared.resetHistoryAnchor()
+    }
+
+    private func saveKeychainCredential(_ credential: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.keychainService
+        ]
+        SecItemDelete(query as CFDictionary)
+        var item = query
+        item[kSecValueData as String] = Data(credential.utf8)
+        item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        SecItemAdd(item as CFDictionary, nil)
+    }
+
+    private func keychainCredential() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.keychainService,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private func initializePowerBaseline() {
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        guard let state = normalizedPowerState(UIDevice.current.batteryState) else {
+            defaults.removeObject(forKey: Key.stablePowerState)
+            return
+        }
+        defaults.set(state, forKey: Key.stablePowerState)
+        defaults.removeObject(forKey: Key.pendingPowerState)
+        defaults.removeObject(forKey: Key.pendingPowerSince)
+    }
+
+    private func observePowerState(_ rawState: String?) {
+        let state: String?
+        switch rawState {
+        case "charging", "full": state = "charging"
+        case "unplugged", "not_charging": state = "not_charging"
+        default: state = nil
+        }
+        guard let state else { return }
+        guard let stable = defaults.string(forKey: Key.stablePowerState) else {
+            defaults.set(state, forKey: Key.stablePowerState)
+            return
+        }
+        if stable == state {
+            defaults.removeObject(forKey: Key.pendingPowerState)
+            defaults.removeObject(forKey: Key.pendingPowerSince)
+            return
+        }
+        let since = Date()
+        defaults.set(state, forKey: Key.pendingPowerState)
+        defaults.set(since.timeIntervalSince1970, forKey: Key.pendingPowerSince)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.powerStableSeconds) { [weak self] in
+            self?.confirmPowerTransition(expected: state, prior: stable, since: since)
+        }
+    }
+
+    private func confirmPowerTransition(expected: String, prior: String, since: Date) {
+        guard defaults.string(forKey: Key.pendingPowerState) == expected,
+              Date().timeIntervalSince(since) >= Self.powerStableSeconds,
+              normalizedPowerState(UIDevice.current.batteryState) == expected else { return }
+        defaults.set(expected, forKey: Key.stablePowerState)
+        defaults.removeObject(forKey: Key.pendingPowerState)
+        defaults.removeObject(forKey: Key.pendingPowerSince)
+        let lastGroupAt = defaults.double(forKey: Key.powerCorrelationStarted)
+        var correlationId = defaults.string(forKey: Key.powerCorrelationId)
+        if correlationId == nil || since.timeIntervalSince1970 - lastGroupAt >= Self.powerCorrelationSeconds {
+            correlationId = "power-" + UUID().uuidString
+            defaults.set(correlationId, forKey: Key.powerCorrelationId)
+            defaults.set(since.timeIntervalSince1970, forKey: Key.powerCorrelationStarted)
+        }
+        enqueueEvidence(
+            observedAt: since,
+            evidenceClass: "power_transition",
+            correlationId: correlationId,
+            facts: [
+                "prior_power_state": prior,
+                "new_power_state": expected,
+                "stable_for_ms": Int(Self.powerStableSeconds * 1000)
+            ],
+            queryStart: nil,
+            queryEnd: nil,
+            querySucceeded: false
+        )
+    }
+
+    private func normalizedPowerState(_ state: UIDevice.BatteryState) -> String? {
+        switch state {
+        case .charging, .full: return "charging"
+        case .unplugged: return "not_charging"
+        default: return nil
         }
     }
 
@@ -337,6 +763,17 @@ final class PassiveGuard: NSObject {
             guard let self else {
                 completion?()
                 return
+            }
+            self.observePowerState(sample.batteryState)
+            if sample.hasPositivePedestrianMotion {
+                self.recordMotionEvidence(
+                    observedAt: sample.observedAt,
+                    stepsPositive: (sample.stepsSinceLastSample ?? 0) > 0,
+                    floorsPositive: (sample.floorsSinceLastSample ?? 0) > 0,
+                    automotive: sample.dominantActivity == "automotive",
+                    queryStart: sample.motionIntervalStart,
+                    queryEnd: sample.observedAt
+                )
             }
             var payload = sample.asPayload(
                 clientId: self.defaults.string(forKey: Key.clientId),

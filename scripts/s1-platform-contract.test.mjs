@@ -46,9 +46,36 @@ describe('S1 Android AAB repository contracts', () => {
 })
 
 describe('S1 iOS Native repository contracts', () => {
-  test('ADR0039-IOS-01 background location is not a relaunch-only hack', () => {
-    expect(infoPlist).not.toMatch(/<string>location<\/string>[\s\S]*restart its guardian/i)
-    expect(passiveGuard).not.toMatch(/CoreLocation|CLLocationManager|requestAlwaysAuthorization|startMonitoringSignificantLocationChanges/)
+  // Revised 2026-08-14. The 2026-08-10 decision removed two different things at
+  // once, and only one of them was the thing being objected to.
+  //
+  // The objection was to declaring `UIBackgroundModes: location` — a background
+  // mode the app never used for location, which made KC look more protective
+  // than it was and is exactly what App Review pushes back on. That still holds
+  // and is still asserted below.
+  //
+  // Significant-change monitoring never needed that background mode: it is
+  // required only for a continuous session via `startUpdatingLocation` +
+  // `allowsBackgroundLocationUpdates`. So the mechanism came back (human
+  // decision 2026-08-14) without the declaration, and the invariant worth
+  // guarding is the real one — no continuous session, no coordinate ever read.
+  test('ADR0039-IOS-01 location is a relaunch wake only, never a session or a source', () => {
+    // The background mode stays gone.
+    expect(infoPlist).not.toMatch(/<string>location<\/string>/)
+    // Always authorization is declared, because significant-change monitoring
+    // genuinely needs it — what the app declares must match what it does.
+    expect(infoPlist).toMatch(/NSLocationAlwaysAndWhenInUseUsageDescription/)
+
+    // The relaunch wake is present…
+    expect(passiveGuard).toMatch(/startMonitoringSignificantLocationChanges/)
+    // …and it is the *only* form location takes. A continuous session is what
+    // put an indicator in the status bar and drew a battery baseline.
+    expect(passiveGuard).not.toMatch(/^\s*locationManager\.startUpdatingLocation/m)
+    expect(passiveGuard).not.toMatch(/allowsBackgroundLocationUpdates\s*=/)
+
+    // No coordinate is ever read out of the delegate callback. `locations` must
+    // stay unused; touching it turns a wake into collection.
+    expect(passiveGuard).not.toMatch(/locations\s*\[|locations\.first|locations\.last/)
   })
 
   test('ADR0039-IOS-02 native project carries APNs and HealthKit capabilities', () => {

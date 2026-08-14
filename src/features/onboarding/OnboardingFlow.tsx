@@ -75,8 +75,8 @@ export function OnboardingFlow({
           <h1>{isZh ? '保持联系，不必整天报平安' : 'Stay connected without checking in all day'}</h1>
           <p>
             {isZh
-              ? 'Keep Contact 会记录这台手机支持的粗粒度活动时间，并逐渐学习你平常的安静间隔。间隔异常时，它会先询问你，再通知你信任的人。'
-              : 'Keep Contact records coarse activity timestamps supported by this phone and gradually learns your usual quiet gaps. When a gap looks unusual, it can ask you first and then alert people you trust.'}
+              ? 'Keep Contact 会记录这台手机支持的粗粒度活动时间。只有你明确启用被动联系确认后，长时间失去联系才可能让它先询问你，再通知你信任的人。'
+              : 'Keep Contact records coarse activity timestamps supported by this phone. After you explicitly enable passive check-ins, a long loss of contact can make it ask you first and then notify people you trust.'}
           </p>
           <PrototypeCard className="onboarding-flow__value-card">
             <PrototypeRow icon="phone_iphone" title={isZh ? '自动识别这台手机' : 'This phone is detected automatically'} subtitle={isZh ? '不需要选择设备或使用身份。' : 'No device or role selection is needed.'} />

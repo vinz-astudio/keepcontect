@@ -7,6 +7,8 @@ const tabBarCss = readFileSync('src/features/nav/TabBar.css', 'utf8')
 const appShellCss = readFileSync('src/features/shell/AppShell.css', 'utf8')
 const appShellSource = readFileSync('src/features/shell/AppShell.tsx', 'utf8')
 const html = readFileSync('index.html', 'utf8')
+const passiveSettingsCss = readFileSync('src/features/passive/PassiveCheckinSettings.css', 'utf8')
+const passiveSettingsSource = readFileSync('src/features/passive/PassiveCheckinSettings.tsx', 'utf8')
 
 function ruleBlock(source: string, prelude: string): string {
   const preludeStart = source.indexOf(prelude)
@@ -89,5 +91,14 @@ describe('iOS installed-PWA full-height regression', () => {
     expect(authCss).toMatch(/\.auth__card\s*\{[\s\S]*margin:\s*auto 0;/)
     expect(indexCss).toMatch(/html,\s*body,\s*#root\s*\{[\s\S]*min-height:\s*100%;/)
     expect(ruleBlock(indexCss, 'html,\nbody,\n#root')).not.toMatch(/overflow:\s*hidden;/)
+  })
+
+  it('keeps passive check-in settings usable at a 320px viewport', () => {
+    expect(passiveSettingsCss).toMatch(/@media \(max-width: 360px\)/)
+    expect(passiveSettingsCss).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/)
+    expect(passiveSettingsCss).toMatch(/min-width:\s*0/)
+    expect(passiveSettingsSource).toContain('role="alert"')
+    expect(passiveSettingsSource).toContain('KC 只根据')
+    expect(passiveSettingsSource).toContain('KC uses only positive')
   })
 })

@@ -6,7 +6,10 @@ import {
   getNativeFcmToken,
   requestNativeNotificationPermission,
 } from '@/features/passive/native'
-import { startTauriShadowCoverage } from '@/features/passive/shadowCoverage'
+import {
+  startTauriPassiveEvidence,
+  startTauriShadowCoverage,
+} from '@/features/passive/shadowCoverage'
 import { supabase } from '@/lib/supabase'
 
 export function PassivePingBoot() {
@@ -15,6 +18,7 @@ export function PassivePingBoot() {
   useEffect(() => {
     let cancelled = false
     let stopShadowCoverage: () => void = () => {}
+    let stopTauriEvidence: () => void = () => {}
 
     getHeartbeatToken()
       .then(async (token) => {
@@ -24,6 +28,7 @@ export function PassivePingBoot() {
         if (cancelled) return
         if (token) {
           stopShadowCoverage = startTauriShadowCoverage()
+          stopTauriEvidence = startTauriPassiveEvidence()
           await requestNativeNotificationPermission()
           const fcm = await getNativeFcmToken()
           if (fcm) {
@@ -53,6 +58,7 @@ export function PassivePingBoot() {
     return () => {
       cancelled = true
       stopShadowCoverage()
+      stopTauriEvidence()
       tokenRef.current = null
     }
   }, [])

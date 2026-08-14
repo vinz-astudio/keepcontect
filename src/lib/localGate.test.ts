@@ -6,7 +6,10 @@ import { afterEach, describe, expect, test } from 'vitest';
 
 type GateFailure = { code: string; message: string };
 type GateResult = { ok: boolean; failures: GateFailure[]; version: string | null };
-type GateModule = { evaluateReleaseGate: (root: string) => GateResult };
+type GateModule = {
+  evaluateReleaseGate: (root: string) => GateResult;
+  resolveBrainVaultRoot: (root: string, explicit?: string) => string;
+};
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const gateModuleUrl = pathToFileURL(path.resolve(currentDir, '../../scripts/local-gate.mjs')).href;
@@ -84,5 +87,32 @@ describe('evaluateReleaseGate', () => {
         expect.objectContaining({ code: 'TAURI_SIGNING_FALLBACK' }),
       ]),
     );
+  });
+});
+
+describe('resolveBrainVaultRoot', () => {
+  test('finds the shared Brain from a nested git worktree', async () => {
+    const { resolveBrainVaultRoot } = await loadGate();
+    const desktop = mkdtempSync(path.join(tmpdir(), 'kc-brain-root-'));
+    tempRoots.push(desktop);
+    const worktree = path.join(
+      desktop,
+      'GCIT Tasks',
+      'Keep contact',
+      '.worktrees',
+      'passive-checkin-impl',
+    );
+    const vault = path.join(desktop, 'Obsidian Brain', '2nd Brain');
+    mkdirSync(worktree, { recursive: true });
+    mkdirSync(vault, { recursive: true });
+
+    expect(resolveBrainVaultRoot(worktree)).toBe(vault);
+  });
+
+  test('honors an explicit Brain path', async () => {
+    const { resolveBrainVaultRoot } = await loadGate();
+    const explicit = path.join(tmpdir(), 'explicit-kc-brain');
+
+    expect(resolveBrainVaultRoot('ignored', explicit)).toBe(path.resolve(explicit));
   });
 });

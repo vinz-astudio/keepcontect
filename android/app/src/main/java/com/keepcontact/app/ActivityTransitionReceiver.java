@@ -20,9 +20,11 @@ public class ActivityTransitionReceiver extends BroadcastReceiver {
             if (result != null) {
                 boolean hasTransitions = false;
                 for (ActivityTransitionEvent event : result.getTransitionEvents()) {
-                    Log.d(TAG, "GMS Transition Event: ActivityType=" + event.getActivityType() 
-                        + ", TransitionType=" + event.getTransitionType());
-                    hasTransitions = true;
+                    if (PassiveEvidenceContract.qualifiesPedestrianTransition(event.getActivityType())) {
+                        PassivePing.recordPedestrianTransition(
+                            context, event.getActivityType(), event.getElapsedRealTimeNanos());
+                        hasTransitions = true;
+                    }
                 }
                 if (hasTransitions) {
                     if (!PassivePing.isKeyguardLocked(context)) {
