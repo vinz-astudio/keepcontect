@@ -15,6 +15,8 @@ export interface PassiveCollectorHealth {
   devices: PassiveDeviceHealth[]
   missCountingContinues: true
   evaluatedAt: string
+  globalReason: string | null
+  globalRepairAction: string | null
 }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -48,6 +50,8 @@ export function parsePassiveCollectorHealth(value: unknown): PassiveCollectorHea
   return {
     state: raw.state as PassiveHealthState, devices, missCountingContinues: true,
     evaluatedAt: raw.evaluated_at,
+    globalReason: typeof raw.global_reason === 'string' ? raw.global_reason : null,
+    globalRepairAction: typeof raw.global_repair_action === 'string' ? raw.global_repair_action : null,
   }
 }
 
@@ -59,7 +63,11 @@ export function passiveHealthCopy(health: PassiveCollectorHealth, lang: 'zh' | '
     ? (lang === 'zh' ? '已绑定的采集器工作正常。' : 'Bound collectors are working normally.')
     : health.state === 'off'
       ? (lang === 'zh' ? '尚未绑定任何采集器。' : 'No collector is bound yet.')
-      : (lang === 'zh'
+      : health.globalReason
+        ? (lang === 'zh'
+            ? `KC 已启用全局安全停止：${health.globalReason}。已完成窗口不会被改写，漏签仍按事实记录，但不会新开被动告警。`
+            : `KC's global safety stop is active: ${health.globalReason}. Completed windows stay unchanged and misses remain factual, but no new passive alert will open.`)
+        : (lang === 'zh'
           ? '部分设备采集受限；漏签计数仍会继续，请按下方提示修复。'
           : 'Some device collection is limited. Miss counting continues; use the repair action below.')
   return { label, detail }

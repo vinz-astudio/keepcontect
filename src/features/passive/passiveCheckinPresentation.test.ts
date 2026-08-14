@@ -11,6 +11,7 @@ describe('passive collector health presentation', () => {
     expect(health.devices[0]).toMatchObject({ device: 'my-phone', reason: 'silent' })
     expect(passiveHealthCopy(health, 'zh').detail).toContain('漏签计数仍会继续')
     expect(passiveHealthCopy(health, 'en').detail).toContain('Miss counting continues')
+    expect(health.globalReason).toBeNull()
   })
 
   it('rejects reassuring malformed or contradictory health', () => {

@@ -22,6 +22,7 @@
     "build:aab": "cd android && gradlew.bat bundleRelease",
     "tauri": "tauri",
     "adaptive:source:check": "node scripts/adaptive-shadow-source-manifest.mjs",
+    "passive:shadow:report": "node scripts/passive-checkin-shadow-report.mjs",
     "build:web": "vite build && node scripts/stage-release-artifacts.mjs",
     "guard:installers": "node scripts/assert-no-installers.mjs"
   },
