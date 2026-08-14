@@ -1581,6 +1581,15 @@ export type Database = {
       }
       am_i_gm: { Args: never; Returns: boolean }
       become_guardian_by_code: { Args: { _code: string }; Returns: string }
+      bind_passive_collector: {
+        Args: {
+          _client_version: string
+          _collector_contract: string
+          _collector_instance_id: string
+          _surface_type: string
+        }
+        Returns: Json
+      }
       claim_unpushed_notifications: {
         Args: { p_batch_size: number; p_lease_duration: string }
         Returns: {
@@ -1682,6 +1691,19 @@ export type Database = {
         }
         Returns: string
       }
+      record_authenticated_passive_evidence: {
+        Args: {
+          _binding_id: string
+          _correlation_id?: string | null
+          _event_id: string
+          _evidence_class: string
+          _observed_at: string
+          _qualification_facts?: Json
+          _qualification_policy_version: string
+          _sequence: number
+        }
+        Returns: string
+      }
       set_passive_checkin_contract: {
         Args: {
           _client_contract_version?: string | null
@@ -1723,6 +1745,10 @@ export type Database = {
       register_fcm_token: {
         Args: { _platform?: string; _token: string }
         Returns: undefined
+      }
+      revoke_passive_collector: {
+        Args: { _binding_id: string }
+        Returns: boolean
       }
       rename_community: {
         Args: { _community: string; _name: string }
