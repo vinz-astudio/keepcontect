@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import UIKit
 
@@ -20,7 +21,10 @@ import UIKit
 /// sampled evidence rather than an event stream, which is enough because the
 /// alert model sessionises activity at thirty minutes and never sees finer
 /// detail anyway.
-final class PassiveGuard: NSObject {
+///
+/// Location appears here only as significant-change monitoring, purely to
+/// recover a force-quit app. No coordinate is ever read, stored, or sent.
+final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     static let shared = PassiveGuard()
 
     /// Matches the Android collector's contract: same endpoint, same body,
@@ -43,6 +47,7 @@ final class PassiveGuard: NSObject {
     }
 
     private let defaults = UserDefaults.standard
+    private let locationManager = CLLocationManager()
     private let session: URLSession
     private var observers: [NSObjectProtocol] = []
     private var armed = false
@@ -53,6 +58,7 @@ final class PassiveGuard: NSObject {
         configuration.timeoutIntervalForResource = 20
         session = URLSession(configuration: configuration)
         super.init()
+        locationManager.delegate = self
     }
 
     // MARK: - Lifecycle
@@ -146,12 +152,48 @@ final class PassiveGuard: NSObject {
             }
         )
 
+        armRecoveryWake()
     }
 
     private func disarm() {
         armed = false
         observers.forEach(NotificationCenter.default.removeObserver)
         observers.removeAll()
+        locationManager.stopMonitoringSignificantLocationChanges()
+    }
+
+    /// Registers the one location service that survives a user force-quit.
+    ///
+    /// This is deliberately NOT a keepalive. An earlier version held a
+    /// continuous location session so the in-process unlock notification would
+    /// keep arriving; that session is what put a location indicator in the
+    /// status bar and drew a battery baseline, and it has been removed.
+    ///
+    /// Significant-change monitoring is register-and-forget: nothing runs until
+    /// the device actually moves between cell towers, at which point iOS
+    /// relaunches the app — the only documented mechanism that still works
+    /// after the user swipes KC away. HealthKit background delivery and silent
+    /// push are the primary wake paths; both stop at a force-quit, and this
+    /// exists purely so that device is not lost until the user opens KC again.
+    ///
+    /// Restored 2026-08-14 (human decision) after the 2026-08-10 removal, which
+    /// took out both `UIBackgroundModes: location` and the Always usage
+    /// description. Only the second comes back: significant-change monitoring
+    /// never needed the background mode — that is for a continuous session via
+    /// `startUpdatingLocation` + `allowsBackgroundLocationUpdates` — so what the
+    /// app declares now matches exactly what it does. The original objection
+    /// (declaring a background mode the app never used made KC look more
+    /// protective than it was) still stands and is still honoured.
+    ///
+    /// It fires only when the device moves between cell towers, so it does
+    /// nothing for someone who stays home. That gap is real and is covered by
+    /// HealthKit step delivery instead, which needs no movement between towers.
+    private func armRecoveryWake() {
+        locationManager.requestAlwaysAuthorization()
+        locationManager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
+        // No startUpdatingLocation, no allowsBackgroundLocationUpdates: those
+        // are what a persistent session needs, and we do not want one.
+        locationManager.startMonitoringSignificantLocationChanges()
     }
 
     /// Called when a silent push wakes the process. The push proves the device
@@ -191,6 +233,41 @@ final class PassiveGuard: NSObject {
         // exactly the moments it is most needed.
         captureSample(trigger: "push-wake") {
             completion(unlocked)
+        }
+    }
+
+    // MARK: - CLLocationManagerDelegate
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        // Deliberately empty of any use of `locations`. Coordinates are never
+        // read, stored, or sent — the fix exists only to prove to iOS that this
+        // process is doing work. Any change here turns location into collection.
+        //
+        // Note what is deliberately absent: no `recordEvent`. A significant
+        // location change is not evidence the person is active — a phone in a
+        // passenger seat or in someone else's bag moves between towers just as
+        // well. This wake is a chance to collect and hand over evidence, never
+        // evidence in itself.
+        //
+        // The lease is reported for the same reason `handleWake` reports it: it
+        // says the watcher was awake and looking here, which is true of this
+        // relaunch whether or not the sample below finds anything.
+        reportCoverageLease()
+        flushRecord()
+        captureSample(trigger: "location-relaunch")
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // Keepalive is best effort; a failed fix is not an app-level problem.
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        guard credentials() != nil else { return }
+        switch manager.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            armRecoveryWake()
+        default:
+            break
         }
     }
 
