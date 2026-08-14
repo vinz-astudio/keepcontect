@@ -190,14 +190,30 @@ function runNpm(args) {
   run('npm', args);
 }
 
+export function resolveBrainVaultRoot(root = repoRoot, explicit = process.env.OBSIDIAN_BRAIN) {
+  if (explicit) return path.resolve(explicit);
+
+  let cursor = path.resolve(root);
+  for (;;) {
+    const candidate = path.join(cursor, 'Obsidian Brain', '2nd Brain');
+    if (existsSync(candidate)) return candidate;
+    const parent = path.dirname(cursor);
+    if (parent === cursor) break;
+    cursor = parent;
+  }
+
+  // Preserve a deterministic error path for machines where the shared Brain
+  // is not mounted, while allowing both the main checkout and nested
+  // worktrees to discover it when present.
+  return path.resolve(root, '..', '..', 'Obsidian Brain', '2nd Brain');
+}
+
 function runFullGate() {
   runNpm(['run', 'typecheck']);
   runNpm(['test']);
   runNpm(['run', 'build']);
 
-  const vaultRoot = process.env.OBSIDIAN_BRAIN
-    ? path.resolve(process.env.OBSIDIAN_BRAIN)
-    : path.resolve(repoRoot, '..', '..', 'Obsidian Brain', '2nd Brain');
+  const vaultRoot = resolveBrainVaultRoot();
   const sdlcCheck = path.join(vaultRoot, 'Coordination', 'tools', 'sdlc-check.mjs');
   if (!existsSync(sdlcCheck)) {
     throw new Error(`Brain SDLC check not found: ${sdlcCheck}`);
