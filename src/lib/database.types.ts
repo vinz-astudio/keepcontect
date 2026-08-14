@@ -1663,6 +1663,7 @@ export type Database = {
       process_checkin_tasks: { Args: never; Returns: undefined }
       process_escalations: { Args: never; Returns: undefined }
       process_passive_checkins: { Args: never; Returns: undefined }
+      my_passive_checkin_recommendation: { Args: never; Returns: Json }
       prune_stale_clients: { Args: never; Returns: undefined }
       raise_sos:
         | { Args: never; Returns: string }
