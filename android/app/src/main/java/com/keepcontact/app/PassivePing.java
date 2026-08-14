@@ -454,10 +454,28 @@ final class PassivePing {
                 String observedAt = sdf.format(new java.util.Date(now));
                 String eventId = java.util.UUID.randomUUID().toString();
 
+                // We have always known, from UsageStats, when the phone was last
+                // actually used — and have always thrown it away, reporting only
+                // "I am awake now". Waking from Doze at 14:00 able to prove the
+                // user unlocked at 13:35 and saying nothing about 13:35 is the
+                // whole defect. Send it; the server records it at its real time.
+                //
+                // Runs inside the executor because a UsageStats event scan is not
+                // something to do on whatever thread happened to call ping().
+                // Returns 0 when Usage Access is not granted, in which case the
+                // field is simply absent and the request is unchanged.
+                long lastActive = queryLastActiveTime(appContext);
+                String lastActiveField = "";
+                if (lastActive > 0 && lastActive <= now) {
+                    lastActiveField =
+                        "\"last_active_at\":\"" + sdf.format(new java.util.Date(lastActive)) + "\",";
+                }
+
                 String bodyJson = "{" +
                     "\"token\":\"" + token + "\"," +
                     "\"event_id\":\"" + eventId + "\"," +
                     "\"observed_at\":\"" + observedAt + "\"," +
+                    lastActiveField +
                     "\"source\":\"capacitor\"" +
                     "}";
 

@@ -128,17 +128,47 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Optional Android backfill. The collector already knows, from UsageStats,
+    // when the phone was last actually used; before this it threw that away and
+    // reported only "I am awake now". This records the real moment.
+    //
+    // It is deliberately supplementary: a historical observed_at can never pass
+    // insert_behavior_ping's ±5 minute liveness window, so it cannot refresh the
+    // heartbeat or touch an alert. A failure here must not fail the ping that
+    // did succeed, so it is logged and swallowed rather than returned.
+    let backfill: string | undefined
+    const rawLastActive = body?.last_active_at
+    if (rawLastActive !== undefined) {
+      if (typeof rawLastActive !== 'string' || isNaN(Date.parse(rawLastActive))) {
+        backfill = 'invalid'
+      } else {
+        const { data: backfillStatus, error: backfillError } = await supabase.rpc(
+          'record_last_active_backfill',
+          { _user_id: uid, _last_active_at: rawLastActive, _source: source },
+        )
+        if (backfillError) {
+          console.error('Failed to record last-active backfill:', backfillError)
+          backfill = 'error'
+        } else {
+          backfill = backfillStatus as string
+        }
+      }
+    }
+
+    const withBackfill = (payload: Record<string, unknown>) =>
+      backfill === undefined ? payload : { ...payload, backfill }
+
     if (status === 'inserted' || status === 'coalesced') {
-      return new Response(JSON.stringify({ ok: true, status }), {
+      return new Response(JSON.stringify(withBackfill({ ok: true, status })), {
         headers: { ...cors, 'Content-Type': 'application/json' },
       })
     } else if (status === 'duplicate') {
-      return new Response(JSON.stringify({ ok: true, status: 'duplicate' }), {
+      return new Response(JSON.stringify(withBackfill({ ok: true, status: 'duplicate' })), {
         status: 200,
         headers: { ...cors, 'Content-Type': 'application/json' },
       })
     } else if (status === 'invalid') {
-      return new Response(JSON.stringify({ ok: false, reason: 'invalid' }), {
+      return new Response(JSON.stringify(withBackfill({ ok: false, reason: 'invalid' })), {
         status: 422,
         headers: { ...cors, 'Content-Type': 'application/json' },
       })
