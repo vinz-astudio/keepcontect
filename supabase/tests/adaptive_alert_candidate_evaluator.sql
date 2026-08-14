@@ -2065,7 +2065,7 @@ SELECT results_eq(
     ORDER BY fn
   $$,
   $$ VALUES
-    ('process_escalations'::text, 'fc194cd14cf9ce5a75200dd6e0e45811bc2a188c42f4f54e2a7cd336cb4d6107'::text),
+    ('process_escalations'::text, '682873e1611489ed13b8660d6f5297fbde7578de749a2f23bfd7cba842aef351'::text),
     ('silence_threshold'::text, 'c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150'::text)
   $$,
   'ADR-0042 pins the dual-engine guard while preserving the legacy threshold and Guardian state machine'

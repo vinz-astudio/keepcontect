@@ -400,7 +400,14 @@ DECLARE
   _comm_dur CONSTANT interval:=interval '2 hours';
   r record; _aid uuid; _new text; _triggered boolean:=false;
 BEGIN
-  PERFORM public.process_passive_checkins();
+  IF (SELECT NOT globally_disabled FROM private.passive_checkin_runtime_control WHERE singleton) THEN
+    BEGIN
+      PERFORM public.process_passive_checkins();
+    EXCEPTION WHEN OTHERS THEN
+      INSERT INTO private.job_failures(job_name,subject_id,sqlstate,message)
+      VALUES('process_passive_checkins',NULL,SQLSTATE,SQLERRM);
+    END;
+  END IF;
   FOR r IN SELECT a.id,a.user_id FROM public.alerts a
     WHERE a.status='open' AND a.cause='silence' AND private.sleep_relaxed(a.user_id,now())
       AND NOT EXISTS(SELECT 1 FROM private.passive_alert_causal_windows c WHERE c.alert_id=a.id)
