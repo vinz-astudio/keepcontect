@@ -1079,6 +1079,225 @@ export type Database = {
           },
         ]
       }
+      passive_checkin_accounts: {
+        Row: {
+          active_contract_version_id: string | null
+          active_epoch_id: string | null
+          created_at: string
+          engine_mode: string
+          kill_switch_active: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_contract_version_id?: string | null
+          active_epoch_id?: string | null
+          created_at?: string
+          engine_mode?: string
+          kill_switch_active?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_contract_version_id?: string | null
+          active_epoch_id?: string | null
+          created_at?: string
+          engine_mode?: string
+          kill_switch_active?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "passive_checkin_accounts_active_contract_fkey"
+            columns: ["active_contract_version_id"]
+            isOneToOne: false
+            referencedRelation: "passive_checkin_contract_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "passive_checkin_accounts_active_epoch_fkey"
+            columns: ["active_epoch_id"]
+            isOneToOne: false
+            referencedRelation: "passive_monitoring_epochs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      passive_checkin_contract_versions: {
+        Row: {
+          client_contract_version: string
+          consecutive_misses: number
+          created_at: string
+          created_by: string
+          effective_at: string
+          id: string
+          interval_minutes: number
+          sleep_end_local: string | null
+          sleep_policy: string
+          sleep_start_local: string | null
+          timezone: string | null
+          user_id: string
+          version_number: number
+        }
+        Insert: {
+          client_contract_version: string
+          consecutive_misses: number
+          created_at?: string
+          created_by: string
+          effective_at: string
+          id?: string
+          interval_minutes: number
+          sleep_end_local?: string | null
+          sleep_policy: string
+          sleep_start_local?: string | null
+          timezone?: string | null
+          user_id: string
+          version_number: number
+        }
+        Update: {
+          client_contract_version?: string
+          consecutive_misses?: number
+          created_at?: string
+          created_by?: string
+          effective_at?: string
+          id?: string
+          interval_minutes?: number
+          sleep_end_local?: string | null
+          sleep_policy?: string
+          sleep_start_local?: string | null
+          timezone?: string | null
+          user_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "passive_checkin_contract_versions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "passive_checkin_accounts"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      passive_checkin_windows: {
+        Row: {
+          arrival_deadline: string
+          causal_evidence_id: string | null
+          contract_version_id: string
+          created_at: string
+          epoch_id: string
+          finalized_at: string | null
+          id: string
+          ordinal: number
+          outcome: string
+          superseded_reason: string | null
+          user_id: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          arrival_deadline: string
+          causal_evidence_id?: string | null
+          contract_version_id: string
+          created_at?: string
+          epoch_id: string
+          finalized_at?: string | null
+          id?: string
+          ordinal: number
+          outcome?: string
+          superseded_reason?: string | null
+          user_id: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          arrival_deadline?: string
+          causal_evidence_id?: string | null
+          contract_version_id?: string
+          created_at?: string
+          epoch_id?: string
+          finalized_at?: string | null
+          id?: string
+          ordinal?: number
+          outcome?: string
+          superseded_reason?: string | null
+          user_id?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "passive_checkin_windows_contract_version_id_fkey"
+            columns: ["contract_version_id"]
+            isOneToOne: false
+            referencedRelation: "passive_checkin_contract_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "passive_checkin_windows_epoch_id_fkey"
+            columns: ["epoch_id"]
+            isOneToOne: false
+            referencedRelation: "passive_monitoring_epochs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "passive_checkin_windows_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "passive_checkin_accounts"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      passive_monitoring_epochs: {
+        Row: {
+          contract_version_id: string
+          created_at: string
+          end_reason: string | null
+          ended_at: string | null
+          id: string
+          start_reason: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          contract_version_id: string
+          created_at?: string
+          end_reason?: string | null
+          ended_at?: string | null
+          id?: string
+          start_reason: string
+          started_at: string
+          user_id: string
+        }
+        Update: {
+          contract_version_id?: string
+          created_at?: string
+          end_reason?: string | null
+          ended_at?: string | null
+          id?: string
+          start_reason?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "passive_monitoring_epochs_contract_version_id_fkey"
+            columns: ["contract_version_id"]
+            isOneToOne: false
+            referencedRelation: "passive_checkin_contract_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "passive_monitoring_epochs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "passive_checkin_accounts"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           consent_data_sharing: boolean
@@ -1426,6 +1645,7 @@ export type Database = {
         }[]
       }
       my_routine_status: { Args: never; Returns: Json }
+      my_passive_checkin_status: { Args: never; Returns: Json }
       my_special_attention: {
         Args: never
         Returns: { subject_id: string; created_at: string }[]
@@ -1461,6 +1681,19 @@ export type Database = {
           _user_id: string
         }
         Returns: string
+      }
+      set_passive_checkin_contract: {
+        Args: {
+          _client_contract_version?: string | null
+          _consecutive_misses: number
+          _interval_minutes: number
+          _sleep_end_local?: string | null
+          _sleep_policy: string
+          _sleep_start_local?: string | null
+          _target_mode?: string
+          _timezone?: string | null
+        }
+        Returns: Json
       }
       record_behavior_ping: {
         Args: {
