@@ -64,7 +64,7 @@
 **TDD steps:**
 
 - [ ] Write pgTAP assertions for table/constraint/index existence, immutable version rows, one active epoch, required sleep choice, D/N limits, server acknowledgement, half-open first window, RLS and least-privilege grants.
-- [ ] Run `npm run db:replay:compat -- --test passive_checkin_contract` and capture the expected RED.
+- [ ] Run `npm run db:replay:compat` and capture the expected RED from `passive_checkin_contract.sql`; the replay harness has no focused-test flag.
 - [ ] Implement only the schema, RLS, grants, status RPC, settings RPC and first-window creation.
 - [ ] Re-run the focused pgTAP file to GREEN, then run `npm run db:replay:compat`.
 - [ ] Add TypeScript parsing/validation tests for the RPC result before adding `checkinContract.ts`.
@@ -99,7 +99,7 @@
 
 - [ ] Write Edge contract tests for field allowlist, type/UUID/timestamp validation, credential stripping and fail-closed outcomes.
 - [ ] Run `npx vitest run supabase/functions/passive-evidence/contract.test.ts` and capture RED.
-- [ ] Write pgTAP trust/identity/privacy/retention tests and capture RED through local replay.
+- [ ] Write pgTAP trust/identity/privacy/retention tests and capture RED through `npm run db:replay:compat`; the replay harness always resets and runs the full local test set.
 - [ ] Implement SQL validator and Edge transport without logging credentials or raw payloads.
 - [ ] Make Edge tests and focused pgTAP GREEN; then run full replay, Vitest and typecheck.
 - [ ] Commit package 2.
