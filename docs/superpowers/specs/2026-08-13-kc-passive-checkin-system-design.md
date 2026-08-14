@@ -5,13 +5,13 @@
 | Field | Value |
 |---|---|
 | ID | KC-PASSIVE-CHECKIN-SPEC-001 |
-| Revision | 9 |
-| Status | Proposed. Revision 5 cut the design to the revision 4 goal; Codex peer review agreed the cuts, returning seven findings across four passes, all now CLOSED with revision 8 judged implementable as written. Revision 9 records the human's resolution of Open Decision 1 (ADR-0039 amendment one, accepted 2026-08-14) and replaces the iOS floor estimate with production measurement. Human written acceptance of the engine itself still pending. |
+| Revision | 10 |
+| Status | Accepted by the human on 2026-08-14 for local implementation and release-candidate preparation. Revision 5 cut the design to the revision 4 goal; Codex peer review returned seven findings across four passes, all CLOSED with revision 8 judged implementable as written. Revision 9 recorded the human's resolution of Open Decision 1 and the measured provisional iOS floor. Revision 10 corrects the HealthKit termination row to match the verified Apple launch semantics while retaining user-force-quit as unknown pending the real-device gate. |
 | Change class | Product-UX / M3 |
 | Proposed decision | ADR-0042 (renumbered 2026-08-14; ADR-0041 is the accepted Brain-global “Caveman Internal Communication”) |
 | Replaces if accepted | ADR-0037 learned silence as live alert authority; ADR-0040 D2 automatic contextual thresholds |
 | Preserves if accepted | ADR-0039 explicit alert resolution and Guardian/Ward boundaries (ADR-0039 amendment one, accepted 2026-08-14, limits the outage clause; see Open Decision 1); ADR-0040 platform-specific collection with platform-neutral normalization; existing self → group → community escalation |
-| Implementation authority | None. Human acceptance required before any implementation plan, source change, migration, deployment, release or Store action. |
+| Implementation authority | Local implementation plan, source changes, append-only migrations, tests, signed release-candidate builds and release-readiness preparation are authorized. Production migration, deployment, publication, rollout, Store submission and release remain separate human checkpoints. |
 
 ## Goal (authoritative; do not remove or reword in later revisions)
 
@@ -440,7 +440,7 @@ Wake sources, in order of dependability:
 
 | Source | Covers | Survives process termination |
 |---|---|:-:|
-| HealthKit background delivery (`HKObserverQuery`) | Indoor and outdoor movement; capped near hourly for step data | No |
+| HealthKit background delivery (`HKObserverQuery`) | Indoor and outdoor movement; capped near hourly for step data | **Yes for system termination; user force-quit unknown** |
 | Silent push | Server-initiated confirmation that the device is reachable | No |
 | `BGAppRefreshTask` | Opportunistic top-up | No |
 | Significant-change location monitoring | **Relaunching a terminated app** so the others can be re-armed | **Yes, for `terminated`** |
@@ -579,7 +579,7 @@ Both floors are static, explainable engineering constants. Neither is a learned 
 |---|---|
 | `tauri_native` — existing five-minute lease cadence; continuous runtime, not OS-throttled | Measured |
 | `android_native` — existing 35-minute arrival allowance; OEM battery-restricted devices sit at the slow end | Measured base case; OEM tail needs the real-device gate |
-| `ios_native` — HealthKit background delivery, `BGAppRefreshTask` and silent push are all system-opportunistic with no guaranteed interval, and all stop once the process is terminated until a location relaunch or the user opens KC. The reliable source is the user's own ordinary daily device contact. | **Provisional engineering estimate — Open Decision 2. Must be replaced by the measured p95 evidence-arrival gap from the iOS real-device gate.** |
+| `ios_native` — HealthKit background delivery, `BGAppRefreshTask` and silent push are system-opportunistic with no guaranteed interval. HealthKit may launch KC after system termination; significant-change location may relaunch it; user-force-quit recovery is undocumented and remains a real-device question. The reliable source is the user's own ordinary daily device contact. | **Provisional engineering estimate — Open Decision 2. Must be replaced by the measured p95 evidence-arrival gap from the iOS real-device gate.** |
 
 If a user manually sets values below the floor, the value is allowed and the UI must show the realistic expected interruption rate instead of the nominal `H`.
 
