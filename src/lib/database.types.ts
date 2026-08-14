@@ -1664,6 +1664,19 @@ export type Database = {
       process_escalations: { Args: never; Returns: undefined }
       process_passive_checkins: { Args: never; Returns: undefined }
       my_passive_checkin_recommendation: { Args: never; Returns: Json }
+      my_passive_collector_health: { Args: never; Returns: Json }
+      activate_passive_checkin_contract: {
+        Args: {
+          _client_contract_version?: string | null
+          _consecutive_misses: number
+          _interval_minutes: number
+          _sleep_end_local?: string | null
+          _sleep_policy: string
+          _sleep_start_local?: string | null
+          _timezone?: string | null
+        }
+        Returns: Json
+      }
       prune_stale_clients: { Args: never; Returns: undefined }
       raise_sos:
         | { Args: never; Returns: string }

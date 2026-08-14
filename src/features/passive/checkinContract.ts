@@ -276,9 +276,21 @@ export async function getPassiveCheckinStatus(): Promise<PassiveCheckinStatus> {
 
 export async function savePassiveCheckinContract(
   draft: PassiveContractDraft,
+  targetMode: 'shadow' | 'passive_checkin' = 'shadow',
 ): Promise<PassiveCheckinStatus> {
   const args = buildPassiveContractArgs(draft)
-  const { data, error } = await supabase.rpc('set_passive_checkin_contract', args)
+  const request = targetMode === 'shadow'
+    ? supabase.rpc('set_passive_checkin_contract', args)
+    : supabase.rpc('activate_passive_checkin_contract', {
+        _interval_minutes: args._interval_minutes,
+        _consecutive_misses: args._consecutive_misses,
+        _sleep_policy: args._sleep_policy,
+        _sleep_start_local: args._sleep_start_local,
+        _sleep_end_local: args._sleep_end_local,
+        _timezone: args._timezone,
+        _client_contract_version: args._client_contract_version,
+      })
+  const { data, error } = await request
   if (error) throw error
   return parsePassiveCheckinStatus(data)
 }

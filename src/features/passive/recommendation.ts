@@ -85,15 +85,21 @@ export function parsePassiveRecommendation(value: unknown): PassiveRecommendatio
   return parsed
 }
 
-export function explainPassiveRecommendation(recommendation: PassiveRecommendation): string[] {
+export function explainPassiveRecommendation(recommendation: PassiveRecommendation, lang: 'zh' | 'en' = 'zh'): string[] {
   const messages = recommendation.sourceConfidence === 'insufficient'
-    ? ['活动历史不足，当前建议使用保守默认值。']
-    : [`根据 ${recommendation.evidenceDays} 天、${recommendation.eligibleEpisodeCount} 段有效活动间隔生成。`]
+    ? [lang === 'zh' ? '活动历史不足，当前建议使用保守默认值。' : 'Activity history is insufficient, so this uses a conservative default.']
+    : [lang === 'zh'
+        ? `根据 ${recommendation.evidenceDays} 天、${recommendation.eligibleEpisodeCount} 段有效活动间隔生成。`
+        : `Based on ${recommendation.evidenceDays} days and ${recommendation.eligibleEpisodeCount} eligible activity gaps.`]
   if (
     recommendation.proposedIntervalMinutes > recommendation.referenceMinutes
     || recommendation.proposedHorizonMinutes > recommendation.referenceMinutes
-  ) messages.push('已按当前设备能力下限放宽，避免把平台限制误判为失联。')
-  messages.push(`预计每天最多约 ${recommendation.expectedInterruptionsPerDay.toFixed(1)} 个检查窗口。`)
+  ) messages.push(lang === 'zh'
+    ? '已按当前设备能力下限放宽，避免把平台限制误判为失联。'
+    : 'Raised to the current device floor so platform limits are not mistaken for lost contact.')
+  messages.push(lang === 'zh'
+    ? `预计每天最多约 ${recommendation.expectedInterruptionsPerDay.toFixed(1)} 个检查窗口。`
+    : `About ${recommendation.expectedInterruptionsPerDay.toFixed(1)} check-in windows per day.`)
   return messages
 }
 
