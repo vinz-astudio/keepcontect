@@ -400,7 +400,8 @@ DECLARE
   _comm_dur CONSTANT interval:=interval '2 hours';
   r record; _aid uuid; _new text; _triggered boolean:=false;
 BEGIN
-  IF (SELECT NOT globally_disabled FROM private.passive_checkin_runtime_control WHERE singleton) THEN
+  IF to_regclass('private.passive_checkin_runtime_control') IS NOT NULL
+     AND (SELECT NOT globally_disabled FROM private.passive_checkin_runtime_control WHERE singleton) THEN
     BEGIN
       PERFORM public.process_passive_checkins();
     EXCEPTION WHEN OTHERS THEN
