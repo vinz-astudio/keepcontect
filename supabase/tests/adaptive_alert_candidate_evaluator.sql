@@ -2065,10 +2065,10 @@ SELECT results_eq(
     ORDER BY fn
   $$,
   $$ VALUES
-    ('process_escalations'::text, 'dae555ee3f3eee057cd438a80bc05913743803ea15daf8dfacd112357d857112'::text),
+    ('process_escalations'::text, 'fc194cd14cf9ce5a75200dd6e0e45811bc2a188c42f4f54e2a7cd336cb4d6107'::text),
     ('silence_threshold'::text, 'c3efc6cc664dc334166a034651ff584d4c7766d80775c3fe3bc012eb97a9b150'::text)
   $$,
-  'Task 6 leaves ADR-0022 live threshold and Guardian 30-minute state machine definitions unchanged'
+  'ADR-0042 pins the dual-engine guard while preserving the legacy threshold and Guardian state machine'
 );
 -- An unknown sleep context finalized after evaluated_at cannot change
 -- sleep/effective-silence results and cannot leak that future finalized timestamp into provenance.

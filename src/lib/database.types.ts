@@ -1655,12 +1655,14 @@ export type Database = {
       }
       my_routine_status: { Args: never; Returns: Json }
       my_passive_checkin_status: { Args: never; Returns: Json }
+      my_passive_window_state: { Args: never; Returns: Json }
       my_special_attention: {
         Args: never
         Returns: { subject_id: string; created_at: string }[]
       }
       process_checkin_tasks: { Args: never; Returns: undefined }
       process_escalations: { Args: never; Returns: undefined }
+      process_passive_checkins: { Args: never; Returns: undefined }
       prune_stale_clients: { Args: never; Returns: undefined }
       raise_sos:
         | { Args: never; Returns: string }
