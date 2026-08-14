@@ -18,9 +18,11 @@ export function shadowDays(status: PassiveCheckinStatus, now = Date.now()): numb
   return Math.max(0, Math.floor((now - Date.parse(status.epoch.startedAt)) / 86_400_000))
 }
 
-export function canActivatePassive(status: PassiveCheckinStatus, hasBoundCollector: boolean, now = Date.now()): boolean {
-  return status.engineMode === 'shadow' && !status.killSwitchActive && hasBoundCollector
-    && shadowDays(status, now) >= SHADOW_DAYS_REQUIRED
+export function canActivatePassive(_status: PassiveCheckinStatus, _hasBoundCollector: boolean, _now = Date.now()): boolean {
+  // Live activation (20260814201500) is deferred out of Stage 1. The UI must
+  // never offer activation while the server RPC does not exist in production.
+  // Re-enable the shadow-days gate when the activation migration ships.
+  return false
 }
 
 export interface SafeSaveResult {

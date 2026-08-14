@@ -16,8 +16,8 @@ describe('passive settings model', () => {
     expect(formatHorizonMinutes(Number.MAX_SAFE_INTEGER, 2)).toBe('—')
   })
 
-  it('requires explicit 14-day shadow history and a bound collector', () => {
-    expect(canActivatePassive(status, true, Date.parse('2026-08-15T00:00:00Z'))).toBe(true)
+  it('blocks activation while the activation migration (20260814201500) is deferred', () => {
+    expect(canActivatePassive(status, true, Date.parse('2026-08-15T00:00:00Z'))).toBe(false)
     expect(canActivatePassive(status, false, Date.parse('2026-08-15T00:00:00Z'))).toBe(false)
     expect(canActivatePassive(status, true, Date.parse('2026-08-14T23:59:59Z'))).toBe(false)
   })

@@ -278,6 +278,12 @@ export async function savePassiveCheckinContract(
   draft: PassiveContractDraft,
   targetMode: 'shadow' | 'passive_checkin' = 'shadow',
 ): Promise<PassiveCheckinStatus> {
+  if (targetMode !== 'shadow') {
+    // Live activation (20260814201500) is deferred out of Stage 1; the server
+    // RPC does not exist in production yet. Fail closed instead of shipping an
+    // open-loop call path. Re-enable with the activation migration.
+    throw new Error('Live activation is not available in this release.')
+  }
   const args = buildPassiveContractArgs(draft)
   const request = targetMode === 'shadow'
     ? supabase.rpc('set_passive_checkin_contract', args)
