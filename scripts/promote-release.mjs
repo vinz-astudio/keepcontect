@@ -29,7 +29,7 @@ if (!arg) {
 
 const tag = arg.startsWith('v') ? arg : `v${arg}`
 const versionName = tag.replace(/^v/, '')
-const apkAssetName = `keep-contact-${versionName}.apk`
+const apkAssetName = `keep-contact-v${versionName}.apk`
 const exeAssetName = `KeepContact-${versionName}-Setup.exe`
 const apkUrl = `https://github.com/${REPO}/releases/download/${tag}/${apkAssetName}`
 const exeUrl = `https://github.com/${REPO}/releases/download/${tag}/${exeAssetName}`
