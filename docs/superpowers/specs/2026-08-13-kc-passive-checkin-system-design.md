@@ -427,7 +427,7 @@ Every platform's job is the same: **when the operating system lets the collector
 - Queries `UsageStatsManager` for the exact UTC window; keyguard-hidden and genuine foreground interaction qualify. Package names are processed locally and discarded.
 - **The collector must upload the historical activity timestamp it already knows** (`queryLastActiveTime`), not merely the fact that it is currently awake. Reporting `observed_at = now` while holding proof of an earlier real interaction is the defect this contract exists to close.
 - WorkManager and the server FCM wake path are execution opportunities, not exact timers. Historical reconstruction tolerates scheduling delay inside the arrival allowance.
-- `ACTION_POWER_CONNECTED` / `ACTION_POWER_DISCONNECTED` / `ACTION_USER_PRESENT` / `SCREEN_ON` are **not** exempt from Android 8.0 implicit-broadcast restrictions and must never be declared in the manifest. They are foreground-only extras via runtime registration; background evidence comes from the UsageStats look-back.
+- `ACTION_POWER_CONNECTED` / `ACTION_POWER_DISCONNECTED` **are** on the Android implicit-broadcast exemption list: a manifest-declared receiver receives them even when the process is dead. Charging transitions are collected there (power evidence + ping), honouring the charging sensor consent. `ACTION_USER_PRESENT` / `SCREEN_ON` are **not** exempt and remain foreground-only extras via runtime registration; background use evidence comes from the UsageStats look-back. (Corrected 2026-08-16; the earlier revision wrongly grouped POWER_* with the non-exempt actions, which silently removed background charging collection.)
 - No package name, URL or per-App timeline leaves the device.
 
 ### iOS Native
@@ -435,6 +435,8 @@ Every platform's job is the same: **when the operating system lets the collector
 iOS provides no retrospective proof that a phone was used, and a zero-step pedometer result proves only that no pedestrian motion was recorded — never that the person was inactive. iOS therefore contributes **positive evidence only**, and never manufactures a negative conclusion.
 
 Under this revision's goal that is sufficient: absence of evidence lets the funnel ask, exactly as a missed manual check-in would. **An iOS-only account has full funnel access.**
+
+- Charging transitions are collected as `power_transition` while the process runs (`UIDevice.batteryStateDidChangeNotification`, five-second stability, same qualification as Android). Transitions that occur while the app is suspended are detected on the next foreground by state comparison and reported at observation time — iOS does not replay missed notification timestamps, and there is no background battery-event delivery. (Added 2026-08-16; power collection is foreground-bounded by OS design.)
 
 Wake sources, in order of dependability:
 

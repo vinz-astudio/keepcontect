@@ -229,15 +229,18 @@ final class PassivePing {
 
     static boolean shouldPingForAction(Context context, String action) {
         if (!isConfigured(context) || action == null) return false;
-        // Never allow passive ping action when the keyguard is still locked (e.g. pulling down quick settings)
-        if (isKeyguardLocked(context)) {
-            return false;
-        }
         SharedPreferences prefs = prefs(context);
         if (Intent.ACTION_POWER_CONNECTED.equals(action) || Intent.ACTION_POWER_DISCONNECTED.equals(action)) {
+            // Charging is a liveness signal even while the keyguard is locked:
+            // plugging a cable in is a hand-on-device event. The keyguard gate
+            // below exists only for USER_PRESENT-style actions.
             return prefs.getBoolean(KEY_ALLOW_CHARGING, false);
         }
         if (Intent.ACTION_USER_PRESENT.equals(action)) {
+            // Never allow passive ping action when the keyguard is still locked (e.g. pulling down quick settings)
+            if (isKeyguardLocked(context)) {
+                return false;
+            }
             return prefs.getBoolean(KEY_ALLOW_USAGE_STATS, false);
         }
         return false;
@@ -531,10 +534,9 @@ final class PassivePing {
             if (prefs.getBoolean(KEY_ALLOW_USAGE_STATS, false)) {
                 filter.addAction(Intent.ACTION_USER_PRESENT);
             }
-            if (prefs.getBoolean(KEY_ALLOW_CHARGING, false)) {
-                filter.addAction(Intent.ACTION_POWER_CONNECTED);
-                filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
-            }
+            // POWER_CONNECTED/DISCONNECTED are handled by the manifest
+            // receiver (they are exempt implicit broadcasts); registering them
+            // here too would double-report every foreground transition.
         }
         return filter;
     }
@@ -549,6 +551,11 @@ final class PassivePing {
         String base = prefs.getString(KEY_SUPABASE_URL, null);
         String token = prefs.getString(KEY_TOKEN, null);
         if (base == null || token == null || token.length() == 0) return;
+
+        // A power transition observed by the dead-process manifest receiver may
+        // outlive its 5-second stabilisation timer. Confirm it on the next wake
+        // instead of losing it.
+        confirmPendingPowerTransitionIfDue(appContext);
 
         long now = System.currentTimeMillis();
         if (throttleMs > 0 && now - prefs.getLong(KEY_LAST_PING, 0) < throttleMs) return;
@@ -877,6 +884,17 @@ final class PassivePing {
         enqueueEvidence(context, new PassiveEvidenceContract.Evidence(
             UUID.randomUUID().toString(), since, "power_transition", correlationId,
             facts, 0L, 0L, false));
+    }
+
+    static void confirmPendingPowerTransitionIfDue(Context context) {
+        if (!isEvidenceConfigured(context)
+            || !prefs(context).getBoolean(KEY_ALLOW_CHARGING, false)) return;
+        SharedPreferences prefs = prefs(context);
+        String pending = prefs.getString(KEY_POWER_PENDING_STATE, null);
+        if (pending == null) return;
+        long since = prefs.getLong(KEY_POWER_PENDING_SINCE, 0L);
+        if (System.currentTimeMillis() - since < PassiveEvidenceContract.POWER_STABLE_MS) return;
+        confirmPowerTransition(context, Boolean.parseBoolean(pending));
     }
 
     static String calculateHMAC(String data, String key) {
