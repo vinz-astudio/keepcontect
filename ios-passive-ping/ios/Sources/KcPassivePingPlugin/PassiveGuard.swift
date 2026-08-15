@@ -186,6 +186,27 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
                 // there is no reference for what "in use" looks like on this
                 // particular device.
                 self?.captureSample(trigger: "foreground")
+                // A power transition that happened while the process was
+                // suspended never fires a notification; compare states now.
+                // Reported at observation time: iOS does not replay the real
+                // timestamp of a missed transition.
+                guard let self else { return }
+                self.observePowerState(self.normalizedPowerState(UIDevice.current.batteryState))
+            }
+        )
+
+        // Power transitions. Battery monitoring is per-process, so it must be
+        // re-armed here — background relaunches start a fresh process. The
+        // notification fires only while the process runs.
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        observers.append(
+            NotificationCenter.default.addObserver(
+                forName: UIDevice.batteryStateDidChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.observePowerState(self.normalizedPowerState(UIDevice.current.batteryState))
             }
         )
 
@@ -324,17 +345,6 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             queryStart: nil,
             queryEnd: nil,
             querySucceeded: false
-        )
-
-        observers.append(
-            NotificationCenter.default.addObserver(
-                forName: UIDevice.batteryStateDidChangeNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                guard let self else { return }
-                self.observePowerState(self.normalizedPowerState(UIDevice.current.batteryState))
-            }
         )
     }
 

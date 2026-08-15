@@ -26,9 +26,19 @@ public class PassivePingReceiver extends BroadcastReceiver {
 
         if (
             Intent.ACTION_POWER_CONNECTED.equals(action) ||
-            Intent.ACTION_POWER_DISCONNECTED.equals(action) ||
-            Intent.ACTION_USER_PRESENT.equals(action)
+            Intent.ACTION_POWER_DISCONNECTED.equals(action)
         ) {
+            // Charging events are exempt implicit broadcasts: this receiver fires
+            // even while the process is dead. Record the power transition as
+            // evidence and ping (both honour the charging sensor consent).
+            PassivePing.recordPowerBroadcast(context, action);
+            if (PassivePing.shouldPingForAction(context, action)) {
+                PassivePing.pingApp(context);
+            }
+            return;
+        }
+
+        if (Intent.ACTION_USER_PRESENT.equals(action)) {
             if (PassivePing.shouldPingForAction(context, action)) {
                 PassivePing.pingApp(context);
             }
