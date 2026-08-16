@@ -60,6 +60,13 @@
              the code reads correctly, review reads correctly, and the path was
              dead the whole time.
 
+             0.7.1 re-added the two POWER_* actions here on the belief that they
+             were exempt after all, and removed their runtime registration at the
+             same time. They are not exempt. The result was worse than before:
+             charging stopped being collected anywhere, and production carried
+             zero power_transition evidence from any Android install. Removed
+             again 2026-08-16 and restored to PassivePing.passiveIntentFilter.
+
              Those four are still registered at runtime (PassivePing.passiveIntentFilter,
              used by PassivePingPlugin and KcForegroundService), which works only
              while a process is alive. Treat unlock/charging as opportunistic extras
@@ -76,8 +83,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
-                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
             </intent-filter>
         </receiver>
 

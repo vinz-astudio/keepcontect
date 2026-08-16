@@ -150,16 +150,26 @@ public class KcForegroundService extends Service {
                 if (intent == null) return;
                 String action = intent.getAction();
                 android.util.Log.d("KcForegroundService", "Passive event received in Service: " + action);
+                // The service used to ping and nothing else, so a charging edge
+                // caught here produced a liveness ping but never the
+                // power_transition evidence the passive check-in windows count.
+                // Both are idempotent, so overlapping with the plugin's own
+                // receiver while the app is open costs nothing.
+                PassivePing.recordPowerBroadcast(context, action);
                 if (PassivePing.shouldPingForAction(context, action)) {
                     PassivePing.pingApp(context);
                 }
             }
         };
 
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(Intent.ACTION_USER_PRESENT);
-        filter.addAction(Intent.ACTION_POWER_CONNECTED);
-        filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+        // One source of truth for which actions the user consented to. The
+        // hardcoded list this replaces registered for the charger and unlock
+        // even when their sensor toggles were off.
+        IntentFilter filter = PassivePing.passiveIntentFilter(this);
+        if (filter.countActions() == 0) {
+            passiveEventReceiver = null;
+            return;
+        }
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

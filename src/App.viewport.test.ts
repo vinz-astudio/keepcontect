@@ -98,7 +98,9 @@ describe('iOS installed-PWA full-height regression', () => {
     expect(passiveSettingsCss).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/)
     expect(passiveSettingsCss).toMatch(/min-width:\s*0/)
     expect(passiveSettingsSource).toContain('role="alert"')
-    expect(passiveSettingsSource).toContain('KC 只根据')
-    expect(passiveSettingsSource).toContain('KC uses only positive')
+    // The screen must state, in both languages, what KC actually does. The old
+    // copy described passive evidence; the daily check-in describes the waiver.
+    expect(passiveSettingsSource).toContain('KC 每天问你一次')
+    expect(passiveSettingsSource).toContain('KC asks you once a day')
   })
 })

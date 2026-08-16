@@ -306,19 +306,30 @@ final class PassivePing {
             UsageEvents usageEvents = usm.queryEvents(now - 24 * 60 * 60 * 1000, now);
             UsageEvents.Event event = new UsageEvents.Event();
             long lastActiveTime = 0;
+            int scanned = 0;
+            int qualified = 0;
 
             while (usageEvents.hasNextEvent()) {
                 usageEvents.getNextEvent(event);
+                scanned++;
                 int eventType = event.getEventType();
                 // ACTIVITY_RESUMED (1), USER_INTERACTION (7), KEYGUARD_HIDDEN (18)
                 if (eventType == UsageEvents.Event.ACTIVITY_RESUMED
                     || eventType == UsageEvents.Event.USER_INTERACTION
                     || eventType == UsageEvents.Event.KEYGUARD_HIDDEN) {
+                    qualified++;
                     if (event.getTimeStamp() > lastActiveTime) {
                         lastActiveTime = event.getTimeStamp();
                     }
                 }
             }
+            // An empty scan and a scan with nothing qualifying are the same
+            // silence from the server's side, and both look identical to a
+            // person who simply did not touch the phone. Separating them needs
+            // the counts, so log them on every pass: without this, diagnosing a
+            // silent collector costs a release.
+            Log.d(TAG, "usage look-back: scanned=" + scanned
+                + " qualified=" + qualified + " lastActive=" + lastActiveTime);
             return lastActiveTime;
         } catch (Exception e) {
             Log.e(TAG, "Failed to query usage stats events", e);
@@ -534,9 +545,21 @@ final class PassivePing {
             if (prefs.getBoolean(KEY_ALLOW_USAGE_STATS, false)) {
                 filter.addAction(Intent.ACTION_USER_PRESENT);
             }
-            // POWER_CONNECTED/DISCONNECTED are handled by the manifest
-            // receiver (they are exempt implicit broadcasts); registering them
-            // here too would double-report every foreground transition.
+            // POWER_CONNECTED/DISCONNECTED must be registered here. 0.7.1 moved
+            // them to the manifest on the belief that they are exempt implicit
+            // broadcasts. They are not — Android's exemption list carries
+            // neither — so the manifest receiver never fired and charging was
+            // collected nowhere at all. Verified 2026-08-16 against the
+            // official list and against production: zero power_transition
+            // evidence from any Android install, ever.
+            //
+            // Runtime registration only works while a process is alive, so
+            // charging is a foreground-bounded extra, exactly like unlock.
+            // Background coverage still comes from the UsageStats look-back.
+            if (prefs.getBoolean(KEY_ALLOW_CHARGING, false)) {
+                filter.addAction(Intent.ACTION_POWER_CONNECTED);
+                filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+            }
         }
         return filter;
     }
@@ -884,6 +907,64 @@ final class PassivePing {
         enqueueEvidence(context, new PassiveEvidenceContract.Evidence(
             UUID.randomUUID().toString(), since, "power_transition", correlationId,
             facts, 0L, 0L, false));
+    }
+
+    /**
+     * Catches a charging change that happened while no KC process was running.
+     *
+     * The human decision of 2026-08-16 is that plugging in and unplugging are
+     * liveness signals on every platform, background included. Android will not
+     * deliver those broadcasts to a dead process — they are not on the implicit
+     * broadcast exemption list — so the transition has to be found afterwards
+     * rather than received live. The battery state is a sticky broadcast, so
+     * reading it needs no permission and no Play declaration, and the periodic
+     * worker that already runs every fifteen minutes is the natural place.
+     *
+     * This is the same shape as the accepted iOS rule: a transition that happens
+     * while the collector is not running is detected on the next opportunity and
+     * reported at detection time. It does not invent the moment the cable moved.
+     *
+     * Stability is confirmed the same way the live receiver confirms it, by
+     * re-reading after the required five seconds, so a poll cannot qualify on
+     * weaker evidence than a broadcast would.
+     */
+    static void reconcilePowerState(Context context) {
+        if (!isEvidenceConfigured(context)
+            || !prefs(context).getBoolean(KEY_ALLOW_CHARGING, false)) return;
+        SharedPreferences prefs = prefs(context);
+        Boolean current = currentChargingState(context);
+        if (current == null) return;
+        String priorText = prefs.getString(KEY_POWER_STABLE_STATE, null);
+        if (priorText == null) {
+            // No baseline yet: record one. An initial observation is never a
+            // transition, which the qualification contract also requires.
+            prefs.edit().putString(KEY_POWER_STABLE_STATE, String.valueOf(current)).apply();
+            return;
+        }
+        if (Boolean.parseBoolean(priorText) == current) return;
+
+        try {
+            Thread.sleep(PassiveEvidenceContract.POWER_STABLE_MS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        Boolean confirmed = currentChargingState(context);
+        if (confirmed == null || confirmed.booleanValue() != current.booleanValue()) return;
+
+        // Hand the confirmed change to the same routine the live receiver uses,
+        // so correlation grouping, baseline update and evidence shape stay in
+        // one place. The stabilisation start is backdated by exactly the
+        // required window because that window has just been observed.
+        prefs.edit()
+            .putString(KEY_POWER_PENDING_STATE, String.valueOf(current))
+            .putLong(
+                KEY_POWER_PENDING_SINCE,
+                System.currentTimeMillis() - PassiveEvidenceContract.POWER_STABLE_MS)
+            .apply();
+        confirmPowerTransition(context, current);
+        Log.d(TAG, "power state reconciled in background: charging=" + current);
+        ping(context);
     }
 
     static void confirmPendingPowerTransitionIfDue(Context context) {

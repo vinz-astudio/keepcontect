@@ -24,19 +24,11 @@ public class PassivePingReceiver extends BroadcastReceiver {
             KcForegroundService.start(context);
         }
 
-        if (
-            Intent.ACTION_POWER_CONNECTED.equals(action) ||
-            Intent.ACTION_POWER_DISCONNECTED.equals(action)
-        ) {
-            // Charging events are exempt implicit broadcasts: this receiver fires
-            // even while the process is dead. Record the power transition as
-            // evidence and ping (both honour the charging sensor consent).
-            PassivePing.recordPowerBroadcast(context, action);
-            if (PassivePing.shouldPingForAction(context, action)) {
-                PassivePing.pingApp(context);
-            }
-            return;
-        }
+        // No POWER_CONNECTED / POWER_DISCONNECTED branch here on purpose. Those
+        // are not exempt implicit broadcasts, so this manifest-declared receiver
+        // can never be handed one on API 26+. 0.7.1 handled them here and the
+        // path was dead: see the AndroidManifest comment. Charging is collected
+        // by the runtime receiver in PassivePingPlugin / KcForegroundService.
 
         if (Intent.ACTION_USER_PRESENT.equals(action)) {
             if (PassivePing.shouldPingForAction(context, action)) {

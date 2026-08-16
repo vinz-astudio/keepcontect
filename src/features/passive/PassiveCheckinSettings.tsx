@@ -2,57 +2,72 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { PrototypeBadge, PrototypeCard, PrototypeSection } from '@/features/prototype/PrototypeUI'
 import { useI18n } from '@/lib/i18n'
 import {
-  getPassiveCheckinStatus,
-  savePassiveCheckinContract,
-  validatePassiveContractDraft,
-  type PassiveCheckinStatus,
-  type PassiveContractDraft,
-} from './checkinContract'
-import { canActivatePassive, formatHorizonMinutes, savePassiveSettingsSafe, shadowDays } from './checkinSettings'
-import { explainPassiveRecommendation, getPassiveCheckinRecommendation, type PassiveRecommendation } from './recommendation'
+  DAILY_CHECKIN_LIMITS,
+  defaultDailyCheckin,
+  describeDailyCheckin,
+  describeWorstCase,
+  expectedQuestionsPerDay,
+  formatLocalMinute,
+  parseLocalMinute,
+  validateDailyCheckin,
+  type DailyCheckinDraft,
+} from './dailyCheckin'
+import {
+  getDailyCheckin,
+  observedActiveDaysRatio,
+  saveDailyCheckin,
+  type DailyCheckinStatus,
+} from './dailyCheckinApi'
 import { getPassiveCollectorHealth, passiveHealthCopy, type PassiveCollectorHealth } from './passiveCheckinPresentation'
 import './PassiveCheckinSettings.css'
 
-const DEFAULT_DRAFT: PassiveContractDraft = {
-  intervalMinutes: 60,
-  consecutiveMisses: 6,
-  sleep: { policy: 'none', acknowledged: false },
-}
+/**
+ * Quiet-period choices, in the words people use about their own days.
+ *
+ * A free minute field was the old screen's mistake: it asked the subject to
+ * pick a number they have no way to reason about. These four are the shapes a
+ * person can actually hold an opinion on.
+ */
+const QUIET_CHOICES = [
+  { minutes: 8 * 60, zh: '8 小时', en: '8 hours' },
+  { minutes: 12 * 60, zh: '12 小时', en: '12 hours' },
+  { minutes: 24 * 60, zh: '一天', en: 'A day' },
+  { minutes: 48 * 60, zh: '两天', en: 'Two days' },
+] as const
 
-function draftFromStatus(status: PassiveCheckinStatus): PassiveContractDraft {
-  const contract = status.contract
-  if (!contract) return DEFAULT_DRAFT
-  return {
-    intervalMinutes: contract.intervalMinutes,
-    consecutiveMisses: contract.consecutiveMisses,
-    sleep: contract.sleepPolicy === 'configured'
-      ? { policy: 'configured', start: contract.sleepStartLocal!.slice(0, 5), end: contract.sleepEndLocal!.slice(0, 5), timezone: contract.timezone! }
-      : { policy: 'none', acknowledged: true },
+const GRACE_CHOICES = [
+  { minutes: 30, zh: '30 分钟', en: '30 minutes' },
+  { minutes: 2 * 60, zh: '2 小时', en: '2 hours' },
+  { minutes: 4 * 60, zh: '4 小时', en: '4 hours' },
+] as const
+
+function deviceTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  } catch {
+    return 'UTC'
   }
 }
 
 export function PassiveCheckinSettings() {
   const { lang } = useI18n()
   const zh = lang === 'zh'
-  const [status, setStatus] = useState<PassiveCheckinStatus | null>(null)
-  const [recommendation, setRecommendation] = useState<PassiveRecommendation | null>(null)
+  const [status, setStatus] = useState<DailyCheckinStatus | null>(null)
   const [health, setHealth] = useState<PassiveCollectorHealth | null>(null)
-  const [draft, setDraft] = useState<PassiveContractDraft>(DEFAULT_DRAFT)
-  const [sleepChoiceMade, setSleepChoiceMade] = useState(false)
+  const [draft, setDraft] = useState<DailyCheckinDraft>(() => defaultDailyCheckin(deviceTimezone()))
   const [busy, setBusy] = useState(false)
-  const [migrationConfirmed, setMigrationConfirmed] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
   const errorRef = useRef<HTMLParagraphElement>(null)
 
   const load = useCallback(async () => {
     try {
-      const [serverStatus, advice, collectorHealth] = await Promise.all([
-        getPassiveCheckinStatus(), getPassiveCheckinRecommendation(), getPassiveCollectorHealth(),
+      const [serverStatus, collectorHealth] = await Promise.all([
+        getDailyCheckin(),
+        getPassiveCollectorHealth(),
       ])
       setStatus(serverStatus)
-      setDraft(draftFromStatus(serverStatus))
-      setSleepChoiceMade(serverStatus.contract !== null)
-      setRecommendation(advice)
+      if (serverStatus?.draft) setDraft(serverStatus.draft)
       setHealth(collectorHealth)
       setError(null)
     } catch (cause) {
@@ -63,112 +78,167 @@ export function PassiveCheckinSettings() {
   useEffect(() => { void load() }, [load])
   useEffect(() => { if (error) errorRef.current?.focus() }, [error])
 
-  if (!status || !health) {
-    return <PrototypeSection title={zh ? '被动联系确认' : 'Passive check-ins'}><PrototypeCard><p role={error ? 'alert' : 'status'}>{error ?? (zh ? '正在读取服务器设置…' : 'Loading server settings…')}</p></PrototypeCard></PrototypeSection>
+  if (!health) {
+    return (
+      <PrototypeSection title={zh ? '每日确认' : 'Daily check-in'}>
+        <PrototypeCard>
+          <p role={error ? 'alert' : 'status'}>
+            {error ?? (zh ? '正在读取设置…' : 'Loading settings…')}
+          </p>
+        </PrototypeCard>
+      </PrototypeSection>
+    )
   }
 
-  const validation = [
-    ...(sleepChoiceMade ? [] : [zh ? '请选择睡眠处理方式' : 'Choose how sleep should be handled']),
-    ...validatePassiveContractDraft(draft),
-  ]
-  const hasBoundCollector = health.devices.length > 0
-  const eligible = canActivatePassive(status, hasBoundCollector)
-  const target = status.engineMode === 'passive_checkin' || (eligible && migrationConfirmed)
-    ? 'passive_checkin' : 'shadow'
+  const problems = validateDailyCheckin(draft, zh)
+  const sentences = describeDailyCheckin(draft, zh)
   const healthCopy = passiveHealthCopy(health, lang)
+  const live = status?.engineMode === 'passive_checkin'
+  const ratio = status ? observedActiveDaysRatio(status) : null
+  const rate = expectedQuestionsPerDay(ratio)
 
-  async function save() {
-    if (validation.length || busy || !status) return
+  async function save(targetMode: 'shadow' | 'passive_checkin') {
+    if (problems.length || busy) return
     setBusy(true)
     setError(null)
-    const previous = status
-    const result = await savePassiveSettingsSafe(draft, target, previous, savePassiveCheckinContract)
-    setStatus(result.status)
-    if (!result.success) {
-      setDraft(draftFromStatus(previous))
-      setSleepChoiceMade(previous.contract !== null)
-      setError(result.error)
-    } else {
-      setDraft(draftFromStatus(result.status))
-      setSleepChoiceMade(true)
-      setMigrationConfirmed(false)
+    setSaved(false)
+    try {
+      await saveDailyCheckin(draft, targetMode)
+      await load()
+      setSaved(true)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause))
     }
     setBusy(false)
   }
 
-  const setSleepPolicy = (policy: 'configured' | 'none') => {
-    setSleepChoiceMade(true)
-    setDraft((current) => ({
-      ...current,
-      sleep: policy === 'configured'
-        ? { policy: 'configured', start: '23:00', end: '07:00', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' }
-        : { policy: 'none', acknowledged: false },
-    }))
-  }
-  const updateConfiguredSleep = (patch: Partial<{ start: string; end: string; timezone: string }>) => {
-    setDraft((current) => current.sleep.policy === 'configured'
-      ? { ...current, sleep: { ...current.sleep, ...patch } }
-      : current)
-  }
-
   return (
     <PrototypeSection
-      title={zh ? '被动联系确认' : 'Passive check-ins'}
+      title={zh ? '每日确认' : 'Daily check-in'}
       subtitle={zh
-        ? 'KC 只根据“最近有活动”的正证据判断是否仍保持联系；它不能检测事故，也不能保证后台始终可用。'
-        : 'KC uses only positive “recent activity” evidence to judge contact. It does not detect accidents or guarantee background delivery.'}
+        ? 'KC 每天问你一次。如果你已经在用手机，它就不问。'
+        : 'KC asks you once a day. If you have already been using your phone, it does not ask.'}
     >
       <PrototypeCard className="passive-checkin-settings">
         <div className="passive-checkin-settings__status">
-          <PrototypeBadge tone={status.engineMode === 'passive_checkin' ? 'ready' : status.engineMode === 'shadow' ? 'limited' : 'unknown'}>
-            {status.engineMode === 'passive_checkin' ? (zh ? '已启用' : 'On') : status.engineMode === 'shadow' ? (zh ? '观察中' : 'Shadow') : (zh ? '旧模式' : 'Legacy')}
+          <PrototypeBadge tone={live ? 'ready' : status?.engineMode === 'shadow' ? 'limited' : 'unknown'}>
+            {live ? (zh ? '已启用' : 'On') : status?.engineMode === 'shadow' ? (zh ? '观察中' : 'Observing') : (zh ? '未设置' : 'Not set')}
           </PrototypeBadge>
-          {status.contract && <span>{zh ? `服务器版本 ${status.contract.versionNumber}` : `Server version ${status.contract.versionNumber}`} · {new Date(status.contract.effectiveAt).toLocaleString()}</span>}
+          {status?.effectiveAt && (
+            <span>
+              {zh ? `第 ${status.versionNumber} 版` : `Version ${status.versionNumber}`}
+              {' · '}
+              {new Date(status.effectiveAt).toLocaleString()}
+            </span>
+          )}
         </div>
 
-        {status.engineMode === 'legacy' && <div className="passive-checkin-settings__migration">
-          <strong>{zh ? '先观察 14 天，不会改变现有告警。' : 'Start with 14 days of observation; existing alerts do not change.'}</strong>
-          <p>{zh ? '保存后只计算对照窗口，不会发送新式失联告警。14 天后仍需你再次明确确认。' : 'Saving computes comparison windows only. It cannot send passive lost-contact alerts; you must confirm again after 14 days.'}</p>
-        </div>}
+        <label className="passive-checkin-settings__field">
+          <span>{zh ? '每天什么时候问我' : 'When should KC ask'}</span>
+          <input
+            type="time"
+            aria-label={zh ? '提醒时间' : 'Reminder time'}
+            value={formatLocalMinute(draft.askAtLocalMinute)}
+            onChange={(event) => {
+              const minute = parseLocalMinute(event.target.value)
+              if (minute !== null) setDraft({ ...draft, askAtLocalMinute: minute })
+            }}
+          />
+        </label>
 
-        <div className="passive-checkin-settings__grid">
-          <label><span>{zh ? '每个窗口 D（分钟）' : 'Window D (minutes)'}</span><input aria-label="D" type="number" min={20} max={360} step={1} value={draft.intervalMinutes} onChange={(event) => setDraft({ ...draft, intervalMinutes: Number(event.target.value) })} /></label>
-          <label><span>{zh ? '连续漏签 N' : 'Consecutive misses N'}</span><input aria-label="N" type="number" min={1} max={1_000_000} step={1} value={draft.consecutiveMisses} onChange={(event) => setDraft({ ...draft, consecutiveMisses: Number(event.target.value) })} /></label>
-        </div>
-        <p className="passive-checkin-settings__h"><strong>H = D × N = {formatHorizonMinutes(draft.intervalMinutes, draft.consecutiveMisses)}</strong></p>
-
-        <fieldset className="passive-checkin-settings__sleep">
-          <legend>{zh ? '睡眠期间如何处理（必须选择）' : 'Sleep handling (required)'}</legend>
-          <label><input type="radio" name="passive-sleep" checked={sleepChoiceMade && draft.sleep.policy === 'configured'} onChange={() => setSleepPolicy('configured')} /> {zh ? '设置睡眠时间' : 'Configure sleep hours'}</label>
-          <label><input type="radio" name="passive-sleep" checked={sleepChoiceMade && draft.sleep.policy === 'none'} onChange={() => setSleepPolicy('none')} /> {zh ? '不设置睡眠时间' : 'No sleep schedule'}</label>
-          {draft.sleep.policy === 'configured' ? <div className="passive-checkin-settings__grid">
-            <label><span>{zh ? '开始' : 'Start'}</span><input type="time" value={draft.sleep.start} onChange={(event) => updateConfiguredSleep({ start: event.target.value })} /></label>
-            <label><span>{zh ? '结束' : 'End'}</span><input type="time" value={draft.sleep.end} onChange={(event) => updateConfiguredSleep({ end: event.target.value })} /></label>
-            <label className="passive-checkin-settings__timezone"><span>{zh ? 'IANA 时区' : 'IANA timezone'}</span><input value={draft.sleep.timezone} onChange={(event) => updateConfiguredSleep({ timezone: event.target.value })} /></label>
-          </div> : <label className="passive-checkin-settings__ack"><input type="checkbox" checked={draft.sleep.acknowledged} onChange={(event) => setDraft({ ...draft, sleep: { policy: 'none', acknowledged: event.target.checked } })} /> {zh ? '我明白：夜间没有活动也会被计为漏签。' : 'I understand that overnight inactivity will count as missed check-ins.'}</label>}
+        <fieldset className="passive-checkin-settings__choices">
+          <legend>{zh ? '多久完全没动静才需要问' : 'How long with no activity before asking'}</legend>
+          {QUIET_CHOICES.map((choice) => (
+            <label key={choice.minutes}>
+              <input
+                type="radio"
+                name="daily-quiet"
+                checked={draft.waiverLookbackMinutes === choice.minutes}
+                onChange={() => setDraft({ ...draft, waiverLookbackMinutes: choice.minutes })}
+              />
+              {zh ? choice.zh : choice.en}
+            </label>
+          ))}
         </fieldset>
 
-        {recommendation && <div className="passive-checkin-settings__advice">
-          <strong>{zh ? `建议：D ${recommendation.proposedIntervalMinutes} 分钟，N ${recommendation.proposedConsecutiveMisses}，H ${formatHorizonMinutes(recommendation.proposedIntervalMinutes, recommendation.proposedConsecutiveMisses)}` : `Suggested: D ${recommendation.proposedIntervalMinutes} min, N ${recommendation.proposedConsecutiveMisses}, H ${formatHorizonMinutes(recommendation.proposedIntervalMinutes, recommendation.proposedConsecutiveMisses)}`}</strong>
-          {explainPassiveRecommendation(recommendation, lang).map((line) => <p key={line}>{line}</p>)}
-        </div>}
+        <fieldset className="passive-checkin-settings__choices">
+          <legend>{zh ? '没回应多久后通知信任的人' : 'How long before telling the people you trust'}</legend>
+          {GRACE_CHOICES.map((choice) => (
+            <label key={choice.minutes}>
+              <input
+                type="radio"
+                name="daily-grace"
+                checked={draft.responseGraceMinutes === choice.minutes}
+                onChange={() => setDraft({ ...draft, responseGraceMinutes: choice.minutes })}
+              />
+              {zh ? choice.zh : choice.en}
+            </label>
+          ))}
+        </fieldset>
+
+        {/* The whole contract, restated in the subject's own settings. A screen
+            that cannot say this plainly is asking someone to configure a thing
+            they do not understand. */}
+        <div className="passive-checkin-settings__contract">
+          {sentences.map((line) => <p key={line}>{line}</p>)}
+          <p className="passive-checkin-settings__worst">{describeWorstCase(zh)}</p>
+        </div>
+
+        {rate !== null && (
+          <p className="passive-checkin-settings__rate">
+            {zh
+              ? `按你最近 ${status!.daysObserved} 天的实际情况，KC 平均每天问你 ${rate} 次。`
+              : `Over your last ${status!.daysObserved} days, KC asked you ${rate} times a day on average.`}
+          </p>
+        )}
 
         <div className={`passive-checkin-settings__health is-${health.state}`}>
           <strong>{zh ? '采集状态' : 'Collector health'}: {healthCopy.label}</strong>
           <p>{healthCopy.detail}</p>
-          {health.devices.filter((device) => device.state === 'limited').map((device) => <p key={device.bindingId}><b>{device.device}</b> · {device.reason} · {device.repairAction}</p>)}
+          {health.devices.filter((device) => device.state === 'limited').map((device) => (
+            <p key={device.bindingId}><b>{device.device}</b> · {device.reason} · {device.repairAction}</p>
+          ))}
         </div>
 
-        {status.engineMode === 'shadow' && <div className="passive-checkin-settings__migration">
-          <p>{zh ? `已观察 ${shadowDays(status)} 天；满 14 天且设备已绑定后才能启用。` : `${shadowDays(status)} shadow days complete; 14 days and a bound collector are required.`}</p>
-          {eligible && <label className="passive-checkin-settings__ack"><input type="checkbox" checked={migrationConfirmed} onChange={(event) => setMigrationConfirmed(event.target.checked)} /> {zh ? '我确认启用：连续 N 次漏签后，KC 可能询问我并通知信任的人。' : 'I confirm activation: after N misses, KC may ask me and notify people I trust.'}</label>}
-        </div>}
+        {problems.length > 0 && (
+          <ul className="passive-checkin-settings__errors">
+            {problems.map((message) => <li key={message}>{message}</li>)}
+          </ul>
+        )}
+        {error && (
+          <p ref={errorRef} tabIndex={-1} role="alert" className="passive-checkin-settings__error">
+            {zh ? '保存失败：' : 'Save failed: '}{error}
+          </p>
+        )}
+        {saved && !error && (
+          <p role="status" className="passive-checkin-settings__saved">
+            {zh ? '已保存。' : 'Saved.'}
+          </p>
+        )}
 
-        {validation.length > 0 && <ul className="passive-checkin-settings__errors">{validation.map((message) => <li key={message}>{message}</li>)}</ul>}
-        {error && <p ref={errorRef} tabIndex={-1} role="alert" className="passive-checkin-settings__error">{zh ? '保存失败，已恢复服务器设置：' : 'Save failed; server settings were restored: '}{error}</p>}
-        <button type="button" className="prototype-button prototype-button--primary" disabled={busy || validation.length > 0} onClick={() => void save()}>
-          {busy ? (zh ? '正在保存…' : 'Saving…') : target === 'passive_checkin' ? (zh ? '保存并启用' : 'Save and activate') : status.engineMode === 'legacy' ? (zh ? '开始 14 天观察' : 'Start 14-day shadow') : (zh ? '保存观察设置' : 'Save shadow settings')}
-        </button>
+        <div className="passive-checkin-settings__actions">
+          <button
+            type="button"
+            className="prototype-button prototype-button--primary"
+            disabled={busy || problems.length > 0}
+            onClick={() => void save('passive_checkin')}
+          >
+            {busy ? (zh ? '正在保存…' : 'Saving…') : (zh ? '保存并启用' : 'Save and turn on')}
+          </button>
+          <button
+            type="button"
+            className="prototype-button"
+            disabled={busy || problems.length > 0}
+            onClick={() => void save('shadow')}
+          >
+            {zh ? '只观察，先不启用' : 'Observe only for now'}
+          </button>
+        </div>
+        <p className="passive-checkin-settings__note">
+          {zh
+            ? `只观察：KC 照常记录，但是不会问你，也不会通知任何人。免签时长最短 ${DAILY_CHECKIN_LIMITS.minWaiverLookbackMinutes / 60} 小时。`
+            : `Observe only: KC keeps recording but never asks and never notifies anyone. The shortest quiet period is ${DAILY_CHECKIN_LIMITS.minWaiverLookbackMinutes / 60} hours.`}
+        </p>
       </PrototypeCard>
     </PrototypeSection>
   )

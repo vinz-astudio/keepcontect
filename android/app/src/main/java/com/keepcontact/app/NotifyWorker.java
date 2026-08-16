@@ -131,8 +131,17 @@ public class NotifyWorker extends Worker {
         // which is the one thing these ROMs will not kill.
         PassivePing.recordWakeupPunctuality(context, isRunOnTime(context));
 
+        // Charging is a liveness signal on every platform, background included
+        // (human decision 2026-08-16). Android cannot deliver the broadcast to a
+        // dead process, so the change is found here instead. Deliberately
+        // outside the Usage Access gate: charging carries its own consent and
+        // must not depend on a permission the user may never have granted.
+        PassivePing.reconcilePowerState(context);
+
         // UsageStats passive ping backfill check
-        if (PassivePing.isUsageStatsAllowed(context) && PassivePing.isUsageAccessGranted(context)) {
+        boolean usageAllowed = PassivePing.isUsageStatsAllowed(context);
+        boolean usageGranted = PassivePing.isUsageAccessGranted(context);
+        if (usageAllowed && usageGranted) {
             PassiveEvidenceContract.Evidence evidence = PassivePing.queryLatestUsageEvidence(context);
             PassivePing.enqueueEvidence(context, evidence);
             long lastActive = PassivePing.queryLastActiveTime(context);
@@ -140,7 +149,17 @@ public class NotifyWorker extends Worker {
             if (lastActive > lastPing) {
                 android.util.Log.d(TAG, "NotifyWorker observed new user activity via UsageStats: " + lastActive + ". Triggering ping.");
                 PassivePing.ping(context);
+            } else {
+                // The silent branch. A worker that runs on time, holds the
+                // permission and still reports nothing is indistinguishable
+                // from a quiet person unless it says so here.
+                android.util.Log.d(TAG, "usage look-back produced no new activity:"
+                    + " lastActive=" + lastActive + " lastPing=" + lastPing
+                    + " evidence=" + (evidence != null));
             }
+        } else {
+            android.util.Log.d(TAG, "usage look-back skipped:"
+                + " allowed=" + usageAllowed + " granted=" + usageGranted);
         }
 
         AlertShadowCoverageReporter.reportIfOperational(context);
