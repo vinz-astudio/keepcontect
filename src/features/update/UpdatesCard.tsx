@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n'
 import { Icon } from '@/features/common/Icon'
 import { launchUpdate } from '@/features/update/launchUpdate'
 import { fetchLatest, isNewer } from '@/features/update/versionCheck'
+import { desktopHasRealUpdate, desktopOfferedVersion } from '@/features/update/desktopOffer'
 import { useGmVersionChannel } from '@/features/update/versionChannelPreference'
 import { toast } from '@/lib/toast'
 import type { VersionStatus } from '@/features/update/versionSelection'
@@ -66,9 +67,19 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
     try {
       const latest = await fetchLatest({ channel: isGm ? gmVersionChannel : 'public' })
       if (latest) {
-        const outdated = isNewer(latest.version, APP_VERSION)
+        // On desktop the version string is not what gets installed: the
+        // installer URL is. They drifted apart on every Android release, which
+        // kept desktop users reinstalling the version they already had. Ask the
+        // URL what it will deliver, and offer nothing when it cannot say.
+        const outdated = isTauri()
+          ? desktopHasRealUpdate(APP_VERSION, latest.exeUrl, isNewer)
+          : isNewer(latest.version, APP_VERSION)
         setHasNewUpdate(outdated)
-        setNewVersion(latest.version)
+        setNewVersion(
+          isTauri()
+            ? desktopOfferedVersion(latest.exeUrl) ?? latest.version
+            : latest.version,
+        )
         setUpdateUrls({ apkUrl: latest.apkUrl, exeUrl: latest.exeUrl })
       } else {
         setHasNewUpdate(false)
