@@ -33,9 +33,16 @@
 .passive-checkin-settings__actions { display: flex; flex-wrap: wrap; gap: .6rem; min-width: 0; }
 .passive-checkin-settings__actions button { flex: 1 1 12rem; min-width: 0; }
 
-@media (max-width: 360px) {
+/* Phones, not just the narrowest ones. The old breakpoint was 360px, which is
+   below every phone this app actually ships to — iPhone starts at 375 and most
+   Android sits at 393–412 — so the stacked layout never once applied on a real
+   device. Radio options were squeezed onto one line and the two actions fought
+   over a row that could not hold them. */
+@media (max-width: 560px) {
   .passive-checkin-settings__grid { grid-template-columns: minmax(0, 1fr); }
   .passive-checkin-settings__timezone { grid-column: auto; }
-  .passive-checkin-settings__choices { flex-direction: column; }
+  .passive-checkin-settings__choices { flex-direction: column; gap: .55rem; }
+  .passive-checkin-settings__choices label { padding: .25rem 0; }
   .passive-checkin-settings__actions { flex-direction: column; }
+  .passive-checkin-settings__actions button { flex: 1 1 auto; width: 100%; }
 }

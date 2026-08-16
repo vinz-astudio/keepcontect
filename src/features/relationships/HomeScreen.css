@@ -22,6 +22,10 @@
   background: var(--mesh);
 }
 
+/* A grid item defaults to min-width:auto, so one wide child - a row of inputs
+   that could not wrap - stretches its track past the viewport and takes the
+   whole card with it. Measured at 375px: a Circles card reached 387px. */
+.home-prototype__stack > * { min-width: 0; }
 .home-prototype__stack {
   display: grid;
   gap: 12px;
@@ -803,7 +807,7 @@
 }
 
 /* 仅在 360px 及以下极窄设备上触发微调，标准屏（375px+、390px+、412px+、430px+、Pad）100% 保持高颜值的原生设计 */
-@media (max-width: 360px) {
+@media (max-width: 560px) {
   .card {
     padding: 0.85rem 0.9rem;
   }

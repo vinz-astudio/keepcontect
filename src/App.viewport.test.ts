@@ -94,7 +94,12 @@ describe('iOS installed-PWA full-height regression', () => {
   })
 
   it('keeps passive check-in settings usable at a 320px viewport', () => {
-    expect(passiveSettingsCss).toMatch(/@media \(max-width: 360px\)/)
+    // The breakpoint must reach real phones. It was pinned at 360px, which is
+    // narrower than every device this ships to — iPhone starts at 375, Android
+    // mostly sits at 393-412 — so the stacked layout never applied in the APK.
+    const breakpoint = /@media \(max-width: (\d+)px\)/.exec(passiveSettingsCss)
+    expect(breakpoint).not.toBeNull()
+    expect(Number(breakpoint![1])).toBeGreaterThanOrEqual(430)
     expect(passiveSettingsCss).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/)
     expect(passiveSettingsCss).toMatch(/min-width:\s*0/)
     expect(passiveSettingsSource).toContain('role="alert"')
