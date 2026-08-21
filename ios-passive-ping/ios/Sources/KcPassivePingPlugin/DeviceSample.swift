@@ -95,6 +95,10 @@ final class DeviceSampleCollector {
 
     private let defaults = UserDefaults.standard
     private let motionManager = CMMotionManager()
+
+    /// Every accelerometer append and the read that follows happen here, so the
+    /// array is only ever touched by one thread at a time.
+    private let motionSerialQueue = DispatchQueue(label: "com.keepcontact.passive.motion")
     private let pedometer = CMPedometer()
     private let activityManager = CMMotionActivityManager()
 
@@ -149,30 +153,47 @@ final class DeviceSampleCollector {
         sample.motionIntervalStart = since
         let group = DispatchGroup()
 
+        // The same hazard as the accelerometer loop, one level up: these three
+        // callbacks arrive on three unrelated queues — CoreMotion's, CMPedometer's
+        // and CMMotionActivityManager's — and every one of them writes into the
+        // same `sample`. A struct is written as a whole, and `dominantActivity` is
+        // a refcounted String?, so two of these landing together can corrupt it
+        // exactly the way concurrent appends corrupted the array. The DispatchGroup
+        // only tells us when all three have finished; it serialises nothing.
+        //
+        // Every write is therefore hopped onto the one serial queue, and the read
+        // that follows runs there too.
         group.enter()
-        readMotionVariance { variance, count in
-            sample.motionVariance = variance
-            sample.motionSampleCount = count
-            group.leave()
+        readMotionVariance { [motionSerialQueue] variance, count in
+            motionSerialQueue.async {
+                sample.motionVariance = variance
+                sample.motionSampleCount = count
+                group.leave()
+            }
         }
 
         group.enter()
-        readPedometer(since: since) { steps, floors in
-            sample.stepsSinceLastSample = steps
-            sample.floorsSinceLastSample = floors
-            group.leave()
+        readPedometer(since: since) { [motionSerialQueue] steps, floors in
+            motionSerialQueue.async {
+                sample.stepsSinceLastSample = steps
+                sample.floorsSinceLastSample = floors
+                group.leave()
+            }
         }
 
         group.enter()
-        readDominantActivity(since: since) { activity, confidence in
-            sample.dominantActivity = activity
-            sample.activityConfidence = confidence
-            group.leave()
+        readDominantActivity(since: since) { [motionSerialQueue] activity, confidence in
+            motionSerialQueue.async {
+                sample.dominantActivity = activity
+                sample.activityConfidence = confidence
+                group.leave()
+            }
         }
 
-        group.notify(queue: .main) { [weak self] in
-            self?.defaults.set(sample.observedAt.timeIntervalSince1970, forKey: Key.lastSampleAt)
-            completion(sample)
+        group.notify(queue: motionSerialQueue) { [weak self] in
+            let finished = sample
+            self?.defaults.set(finished.observedAt.timeIntervalSince1970, forKey: Key.lastSampleAt)
+            DispatchQueue.main.async { completion(finished) }
         }
     }
 
@@ -196,14 +217,30 @@ final class DeviceSampleCollector {
             completion(nil, nil)
             return
         }
+        // CoreMotion hands every update to the queue as its own operation, and a
+        // plain `OperationQueue()` runs those concurrently. Appending into a
+        // captured array from several threads corrupts the array's own refcounts:
+        // one thread frees the old buffer while another releases it again, and the
+        // process dies inside `_swift_release_dealloc` with an address that was
+        // never a pointer. That is the crash reported against 0.7.3 build 37.
+        //
+        // Pinning the queue to one serial dispatch queue fixes the appends, and
+        // running the final read on that same queue fixes the second half of the
+        // race: `stopAccelerometerUpdates()` does not cancel operations that are
+        // already queued, so the reader could otherwise run while a handler was
+        // still appending.
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        queue.underlyingQueue = motionSerialQueue
+
         var magnitudes: [Double] = []
         motionManager.accelerometerUpdateInterval = 1.0 / Self.motionHz
-        motionManager.startAccelerometerUpdates(to: OperationQueue()) { data, _ in
+        motionManager.startAccelerometerUpdates(to: queue) { data, _ in
             guard let a = data?.acceleration else { return }
             magnitudes.append((a.x * a.x + a.y * a.y + a.z * a.z).squareRoot())
         }
 
-        DispatchQueue.global().asyncAfter(deadline: .now() + Self.motionWindow) { [weak self] in
+        motionSerialQueue.asyncAfter(deadline: .now() + Self.motionWindow) { [weak self] in
             self?.motionManager.stopAccelerometerUpdates()
             guard magnitudes.count > 1 else {
                 completion(nil, magnitudes.count)

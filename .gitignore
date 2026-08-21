@@ -49,3 +49,6 @@ supabase/.temp/
 # public/*.aab
 # public/*.exe
 # public/*.msi
+
+# TestFlight 反馈包含测试者的真实设备信息与身份,进了版本库就永远删不掉。
+ios/Crash report/
