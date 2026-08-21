@@ -92,12 +92,12 @@ export function getPatternSetupText(
 export function getPatternSetupIntro(hadOld: boolean, lang: Language): string {
   if (hadOld) {
     return isZh(lang)
-      ? '修改用于确认你是否安全的解锁手势。'
+      ? '修改用于确认您是否安全的解锁手势。'
       : 'Change the unlock pattern used to confirm you are safe.'
   }
 
   return isZh(lang)
-    ? '创建用于确认你是否安全的解锁手势。'
+    ? '创建用于确认您是否安全的解锁手势。'
     : 'Create an unlock pattern used to confirm you are safe.'
 }
 

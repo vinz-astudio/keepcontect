@@ -1,0 +1,13 @@
+
+/* 联络人和地址在同一张卡里,用分隔线分段,不各自成盒。 */
+.emergency-info-card__block {
+  padding: 14px 0;
+}
+
+.emergency-info-card__block + .emergency-info-card__block {
+  border-top: 1px solid var(--line);
+}
+
+.emergency-info-card__block:first-child {
+  padding-top: 0;
+}

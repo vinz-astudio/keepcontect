@@ -15,6 +15,7 @@ import {
 import { ViewportDiagnosticsCard } from '@/features/profile/ViewportDiagnosticsCard'
 import { subscribeGmStatusSignals } from '@/features/alerts/realtime'
 import { translate, useI18n } from '@/lib/i18n'
+import { clientPlatformKind, clientPlatformLabel } from '@/lib/clientPlatformLabel'
 import { toast } from '@/lib/toast'
 import { Icon } from '@/features/common/Icon'
 import {
@@ -85,22 +86,6 @@ function isUserMuted(row: UserRow): boolean {
 // 设备在用判定:30 天内有上报才算"目前在用"
 const RECENCY_MS = 30 * 86_400_000
 
-const BASE_LABEL: Record<string, Record<string, string>> = {
-  zh: { ios: 'iOS', android: 'Android', desktop: '桌面' },
-  en: { ios: 'iOS', android: 'Android', desktop: 'Desktop' },
-}
-const KIND_LABEL: Record<string, Record<string, string>> = {
-  zh: { pwa: 'PWA', app: 'App', apk: 'APK', web: '网页' },
-  en: { pwa: 'PWA', app: 'App', apk: 'APK', web: 'Web' },
-}
-
-// 渠道形如 {ios|android|desktop}-{pwa|app|apk|web}
-function platBase(p: string | null | undefined): string {
-  return (p ?? '').toLowerCase().split('-')[0]
-}
-function platKind(p: string | null | undefined): string {
-  return (p ?? '').toLowerCase().split('-')[1] ?? ''
-}
 
 function latestSeen(clients: GmClient[]): number {
   let m = 0
@@ -122,7 +107,7 @@ function liveDevices(clients: GmClient[]): GmClient[] {
     (c) =>
       c.last_seen_at &&
       now - new Date(c.last_seen_at).getTime() < RECENCY_MS &&
-      platKind(c.platform) !== 'web',
+      clientPlatformKind(c.platform) !== 'web',
   )
   
   const nativeByPlatform = new Map<string, GmClient>()
@@ -145,12 +130,11 @@ function liveDevices(clients: GmClient[]): GmClient[] {
 
 /** 单设备标签;平台无法识别时不编造设备类型,只显示版本 */
 function deviceLabel(c: GmClient, lang: string): string {
-  const baseLabel = (BASE_LABEL[lang] ?? BASE_LABEL.en)[platBase(c.platform)]
-  const kindLabel = (KIND_LABEL[lang] ?? KIND_LABEL.en)[platKind(c.platform)]
+  const label = clientPlatformLabel(c.platform, lang)
   const ver = c.app_version ? `v${c.app_version}` : '?'
   const count = c.web_count && c.web_count > 1 ? ` ×${c.web_count}` : ''
-  if (!baseLabel) return `${ver}${count}`
-  return `${baseLabel}${kindLabel ? ` ${kindLabel}` : ''} ${ver}${count}`
+  if (!label) return `${ver}${count}`
+  return `${label} ${ver}${count}`
 }
 
 function formatDevices(clients: GmClient[], lang: string): string {
@@ -331,7 +315,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
   const canaryPublic = canaryVersion?.public_rollout === true
 
   function isRowOutdatedFor(row: UserRow, version: string): boolean {
-    const officialClients = row.clients.filter((c) => platKind(c.platform) !== 'web')
+    const officialClients = row.clients.filter((c) => clientPlatformKind(c.platform) !== 'web')
     return officialClients.length === 0 || officialClients.some((client) =>
       isClientBehindTarget(client.app_version, version),
     )
@@ -683,7 +667,7 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
               </h4>
               <p className="muted" style={{ fontSize: '0.78rem', margin: '0 0 10px 0', lineHeight: '1.4' }}>
                 {lang === 'zh'
-                  ? '点击下方按钮将重置本地浏览器中的「引导完成标记」，这会使 App 重新加载并进入新人打开 App 时的强制设置向导。该操作绝不会删除你的 Supabase 数据库记录或已累积的历史信号数据。'
+                  ? '点击下方按钮将重置本地浏览器中的「引导完成标记」，这会使 App 重新加载并进入新人打开 App 时的强制设置向导。该操作绝不会删除您的 Supabase 数据库记录或已累积的历史信号数据。'
                   : 'Clicking below resets the "onboarding completed flag" in local storage. This reloads the page and launches the setup wizard. No database records or local signal history will be deleted.'}
               </p>
               <button

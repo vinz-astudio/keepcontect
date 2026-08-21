@@ -2,6 +2,7 @@
 
 import { supabase } from '@/lib/supabase'
 import type { Sensitivity } from '@/features/baseline/types'
+import { getDailyCheckin, saveDailyCheckin } from '@/features/passive/dailyCheckinApi'
 
 export async function setServerSensitivity(s: Sensitivity): Promise<void> {
   const { error } = await supabase.rpc('set_sensitivity', { _s: s })
@@ -186,6 +187,24 @@ export async function setServerTimezone(tz: string): Promise<void> {
     localStorage.setItem(TZ_MANUAL_KEY, tz === detectTimezone() ? 'false' : 'true')
   } catch {
     /* localStorage 不可用时,下次启动会被自动检测盖回,可接受 */
+  }
+  await syncCheckinContractTimezone(tz)
+}
+
+/**
+ * 时区存了两份:`user_settings.timezone` 给持续沉默判断用,每日确认契约里
+ * 还有自己的一份。只写前者会让两套判断按不同的当地时间跑,用户看不出来。
+ *
+ * 这里是尽力而为:没有契约、或者写失败,都不该让时区本身的保存失败。
+ */
+async function syncCheckinContractTimezone(tz: string): Promise<void> {
+  try {
+    const status = await getDailyCheckin()
+    if (!status?.draft || status.draft.timezone === tz) return
+    if (status.engineMode !== 'shadow' && status.engineMode !== 'passive_checkin') return
+    await saveDailyCheckin({ ...status.draft, timezone: tz }, status.engineMode)
+  } catch {
+    /* 契约没建立或 RPC 失败:时区主记录已经写成功,不回滚 */
   }
 }
 

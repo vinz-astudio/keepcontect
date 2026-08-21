@@ -10,7 +10,7 @@ export function formatGroupActivityStatus(
 
   switch (status) {
     case 'self':
-      return zh ? '你' : 'You'
+      return zh ? '您' : 'You'
     case 'alert':
       return zh ? `需要关注 · ${h}小时前有行为` : `Needs attention - ${h}h since activity`
     case 'active':

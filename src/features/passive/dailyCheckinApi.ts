@@ -5,6 +5,8 @@ export const DAILY_CHECKIN_CLIENT_CONTRACT = 'daily-checkin-v1' as const
 
 export type DailyCheckinMode = 'legacy' | 'shadow' | 'passive_checkin'
 
+export type PassiveMissKind = 'silent' | 'device_unreachable' | 'collection_restricted'
+
 export interface DailyCheckinStatus {
   engineMode: DailyCheckinMode
   killSwitchActive: boolean
@@ -14,11 +16,32 @@ export interface DailyCheckinStatus {
   effectiveAt: string | null
   /** When the next question would be asked if nothing changes. */
   nextQuestionAt: string | null
+  /**
+   * 引擎当前实际在判断的截止点。它已经把两件事算进去了:锚在最新一次告活上,
+   * 而且睡眠时段不消耗阈值。界面显示这个,不要自己再推一遍。
+   */
+  nextDeadlineAt: string | null
+  /** 从最后一次告活起,已经过掉几个截止点。到达 `consecutiveMisses` 才通知。 */
+  missedSoFar: number
+  /**
+   * 上一个截止点为什么过掉了。三种沉默不是同一回事:
+   * `silent` 采集正常但确实没动静 · `device_unreachable` 设备根本没说话 ·
+   * `collection_restricted` 采集被关掉了,这时的安静什么都不能证明。
+   */
+  lastMissKind: PassiveMissKind | null
   /** Most recent qualifying activity from any bound device. */
   lastActivityAt: string | null
-  /** Completed days since the current settings took effect. */
+  /** 服务端实际在用的连续漏签次数。界面显示这个,不自己假设。 */
+  consecutiveMisses: number | null
+  /**
+   * Closed windows since the current settings took effect, NOT days.
+   *
+   * Since 20260821020000 the deadlines roll, so one closed window is one quiet
+   * stretch and a single calendar day can hold several. Do not render this as
+   * "your last N days" and do not divide by it to get a per-day rate.
+   */
   daysObserved: number
-  /** Of those days, how many actually produced a question. */
+  /** Of those closed windows, how many were missed. Again: windows, not days. */
   daysAsked: number
 }
 
@@ -38,6 +61,12 @@ function text(value: unknown): string | null {
 
 function mode(value: unknown): DailyCheckinMode {
   return value === 'passive_checkin' || value === 'shadow' ? value : 'legacy'
+}
+
+function missKind(value: unknown): PassiveMissKind | null {
+  return value === 'silent' || value === 'device_unreachable' || value === 'collection_restricted'
+    ? value
+    : null
 }
 
 export function parseDailyCheckinStatus(payload: unknown): DailyCheckinStatus | null {
@@ -66,7 +95,11 @@ export function parseDailyCheckinStatus(payload: unknown): DailyCheckinStatus | 
     versionNumber: integer(row.version_number),
     effectiveAt: text(row.effective_at),
     nextQuestionAt: text(row.next_question_at),
+    nextDeadlineAt: text(row.next_deadline_at),
+    missedSoFar: integer(row.missed_so_far) ?? 0,
+    lastMissKind: missKind(row.last_miss_kind),
     lastActivityAt: text(row.last_activity_at),
+    consecutiveMisses: integer(row.consecutive_misses),
     daysObserved: integer(row.days_observed) ?? 0,
     daysAsked: integer(row.days_asked) ?? 0,
   }
@@ -81,6 +114,7 @@ export async function getDailyCheckin(): Promise<DailyCheckinStatus | null> {
 export async function saveDailyCheckin(
   draft: DailyCheckinDraft,
   targetMode: 'shadow' | 'passive_checkin',
+  consecutiveMisses = 2,
 ): Promise<void> {
   const { error } = await supabase.rpc('set_daily_checkin_contract' as never, {
     _ask_at_local_minute: draft.askAtLocalMinute,
@@ -89,20 +123,7 @@ export async function saveDailyCheckin(
     _timezone: draft.timezone,
     _target_mode: targetMode,
     _client_contract_version: DAILY_CHECKIN_CLIENT_CONTRACT,
+    _consecutive_misses: consecutiveMisses,
   } as never)
   if (error) throw new Error(error.message)
-}
-
-/**
- * The share of completed days that did NOT produce a question.
- *
- * This is the only honest source for "how often will KC actually ask you": it
- * is measured on this subject's own days, not modelled. Fewer than three
- * completed days is not a rate, so it returns null rather than a number the
- * subject would reasonably treat as a promise.
- */
-export function observedActiveDaysRatio(status: DailyCheckinStatus): number | null {
-  if (status.daysObserved < 3) return null
-  const quiet = status.daysObserved - status.daysAsked
-  return quiet / status.daysObserved
 }

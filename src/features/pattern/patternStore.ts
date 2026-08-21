@@ -5,6 +5,7 @@
 
 const LEGACY_KEY = 'kc.patternHash'
 const OPEN_ALERT_KEY = 'kc.openAlert'
+const PASSCODE_PREFIX = 'kc.passcodeHash'
 
 /** 当前账户的手势哈希键 */
 export function patternKey(uid: string): string {
@@ -17,6 +18,73 @@ async function hashSeq(seq: number[]): Promise<string> {
   return [...new Uint8Array(buf)]
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
+}
+
+/**
+ * 手势和数字密码是两个独立的凭据,各自都能解锁。
+ *
+ * 用户可以只设一个,也可以两个都设,解锁时自己挑顺手的那个。所以它们各占一个槽,
+ * 设了其中一个不会让另一个失效。
+ *
+ * 有一处不对称必须记住:个人紧急资料的加密密钥仍然从**手势**哈希派生
+ * (`emergencyApi.deriveKeyFromPassword`)。只设数字密码的账号没有这个派生源。
+ * 所以密码可以解锁,但不能替手势解开已经加密的个人紧急资料 —— 要改掉这个不对称,
+ * 需要把密钥改成由凭据「解开」而不是「充当」,那是一次要重新加密存量数据的迁移。
+ */
+export const PASSCODE_MIN_LENGTH = 4
+export const PASSCODE_MAX_LENGTH = 8
+
+export function passcodeKey(uid: string): string {
+  return `${PASSCODE_PREFIX}.${uid}`
+}
+
+/**
+ * 数字密码和手势用不同的哈希域。
+ *
+ * 否则密码「1234」和手势 1-2-3-4 会算出同一个哈希,两个本该独立的凭据在存储层
+ * 变成同一个值。
+ */
+async function hashPasscode(digits: string): Promise<string> {
+  const data = new TextEncoder().encode('kc:pin:' + digits)
+  const buf = await crypto.subtle.digest('SHA-256', data)
+  return [...new Uint8Array(buf)]
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+export function isPasscodeAcceptable(digits: string): boolean {
+  if (!/^[0-9]+$/.test(digits)) return false
+  return digits.length >= PASSCODE_MIN_LENGTH && digits.length <= PASSCODE_MAX_LENGTH
+}
+
+export function getPasscodeHash(uid: string): string | null {
+  return localStorage.getItem(passcodeKey(uid))
+}
+
+export function hasPasscode(uid: string): boolean {
+  return !!getPasscodeHash(uid)
+}
+
+export async function setPasscode(uid: string, digits: string): Promise<string> {
+  if (!isPasscodeAcceptable(digits)) throw new Error('passcode rejected')
+  const hash = await hashPasscode(digits)
+  localStorage.setItem(passcodeKey(uid), hash)
+  return hash
+}
+
+export async function verifyPasscode(uid: string, digits: string): Promise<boolean> {
+  const stored = getPasscodeHash(uid)
+  if (!stored) return false
+  return stored === (await hashPasscode(digits))
+}
+
+export function clearPasscode(uid: string): void {
+  localStorage.removeItem(passcodeKey(uid))
+}
+
+/** 这个账号设了哪些解锁方式。解锁界面据此决定给不给切换。 */
+export function availableUnlockMethods(uid: string): { pattern: boolean; passcode: boolean } {
+  return { pattern: hasPattern(uid), passcode: hasPasscode(uid) }
 }
 
 /** 读取当前账户的手势哈希（仅本命名空间，绝不回退到遗留全局键） */
@@ -91,7 +159,8 @@ export function purgeLocalSafetyState(): void {
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i)
     if (!k) continue
-    if (k === LEGACY_KEY || k.startsWith(LEGACY_KEY + '.') || k === OPEN_ALERT_KEY) {
+    if (k === LEGACY_KEY || k.startsWith(LEGACY_KEY + '.')
+      || k.startsWith(PASSCODE_PREFIX + '.') || k === OPEN_ALERT_KEY) {
       toRemove.push(k)
     }
   }

@@ -3,13 +3,14 @@ import { Capacitor } from '@capacitor/core'
 import { getPlatform, isTauri } from '@/lib/platform'
 import { APP_VERSION } from '@/lib/version'
 import { useI18n } from '@/lib/i18n'
-import { Icon } from '@/features/common/Icon'
 import { launchUpdate } from '@/features/update/launchUpdate'
 import { fetchLatest, isNewer } from '@/features/update/versionCheck'
 import { desktopHasRealUpdate, desktopOfferedVersion } from '@/features/update/desktopOffer'
 import { useGmVersionChannel } from '@/features/update/versionChannelPreference'
 import { toast } from '@/lib/toast'
 import type { VersionStatus } from '@/features/update/versionSelection'
+import { PrototypeRow } from '@/features/prototype/PrototypeUI'
+import './UpdatesCard.css'
 
 interface UpdatesCardProps {
   isGm?: boolean
@@ -107,7 +108,7 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
     }
   }
 
-  const title = lang === 'zh' ? `版本 · ${APP_VERSION}` : `Version · ${APP_VERSION}`
+  const versionLabel = lang === 'zh' ? '版本' : 'Version'
   const changeGmChannel = (channel: VersionStatus) => {
     setGmVersionChannel(channel)
     setUpdStatus('idle')
@@ -123,60 +124,31 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
   }
 
   return (
-    <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-      <h2 className="card__title" style={{ margin: 0 }}>
-        {onVersionTap ? (
-          <button
-            type="button"
-            aria-label={lang === 'zh' ? '版本信息' : 'Version information'}
-            onClick={onVersionTap}
-            style={{
-              all: 'unset',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name="signal" />
-            {title}
-          </button>
-        ) : (
-          <>
-            <Icon name="signal" />
-            {title}
-          </>
-        )}
-      </h2>
-
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
-          background: 'var(--bg)',
-          border: '1px solid var(--line)',
-          borderRadius: 'var(--r-md)',
-          padding: '10px 14px',
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
-          <span style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--fg)' }}>
-            {getDeviceLabel()}
-          </span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--fg-muted)' }}>
-            v{APP_VERSION}
-            {hasNewUpdate && updStatus === 'checked' && (
-              <span style={{ marginLeft: '6px', color: 'var(--accent)', fontWeight: 600 }}>
-                {' '}→ v{newVersion}
-              </span>
+    <div className="updates-card">
+      {/* 用 PrototypeRow,不自己排一套列。语言、外观两行的图标列宽、文字起点、
+          控件右边界都由它决定;版本行自己画一套,结果就是差了 16px 对不齐。 */}
+      <PrototypeRow
+        icon="system_update"
+        title={
+          <span className="updates-card__title-line">
+            {onVersionTap ? (
+              <button type="button" className="updates-card__label--tap" onClick={onVersionTap}>
+                {versionLabel}
+              </button>
+            ) : (
+              <span className="updates-card__label">{versionLabel}</span>
             )}
+            <span className="updates-card__version">
+              {APP_VERSION}
+              {hasNewUpdate && updStatus === 'checked' && (
+                <span className="updates-card__next"> → {newVersion}</span>
+              )}
+            </span>
+            <span className="updates-card__device-name">({getDeviceLabel()})</span>
           </span>
-        </div>
-
-        <div style={{ flexShrink: 0 }}>
-          {progress !== null ? (
+        }
+        trailing={
+          progress !== null ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '120px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', opacity: 0.85 }}>
                 <span>
@@ -223,9 +195,9 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
             >
               {lang === 'zh' ? '检查更新' : 'Check'}
             </button>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {isGm && (
         <div
@@ -282,6 +254,6 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
             </span>
         </div>
       )}
-    </section>
+    </div>
   )
 }

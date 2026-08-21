@@ -133,10 +133,10 @@ export function describeDailyCheckin(draft: DailyCheckinDraft, zh: boolean): str
   const grace = formatDuration(draft.responseGraceMinutes, zh)
   return zh
     ? [
-        `每天 ${at}，如果你在过去 ${quiet} 内用过手机，KC 不打扰你。`,
-        `如果这段时间完全没有动静，KC 会问你一次。`,
-        `你点一下就结束了。`,
-        `${grace} 内没有回应，KC 才会通知你信任的人。`,
+        `每天 ${at}，如果您在过去 ${quiet} 内用过手机，KC 不打扰您。`,
+        `如果这段时间完全没有动静，KC 会问您一次。`,
+        `您点一下就结束了。`,
+        `${grace} 内没有回应，KC 才会通知您信任的人。`,
       ]
     : [
         `Each day at ${at}, if you have used your phone in the past ${quiet}, KC stays quiet.`,
@@ -155,7 +155,7 @@ export function describeDailyCheckin(draft: DailyCheckinDraft, zh: boolean): str
  */
 export function describeWorstCase(zh: boolean): string {
   return zh
-    ? '如果采集失效或你没有授权，KC 每天问你一次 —— 和普通签到 App 一样，不会更多。'
+    ? '如果采集失效或您没有授权，KC 每天问您一次 —— 和普通签到 App 一样，不会更多。'
     : 'If collection fails or you grant nothing, KC asks once a day — the same as an ordinary check-in app, never more.'
 }
 

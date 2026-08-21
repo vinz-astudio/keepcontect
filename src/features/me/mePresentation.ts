@@ -1,11 +1,8 @@
 export const ME_SECTIONS = [
   'account',
   'safety-checkin',
-  'this-device',
-  'linked-devices',
-  'emergency-contacts',
-  'emergency-addresses',
-  'emergency-gps',
+  'guardian-permissions',
+  'emergency',
   'preferences-updates',
 ] as const
 

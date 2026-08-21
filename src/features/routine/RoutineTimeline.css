@@ -1,0 +1,83 @@
+.routine-timeline {
+  margin: 0 0 14px;
+  padding: 14px 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-glass);
+}
+
+.routine-timeline__title {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.routine-timeline__empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.routine-timeline__rail {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routine-timeline__step {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding-top: 16px;
+  text-align: left;
+}
+
+/* 轨道线画在步骤之间,不画在两端外面,免得末端出现一截没有意义的线头。 */
+.routine-timeline__step::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.routine-timeline__step:first-child::before { left: 4px; }
+.routine-timeline__step:last-child::before { right: calc(100% - 5px); }
+
+.routine-timeline__dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--quiet);
+}
+
+.routine-timeline__step.is-ask .routine-timeline__dot { background: var(--accent); }
+.routine-timeline__step.is-escalate .routine-timeline__dot { background: var(--danger); }
+
+.routine-timeline__label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.routine-timeline__value {
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.routine-timeline__step.is-escalate .routine-timeline__value { color: var(--danger); }

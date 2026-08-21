@@ -8,7 +8,6 @@ import {
 import { getPlatform, isTauri } from '@/lib/platform'
 import { toast } from '@/lib/toast'
 import { useI18n } from '@/lib/i18n'
-import { Icon } from '@/features/common/Icon'
 import { APK_URL, getApkDownloadFilename } from '@/features/install/apk'
 
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
@@ -371,7 +370,7 @@ export function PassiveSignalCard() {
 
             <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
               {lang === 'zh'
-                ? '你也可以导入我们预设的 Apple 快捷指令，利用系统事件（如充电、特定 App 打开）触发静默报活：'
+                ? '您也可以导入我们预设的 Apple 快捷指令，利用系统事件（如充电、特定 App 打开）触发静默报活：'
                 : 'You can also import our pre-configured Apple Shortcut to trigger silent check-ins via system events (e.g. charging, specific app opened):'}
             </p>
 
@@ -393,7 +392,7 @@ export function PassiveSignalCard() {
               <ol style={{ margin: 0, paddingLeft: '16px', lineHeight: '1.4', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <li>
                   {lang === 'zh'
-                    ? '点击上方按钮导入快捷指令，并将你的个人链接粘贴到设置问题中。'
+                    ? '点击上方按钮导入快捷指令，并将您的个人链接粘贴到设置问题中。'
                     : 'Tap the button above to import the Shortcut, pasting your link during setup.'}
                 </li>
                 <li>
@@ -403,7 +402,7 @@ export function PassiveSignalCard() {
                 </li>
                 <li>
                   {lang === 'zh'
-                    ? '新建一个你需要的系统触发源（推荐：当“充电器连接时”、或当“屏幕解锁时”）。'
+                    ? '新建一个您需要的系统触发源（推荐：当“充电器连接时”、或当“屏幕解锁时”）。'
                     : 'Select a trigger event (Recommended: "When Charger is Connected" or "When Lock Screen is Unlocked").'}
                 </li>
                 <li>
@@ -465,27 +464,14 @@ export function PassiveSignalCard() {
           </div>
         </div>
       )
-    },
-    {
-      id: 'general',
-      title: lang === 'zh' ? '常规被动配置说明' : 'Manual Reporting & Others',
-      isCurrent: !isTauri() && android !== 'native' && platform !== 'ios',
-      render: () => (
-        <div>
-          <p className="muted">
-            {t('passive.desc')}
-          </p>
-          <p className="muted psig__triggers" style={{ marginTop: '10px' }}>
-            {t('passive.triggers')}
-          </p>
-        </div>
-      )
     }
   ]
 
-  const sortedSections = [...sections].sort((a, b) => (b.isCurrent ? 1 : 0) - (a.isCurrent ? 1 : 0))
-  const currentSectionId = sections.find(s => s.isCurrent)?.id || 'general'
-  const [expanded, setExpanded] = useState<string | null>(currentSectionId)
+  // 只显示这台设备。别的平台怎么采集,对着眼前这台机器做设置的人一点用都没有,
+  // 而且它把「我这台到底设好了没有」这个唯一重要的问题淹掉了。
+  const sortedSections = sections.filter((s) => s.isCurrent)
+  // 默认收起。展开态一进页面就摊出两段密集说明,而那些内容只有想调细节的人才需要。
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   const syncAppActivityPermission = useCallback(async () => {
     if (Capacitor.getPlatform() !== 'android') return
@@ -525,49 +511,30 @@ export function PassiveSignalCard() {
     android === 'native' && SECTION_OWNED_SENSORS.includes(key)
 
   return (
-    <section className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* 1. Header with Title */}
-      <h2 className="card__title" style={{ margin: 0, borderBottom: '1px solid var(--line)', paddingBottom: '0.75rem' }}>
-        <Icon name="signal" />
-        {t('passive.title')}
-      </h2>
+    <div className="psig__card">
 
       {error && <p className="home__error">{error}</p>}
 
       {/* 守护活跃度已移至「作息」页短期组顶部(ActiveStatusBox) */}
 
-      {/* Toggleable Sensors List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-        <h3 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: '600' }}>
-          {lang === 'zh' ? '本设备自动感知触发源' : 'Active Sensors on this Device'}
-        </h3>
-        <p className="muted" style={{ fontSize: '0.8rem', margin: '0 0 6px 0' }}>
+      {/* 这一段的标题由外层区块给,卡片内部不再重复一次。 */}
+      <div className="psig__sensors">
+        <p className="psig__sensors-lead">
           {lang === 'zh'
-            ? '勾选你希望自动收集的迹象。关闭的选项将不再自动上报报活。'
+            ? '勾选您希望自动收集的迹象。关闭的选项将不再自动上报报活。'
             : 'Toggle behaviors you want to monitor. Disabled options will not trigger auto check-in.'}
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="psig__sensor-list">
           {availableSensors.filter(s => s.supported && !isDuplicatedBySection(s.key)).map((sensor) => {
             const isEnabled = isSensorEnabled(sensor.key)
             return (
               <label
                 key={sensor.key}
-                className="psig__hookconsent"
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  padding: '8px',
-                  borderRadius: 'var(--r-sm)',
-                  background: 'var(--bg-soft)',
-                  border: '1px solid var(--line)',
-                }}
+                className="psig__sensor-row"
               >
                 <input
                   type="checkbox"
                   checked={isEnabled}
-                  style={{ marginTop: '3px' }}
                   onChange={async (e) => {
                     const checked = e.target.checked
                     await setSensorEnabled(sensor.key, checked)
@@ -588,11 +555,11 @@ export function PassiveSignalCard() {
                     }
                   }}
                 />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <span style={{ fontSize: '0.88rem', fontWeight: '600', color: 'var(--fg)' }}>
+                <div className="psig__sensor-text">
+                  <span className="psig__sensor-label">
                     {lang === 'zh' ? sensor.labelZh : sensor.labelEn}
                   </span>
-                  <span className="muted" style={{ fontSize: '0.78rem', lineHeight: '1.3' }}>
+                  <span className="psig__sensor-desc">
                     {lang === 'zh' ? sensor.descZh : sensor.descEn}
                   </span>
                 </div>
@@ -615,11 +582,6 @@ export function PassiveSignalCard() {
               >
                 <span className="psig__panel-title">{s.title}</span>
                 <div className="psig__panel-right">
-                  {s.isCurrent && (
-                    <span className="psig__panel-badge">
-                      {lang === 'zh' ? '当前设备' : 'Current Device'}
-                    </span>
-                  )}
                   <span className="psig__panel-arrow">{isOpen ? '▲' : '▼'}</span>
                 </div>
               </button>
@@ -632,6 +594,6 @@ export function PassiveSignalCard() {
           )
         })}
       </div>
-    </section>
+    </div>
   )
 }

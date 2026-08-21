@@ -1,5 +1,12 @@
 import { supabase } from '@/lib/supabase'
-import { normalizeRoutineMode } from '@/features/baseline/routineMode'
+
+// `profiles.routine_pattern` 这一列还在,但页面上已经没有控件写它了。读回来时
+// 仍然要收敛成生产里的三个值,免得历史行把别的字符串带进类型。
+const ROUTINE_PATTERNS = ['regular_9to5', 'semester_break', 'shift_irregular']
+
+function normalizeRoutineMode(value: unknown): string {
+  return typeof value === 'string' && ROUTINE_PATTERNS.includes(value) ? value : 'regular_9to5'
+}
 
 /**
  * 设置本人显示名：同步更新 profiles.display_name（别人看到的名字）

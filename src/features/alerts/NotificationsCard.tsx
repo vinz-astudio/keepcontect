@@ -19,6 +19,7 @@ import { buildResponderItems } from '@/features/alerts/responderItems'
 import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { translate, useI18n, type I18nKey } from '@/lib/i18n'
+import { clientPlatformLabel } from '@/lib/clientPlatformLabel'
 import { Icon } from '@/features/common/Icon'
 import {
   enablePush,
@@ -387,7 +388,7 @@ export function NotificationsCard({
                           {clients.map((c) => (
                             <li key={c.client_id} style={{ opacity: 0.85 }}>
                               <span style={{ fontWeight: '600' }}>
-                                {c.platform === 'tauri' ? (lang === 'zh' ? 'Windows 电脑' : 'Windows PC') : c.platform === 'android' ? 'Android' : c.platform === 'ios' ? 'iOS' : c.platform}
+                                {clientPlatformLabel(c.platform, lang) ?? (lang === 'zh' ? '未知设备' : 'Unknown device')}
                               </span>:
                               <span style={{ fontSize: '0.78rem', marginLeft: '6px', opacity: 0.7 }}>
                                 {lang === 'zh' ? `${ago(c.last_seen_at)}前活跃` : `active ${ago(c.last_seen_at)}`}

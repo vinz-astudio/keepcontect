@@ -17,7 +17,7 @@ export function getAvailableSensors(): SensorConfig[] {
       key: 'interaction',
       labelZh: 'App 使用互动',
       labelEn: 'App Interaction',
-      descZh: '你在页面上的触摸、点击，或打开本 App 的动作',
+      descZh: '您在页面上的触摸、点击，或打开本 App 的动作',
       descEn: 'Taps, clicks on page, or simply opening the app',
       supported: true
     },

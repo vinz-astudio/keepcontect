@@ -4,7 +4,7 @@ import {
   saveEmergencyInfo,
   type EmergencyInfoInput,
 } from '@/features/profile/emergencyApi'
-import { PrototypeBadge, PrototypeCard, PrototypeRow } from '@/features/prototype/PrototypeUI'
+import { PrototypeBadge, PrototypeRow } from '@/features/prototype/PrototypeUI'
 import { useI18n } from '@/lib/i18n'
 
 export interface ContactCardItem {
@@ -199,17 +199,15 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
 
   if (loading) {
     return (
-      <PrototypeCard className="emergency-info-card">
-        <p className="muted">{t('ei.loading')}</p>
-      </PrototypeCard>
+      <p className="muted">{t('ei.loading')}</p>
     )
   }
 
   return (
-    <div className="home-prototype__stack">
+    <div className="emergency-info-card">
       {/* SECTION: EMERGENCY CONTACTS */}
       {showContact && (
-        <PrototypeCard className="emergency-info-card">
+        <div className="emergency-info-card__block">
           <div className="emergency-info-card__header-row">
             <div>
               <strong>{lang === 'zh' ? '紧急联络人' : 'Emergency Contacts'}</strong>
@@ -336,12 +334,12 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
               ))
             )}
           </div>
-        </PrototypeCard>
+        </div>
       )}
 
       {/* SECTION: EMERGENCY ADDRESSES */}
       {showAddress && (
-        <PrototypeCard className="emergency-info-card">
+        <div className="emergency-info-card__block">
           <div className="emergency-info-card__header-row">
             <div>
               <strong>{lang === 'zh' ? '预存物理地址与备注' : 'Emergency Addresses & Notes'}</strong>
@@ -488,7 +486,7 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
               {lang === 'zh' ? '更新医疗说明' : 'Save Medical Notes'}
             </button>
           </div>
-        </PrototypeCard>
+        </div>
       )}
 
       {error && <p className="home__error">{error}</p>}
