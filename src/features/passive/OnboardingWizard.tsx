@@ -61,7 +61,7 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
     guardDescription: isZh ? '确认这台手机的后台守护已经连接。' : 'Confirms that this phone’s background guard is connected.',
     health: isZh ? '健康数据唤醒' : 'Health wake',
     healthDescription: isZh
-      ? '允许读取步数，为 iOS 增加一次低功耗唤醒机会。Apple 不会向 App 显示你是否拒绝了读取权限。'
+      ? '允许读取步数，为 iOS 增加一次低功耗唤醒机会。Apple 不会向 App 显示您是否拒绝了读取权限。'
       : 'Allows step-count reads to add another low-power iOS wake opportunity. Apple does not reveal whether read access was declined.',
     unavailable: isZh ? '此环境不支持手机 App 的被动采集能力。安装手机 App 可使用更多低功耗信号，但系统仍可能延迟后台更新。' : 'This environment cannot use the phone app’s passive collector. The phone app adds more low-power signals, but the OS may still delay background updates.',
     enable: isZh ? '开启' : 'Enable',

@@ -1,3 +1,10 @@
+/* 断点要看这一页自己有多宽,不是看视口有多宽。桌面壳把内容挤进一根 516px 的栏
+   时,视口 1280px 的媒体查询会照样分两列,每列只剩 253px。元素不能查询自己,
+   所以容器声明在外层的 .routine-screen 上。 */
+.routine-screen {
+  container: routine / inline-size;
+}
+
 .routine-screen__heading {
   margin: 2px 2px 14px;
 }
@@ -183,4 +190,300 @@
   .routine-prototype-settings__sensitivity span {
     font-size: 0.72rem;
   }
+}
+
+/* ── 设置清单 ────────────────────────────────────────────────
+   合起来时整页 ≤1.3 屏。宽屏下时间轴横跨整幅,清单分两列,不再是一条
+   488px 的窄柱配两边留白。 */
+
+.routine-settings {
+  display: grid;
+  gap: 0;
+}
+
+.routine-settings__hint {
+  margin: 10px 0 12px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.routine-settings__select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.routine-settings__link {
+  justify-self: start;
+  margin-top: 14px;
+  padding: 10px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.routine-settings__link:hover { text-decoration: underline; }
+
+@container routine (min-width: 620px) {
+  .routine-settings {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    align-items: start;
+  }
+
+  /* 时间轴和状态卡说的是整页的事,不该只占一列。 */
+  .routine-timeline,
+  .next-checkin,
+  .routine-settings__premise { grid-column: 1 / -1; }
+
+  .next-checkin { margin-bottom: 0; }
+
+  /* 两列布局里 setting-row 之间的竖向间距由 grid gap 给,行自己不再加 margin,
+     否则第二列的行会比第一列低一截。 */
+  .routine-settings .setting-row + .setting-row { margin-top: 0; }
+
+  /* 展开的一行会变高,让它占满整行宽度,免得把同排的另一行拉长。 */
+  .routine-settings .setting-row.is-open { grid-column: 1 / -1; }
+
+  .routine-settings__link { grid-column: 1 / -1; }
+}
+
+/* AppShell 在 ≥1024px 给每个页面套了 CSS 多栏(`column-count: 2`),并把
+   `.routine-screen > *` 强制成 `display: block`。那条规则是为「一叠自成一体的
+   卡片」写的:卡片可以随便分到哪一栏。这一页现在是一张设置清单,顺序有意义,
+   多栏会把它切开,`display: block` 还会把清单自己的 grid 打掉。
+   所以这里只在这一页把多栏关掉,由清单自己的容器查询决定分几列。 */
+@media (min-width: 1024px) {
+  .routine-screen {
+    column-count: 1;
+    column-gap: normal;
+  }
+
+  .routine-screen > .routine-settings {
+    display: grid;
+    margin-bottom: 0;
+  }
+}
+
+.routine-settings__choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.routine-settings__choices button {
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.routine-settings__choices button[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.routine-settings__choices button:disabled { opacity: 0.5; cursor: default; }
+
+.routine-settings__floor,
+.routine-settings__aside {
+  margin: 0;
+  color: var(--quiet);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.routine-settings__aside {
+  margin-top: 12px;
+  padding: 0 2px;
+}
+
+.routine-settings__premise {
+  margin: -4px 2px 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.routine-settings__warn {
+  margin: 10px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--warning);
+  border-radius: 14px;
+  background: var(--warning-soft);
+}
+
+.routine-settings__warn-lead {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 0.98rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.routine-settings__warn-body {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.routine-settings__premise {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+/* ── 状态卡 ──────────────────────────────────────────
+   顶上那句「你现在是安全的」说的是保护机制完不完整,不是「刚检测到你」——
+   打开这一页本身就产生告活,那句话会永远为真,因此毫无信息。 */
+
+.routine-status {
+  margin: 0 0 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-glass);
+}
+
+.routine-status__headline {
+  margin: 0 0 12px;
+  color: var(--success);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.routine-status.is-limited .routine-status__headline { color: var(--warning); }
+.routine-status.is-off .routine-status__headline { color: var(--muted); }
+
+.routine-status__next {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.routine-status__next span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.routine-status__next strong {
+  color: var(--ink);
+  font-size: 1.3rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.routine-status__note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+/* 过掉截止点之后才出现。用警示色而不是危险色:它说的是「还没通知别人」。 */
+.routine-status__miss {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--ink);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.routine-status__collector {
+  display: grid;
+  grid-template-columns: 9px auto;
+  gap: 4px 8px;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.routine-status__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.routine-status.is-limited .routine-status__dot { background: var(--warning); }
+.routine-status.is-off .routine-status__dot { background: var(--quiet); }
+
+.routine-status__collector small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+/* ── 设置清单 ───────────────────────────────────────── */
+
+.routine-plan {
+  padding: 4px 14px 6px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-glass);
+}
+
+.routine-plan__header {
+  padding: 12px 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.routine-plan__label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.routine-plan__value {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-size: 1.45rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.routine-plan__aside {
+  margin: 2px 0 0;
+  color: var(--quiet);
+  font-size: 0.76rem;
+}
+
+.routine-plan__derivation {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
 }

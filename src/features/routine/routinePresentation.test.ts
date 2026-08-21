@@ -2,38 +2,23 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { RoutineScreen } from './RoutineScreen'
-import {
-  ROUTINE_SECTION_ORDER,
-  ROUTINE_TYPE_OPTIONS,
-  resolveRoutineSaveState,
-} from './routinePresentation'
+import { ROUTINE_SECTION_ORDER } from './routinePresentation'
 
 describe('Routine presentation', () => {
-  it('keeps exactly the three production routine values', () => {
-    expect(ROUTINE_TYPE_OPTIONS.map((item) => item.value)).toEqual([
-      'regular_9to5',
-      'semester_break',
-      'shift_irregular',
-    ])
+  // 作息类型和「允许匿名作息学习」写的是 routine_mode_cohort_priors,那张表在
+  // 生产库里是 0 行,而且没有任何判断路径读它。留着控件等于让用户调一个不起
+  // 作用的开关,所以这一版把它们从页面上去掉。
+  it('drops the routine-type section that fed a dead cohort pipeline', () => {
+    expect(ROUTINE_SECTION_ORDER).not.toContain('routine-type')
   })
 
-  it('places Routine type immediately after sleep settings', () => {
+  it('puts daily check-in first and keeps sensitivity in the main flow', () => {
     expect(ROUTINE_SECTION_ORDER).toEqual([
+      'daily-checkin',
       'sleep',
-      'routine-type',
       'sensitivity',
-      'timezone-privacy',
+      'timezone',
     ])
-  })
-
-  it('rolls a failed save back to the last server-confirmed value', () => {
-    expect(resolveRoutineSaveState('regular_9to5', 'shift_irregular', false))
-      .toEqual({ value: 'regular_9to5', status: 'rolled-back' })
-  })
-
-  it('keeps a successful save and reports it as confirmed', () => {
-    expect(resolveRoutineSaveState('regular_9to5', 'shift_irregular', true))
-      .toEqual({ value: 'shift_irregular', status: 'saved' })
   })
 
   it('renders the approved screen order as an inspectable contract', () => {
@@ -46,7 +31,7 @@ describe('Routine presentation', () => {
       createElement('span', null, 'Real routine settings'),
     ))
 
-    expect(html).toContain('data-routine-sections="sleep,routine-type,sensitivity,timezone-privacy"')
+    expect(html).toContain('data-routine-sections="daily-checkin,sleep,sensitivity,timezone"')
     expect(html).toContain('Real routine settings')
   })
 })

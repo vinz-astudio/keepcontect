@@ -5,6 +5,8 @@ import {
   hasPattern,
   setPattern,
   verifyPattern,
+  hasPasscode,
+  verifyPasscode,
 } from '@/features/pattern/patternStore'
 import { startAlarm, stopAlarm } from '@/features/baseline/alarm'
 import { dispatchSos } from '@/features/alerts/sosDispatch'
@@ -31,6 +33,10 @@ export function AlertOverlay() {
   const { t, lang } = useI18n()
   const { user } = useAuth()
   const uid = user?.id ?? ''
+  // 手势和数字密码是两个独立凭据,各自都能解锁。设了哪个就给哪个入口。
+  const passcodeAvailable = !!uid && hasPasscode(uid)
+  const [usePasscode, setUsePasscode] = useState(false)
+  const [passcodeInput, setPasscodeInput] = useState('')
   const { serverAlert, mode, alertHint, confirmSafe, closeOverlay } =
     useLivenessContext()
   const [error, setError] = useState<string | null>(null)
@@ -93,7 +99,7 @@ export function AlertOverlay() {
   const title = showAsAlert
     ? serverAlert?.cause === 'concern'
       ? lang === 'zh'
-        ? '有人在关心你'
+        ? '有人在关心您'
         : 'Someone is checking on you'
       : t('overlay.title')
     : mode === 'setup'
@@ -105,7 +111,7 @@ export function AlertOverlay() {
   const sub = showAsAlert
     ? serverAlert?.cause === 'concern'
       ? lang === 'zh'
-        ? '画出手势，让关心你的人知道你安好。'
+        ? '画出手势，让关心您的人知道您安好。'
         : 'Draw your pattern so they know you are OK.'
       : needSetup
         ? t('overlay.sub.setup')
@@ -165,6 +171,22 @@ export function AlertOverlay() {
       }
     } finally {
       setLockVersion((version) => version + 1)
+      setBusy(false)
+    }
+  }
+
+  async function onPasscodeSubmit() {
+    if (!uid || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      if (await verifyPasscode(uid, passcodeInput)) {
+        await confirmSafe()
+      } else {
+        setError(t('overlay.error'))
+      }
+    } finally {
+      setPasscodeInput('')
       setBusy(false)
     }
   }
@@ -247,17 +269,46 @@ export function AlertOverlay() {
         )}
         {notice && forceSetup && <p className="overlay__notice">{notice}</p>}
 
-        <PatternLock
-          key={forceSetup ? `setup-${setupStep}-${lockVersion}` : `main-${lockVersion}`}
-          onComplete={onComplete}
-          hint={
-            forceSetup
-              ? setupText.body
-              : needSetup
-                ? t('overlay.hint.setup')
-                : t('overlay.hint.verify')
-          }
-        />
+        {usePasscode && !forceSetup ? (
+          <div className="overlay__passcode">
+            <input
+              type="password"
+              inputMode="numeric"
+              autoFocus
+              value={passcodeInput}
+              disabled={busy}
+              placeholder={lang === 'zh' ? '数字密码' : 'Passcode'}
+              onChange={(event) => setPasscodeInput(event.target.value.replace(/[^0-9]/g, '').slice(0, 8))}
+              onKeyDown={(event) => { if (event.key === 'Enter') void onPasscodeSubmit() }}
+            />
+            <button type="button" className="prototype-button prototype-button--primary" disabled={busy} onClick={() => void onPasscodeSubmit()}>
+              {lang === 'zh' ? '确认' : 'Confirm'}
+            </button>
+          </div>
+        ) : (
+          <PatternLock
+            key={forceSetup ? `setup-${setupStep}-${lockVersion}` : `main-${lockVersion}`}
+            onComplete={onComplete}
+            hint={
+              forceSetup
+                ? setupText.body
+                : needSetup
+                  ? t('overlay.hint.setup')
+                  : t('overlay.hint.verify')
+            }
+          />
+        )}
+        {passcodeAvailable && !forceSetup && !needSetup && (
+          <button
+            type="button"
+            className="overlay__switch"
+            onClick={() => { setError(null); setPasscodeInput(''); setUsePasscode((on) => !on) }}
+          >
+            {usePasscode
+              ? (lang === 'zh' ? '改用手势' : 'Use pattern instead')
+              : (lang === 'zh' ? '改用数字密码' : 'Use passcode instead')}
+          </button>
+        )}
         {error && <p className="overlay__error">{error}</p>}
         {busy && <p className="overlay__busy">{t('overlay.busy')}</p>}
 

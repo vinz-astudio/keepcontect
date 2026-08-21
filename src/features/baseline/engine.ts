@@ -131,7 +131,7 @@ export function evaluate(
     }
     return {
       status: 'learning',
-      reason: '正在学习你的作息',
+      reason: '正在学习您的作息',
       currentGapMs,
       thresholdMs: coldStartMs,
     }

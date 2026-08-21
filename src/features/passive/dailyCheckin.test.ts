@@ -58,7 +58,7 @@ describe('plain-language contract', () => {
     expect(lines).toHaveLength(4)
     expect(lines[0]).toContain('09:00')
     expect(lines[0]).toContain('1 天')
-    expect(lines[1]).toContain('问你一次')
+    expect(lines[1]).toContain('问您一次')
     expect(lines[2]).toContain('点一下')
     expect(lines[3]).toContain('2 小时')
   })
@@ -69,7 +69,7 @@ describe('plain-language contract', () => {
   })
 
   it('promises the market baseline as the worst case, not silence', () => {
-    expect(describeWorstCase(true)).toContain('每天问你一次')
+    expect(describeWorstCase(true)).toContain('每天问您一次')
     expect(describeWorstCase(false)).toContain('once a day')
   })
 })

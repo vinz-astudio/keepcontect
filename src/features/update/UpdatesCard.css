@@ -1,0 +1,68 @@
+
+.updates-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* 当前设备那一行原本是卡里的一个方块。同一张卡里不再套盒子。 */
+
+
+
+
+
+
+
+
+
+
+
+
+/* 一行四级。字号和颜色各自不同,读的人不用停下来分辨哪个是哪个。 */
+.updates-card__label {
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.updates-card__label--tap {
+  all: unset;
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.updates-card__version {
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.updates-card__next {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 设备名是限定语,不是这一行的数据。加括号并压暗,让版本号独占主位。 */
+.updates-card__device-name {
+  overflow: hidden;
+  color: var(--quiet);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+/* 窄屏:设备名换行后独占一行的左侧,按钮跟在同一行的右端。 */
+
+
+/* 版本行的三段文字排在 PrototypeRow 的标题位里,所以图标列、文字起点、控件右
+   边界全部继承自它,和语言、外观两行天然对齐。 */
+.updates-card__title-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}

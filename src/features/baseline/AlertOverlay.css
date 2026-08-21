@@ -161,3 +161,35 @@
   color: var(--ok);
   font-size: 0.95rem;
 }
+
+/* 两个凭据各自都能解锁,所以解锁界面要能就地换一个,而不是逼人回设置里改。 */
+.overlay__passcode {
+  display: grid;
+  gap: 10px;
+  width: min(280px, 80vw);
+  margin: 0 auto;
+}
+
+.overlay__passcode input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 1.2rem;
+  letter-spacing: 0.35em;
+  text-align: center;
+}
+
+.overlay__switch {
+  margin-top: 14px;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}

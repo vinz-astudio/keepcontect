@@ -442,3 +442,82 @@ button.psig__import {
 }
 
 
+
+/* 这张卡现在和它上下的卡片同属一个区块,视觉语言必须一致:同样的容器、同样的
+   行距、同一个标题层级(标题由外层区块给,卡片内部不再自带一个)。 */
+.psig__card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.psig__sensors {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.psig__sensors-lead {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+/* 卡里不再套盒子。
+   每个勾选项原本是一个带边框和底色的方块,一张卡里并排五个,读起来就是五张小卡。
+   行 + 分隔线表达的是同一个分组,但只有一层容器。 */
+.psig__sensor-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.psig__sensor-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+  cursor: pointer;
+}
+
+.psig__sensor-row + .psig__sensor-row {
+  border-top: 1px solid var(--line);
+}
+
+.psig__sensor-row input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.psig__sensor-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.psig__sensor-label {
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.psig__sensor-desc {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+/* 折叠面板同理:标题行 + 分隔线,不是一个独立的方块。 */
+.psig__card .psig__panel {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.psig__card .psig__panel-header {
+  padding: 12px 0;
+  background: transparent;
+}

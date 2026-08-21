@@ -9,6 +9,19 @@
 
 BEGIN;
 
+-- One consistent snapshot for the whole file. The live-snapshot assertion below
+-- compares public.alerts, public.notifications, net.http_request_queue and the
+-- rest against a snapshot taken hundreds of statements earlier, to prove the
+-- shadow recorder writes nothing on the live alert path. Under READ COMMITTED
+-- that comparison also sees other sessions' commits: the pg_cron job that posts
+-- through pg_net commits a net.http_request_queue row every minute, and the
+-- pg_net background worker deletes it about a second later. Either commit
+-- landing between the snapshot and the comparison failed the test for a reason
+-- the recorder had no part in. REPEATABLE READ hides other transactions'
+-- commits while still showing every write this transaction makes, so the
+-- assertion keeps its full authority over the recorder.
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
 SELECT plan(67);
 
 ------------------------------------------------------------------------------

@@ -5,15 +5,16 @@ import { MeScreen } from './MeScreen'
 import { getEmergencyCapabilities, ME_SECTIONS } from './mePresentation'
 
 describe('Me presentation', () => {
-  it('uses the approved eight-section order', () => {
+  // 账户和已连接设备合并成一块:它们回答的是同一个问题(这个账号是谁,在哪几台
+  // 机器上),而且「连接新设备」本来离用户自己的操作区隔了整整一屏。
+  // 一个区块一张卡。紧急联络人和紧急地址原本是两个区块两张卡,回答的却是同一个
+  // 问题:出事的时候,别人需要知道什么。
+  it('uses the approved five-section order', () => {
     expect(ME_SECTIONS).toEqual([
       'account',
       'safety-checkin',
-      'this-device',
-      'linked-devices',
-      'emergency-contacts',
-      'emergency-addresses',
-      'emergency-gps',
+      'guardian-permissions',
+      'emergency',
       'preferences-updates',
     ])
   })
@@ -38,7 +39,7 @@ describe('Me presentation', () => {
     })
   })
 
-  it('renders all eight real feature destinations in order', () => {
+  it('renders every real feature destination in order', () => {
     const content = ME_SECTIONS.reduce<Record<string, ReturnType<typeof createElement>>>((result, key) => {
       result[key] = createElement('span', null, `${key} content`)
       return result
@@ -48,11 +49,9 @@ describe('Me presentation', () => {
       subtitle: 'Your account, this device, and crisis information.',
       account: content.account,
       safetyCheckin: content['safety-checkin'],
-      thisDevice: content['this-device'],
-      linkedDevices: content['linked-devices'],
-      emergencyContacts: content['emergency-contacts'],
-      emergencyAddresses: content['emergency-addresses'],
-      emergencyGps: content['emergency-gps'],
+      guardianPermissions: content['guardian-permissions'],
+      emergency: content.emergency,
+      emergencyGps: createElement('span', null, 'emergency gps content'),
       preferencesUpdates: content['preferences-updates'],
     }))
 

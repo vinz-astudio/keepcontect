@@ -1,5 +1,5 @@
 BEGIN;
-SELECT plan(17);
+SELECT plan(19);
 
 SELECT has_function('private','passive_surface_health_conditions',ARRAY['timestamp with time zone'],'condition derivation exists');
 SELECT has_function('private','evaluate_passive_surface_health',ARRAY['timestamp with time zone'],'health interval writer exists');
@@ -34,6 +34,14 @@ CREATE TEMP TABLE health_fixture(android uuid, pwa uuid);
 INSERT INTO health_fixture
 SELECT (public.bind_passive_collector('health-android','android_native','android-passive-evidence-v1','0.7.1')->>'binding_id')::uuid,
        (public.bind_passive_collector('health-pwa','pwa_browser','pwa-interaction-v1','0.7.1')->>'binding_id')::uuid;
+
+-- The fixture binds at `clock_timestamp()` but the whole scenario is written in
+-- fixed 2026-08-16 wall clock. Once the real calendar passed that date, the later
+-- revocation step wrote a `revoked_at` earlier than its own `bound_at` and tripped
+-- `revoked_at >= bound_at` — a test that rots, not a product fault. Anchor the
+-- binding to the scenario's own clock so it stays true on any day it is run.
+UPDATE private.passive_collector_bindings SET bound_at='2026-08-15 23:00Z'
+WHERE id IN (SELECT android FROM health_fixture UNION SELECT pwa FROM health_fixture);
 
 -- android_native cadence is 15 minutes, so silence is breached at last contact
 -- plus 30 minutes. pwa_browser has no cadence and can never be silent.

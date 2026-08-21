@@ -7,8 +7,7 @@ const tabBarCss = readFileSync('src/features/nav/TabBar.css', 'utf8')
 const appShellCss = readFileSync('src/features/shell/AppShell.css', 'utf8')
 const appShellSource = readFileSync('src/features/shell/AppShell.tsx', 'utf8')
 const html = readFileSync('index.html', 'utf8')
-const passiveSettingsCss = readFileSync('src/features/passive/PassiveCheckinSettings.css', 'utf8')
-const passiveSettingsSource = readFileSync('src/features/passive/PassiveCheckinSettings.tsx', 'utf8')
+const routineScreenCss = readFileSync('src/features/routine/RoutineScreen.css', 'utf8')
 
 function ruleBlock(source: string, prelude: string): string {
   const preludeStart = source.indexOf(prelude)
@@ -93,19 +92,25 @@ describe('iOS installed-PWA full-height regression', () => {
     expect(ruleBlock(indexCss, 'html,\nbody,\n#root')).not.toMatch(/overflow:\s*hidden;/)
   })
 
-  it('keeps passive check-in settings usable at a 320px viewport', () => {
-    // The breakpoint must reach real phones. It was pinned at 360px, which is
-    // narrower than every device this ships to — iPhone starts at 375, Android
-    // mostly sits at 393-412 — so the stacked layout never applied in the APK.
-    const breakpoint = /@media \(max-width: (\d+)px\)/.exec(passiveSettingsCss)
-    expect(breakpoint).not.toBeNull()
-    expect(Number(breakpoint![1])).toBeGreaterThanOrEqual(430)
-    expect(passiveSettingsCss).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)/)
-    expect(passiveSettingsCss).toMatch(/min-width:\s*0/)
-    expect(passiveSettingsSource).toContain('role="alert"')
-    // The screen must state, in both languages, what KC actually does. The old
-    // copy described passive evidence; the daily check-in describes the waiver.
-    expect(passiveSettingsSource).toContain('KC 每天问你一次')
-    expect(passiveSettingsSource).toContain('KC asks you once a day')
+  it('keeps the routine settings time row usable at a 320px viewport', () => {
+    // The breakpoints must reach real phones. The retired PassiveCheckinSettings
+    // sheet pinned one at 360px, narrower than every device this ships to —
+    // iPhone starts at 375, Android mostly sits at 393-412 — so the stacked
+    // layout never applied in the APK. RoutineSettings replaced that sheet, so
+    // this guards the stylesheet the shipped screen actually renders through.
+    const breakpoints = [...routineScreenCss.matchAll(/@media[^{]*max-width:\s*(\d+)px/g)]
+    expect(breakpoints.length).toBeGreaterThan(0)
+    for (const [, px] of breakpoints) {
+      expect(Number(px)).toBeGreaterThanOrEqual(430)
+    }
+    // Two columns that can actually shrink. Without minmax(0, 1fr) on the track
+    // and min-width: 0 on the input, the input's intrinsic width sets the track
+    // floor and the row overflows the viewport instead of narrowing.
+    expect(routineScreenCss).toMatch(
+      /\.routine-prototype-settings__time-row\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
+    )
+    expect(routineScreenCss).toMatch(
+      /\.routine-prototype-settings__time-row input\s*\{[^}]*min-width:\s*0/,
+    )
   })
 })

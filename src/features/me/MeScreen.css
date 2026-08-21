@@ -99,9 +99,29 @@
   background: var(--surface-2);
 }
 
+/* 每个联络人、每个地址曾经各是一个带边框的方块,和它所在的卡叠成两层。
+   分隔线已经足够把它们分开,而且只有一层容器。 */
 .emergency-info-card__item {
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--surface-1);
+  padding: 10px 0;
+}
+
+.emergency-info-card__item + .emergency-info-card__item {
+  border-top: 1px solid var(--line);
+}
+
+.me-section--preferences .prototype-row {
+  min-height: 52px;
+  padding: 10px 0;
+  border-bottom: 0;
+}
+
+.me-section--preferences .prototype-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 三行之间留出呼吸,不靠分隔线分开。 */
+.me-section--preferences .prototype-card {
+  gap: 10px;
 }

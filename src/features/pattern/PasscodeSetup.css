@@ -1,0 +1,50 @@
+.passcode-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.passcode-setup__lead {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.passcode-setup__field {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.passcode-setup__field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 1.1rem;
+  letter-spacing: 0.3em;
+}
+
+.passcode-setup__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+
+.passcode-setup__note {
+  margin: 0;
+  color: var(--quiet);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.passcode-setup__actions {
+  display: flex;
+  gap: 8px;
+}

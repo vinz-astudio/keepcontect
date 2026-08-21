@@ -6,6 +6,9 @@ import { GuardiansCard } from '@/features/guardians/GuardiansCard'
 import { RoutineSettings } from '@/features/baseline/RoutineSettings'
 import { CheckinTasksCard } from '@/features/tasks/CheckinTasksCard'
 import { listMyTasks } from '@/features/tasks/api'
+import { PasscodeSetup } from '@/features/pattern/PasscodeSetup'
+import { availableUnlockMethods } from '@/features/pattern/patternStore'
+import { GuardianPermissionsCard } from '@/features/passive/GuardianPermissionsCard'
 import { PassiveSignalCard } from '@/features/passive/PassiveSignalCard'
 import { ProtectionHealthCard } from '@/features/baseline/ProtectionHealthCard'
 import { PassivePingBoot } from '@/features/passive/PassivePingBoot'
@@ -28,7 +31,6 @@ import { toast } from '@/lib/toast'
 import { ToastHost } from '@/features/common/ToastHost'
 import { ScanSyncModal } from '@/features/auth/ScanSyncModal'
 import { supabase } from '@/lib/supabase'
-import { getPlatform } from '@/lib/platform'
 import {
   createCommunity,
   createGroup,
@@ -91,23 +93,30 @@ async function joinByInvite(inv: Invite): Promise<string> {
   return translate('invite.joined.guardian')
 }
 
+/**
+ * 账户和设备是一张卡,不是两张。
+ *
+ * 「这个账号是谁」和「它在哪几台机器上」是同一个问题的两半。拆成两张卡之后,
+ * 用户会以为那是两件要分别处理的事,而且中间那条卡片边界什么信息都不携带。
+ */
 function AccountCard({ onScan, signOut }: { onScan: () => void; signOut: () => Promise<void> }) {
   const { user } = useAuth()
   const { t, lang } = useI18n()
   return (
-    <PrototypeCard>
+    <>
       <PrototypeRow
         icon="person"
         title={<EditableName value={(user?.user_metadata?.display_name as string | undefined) ?? user?.email ?? ''} canEdit onSave={setDisplayName} />}
         subtitle={user?.email ?? ''}
       />
-      {(getPlatform() === 'android' || getPlatform() === 'ios') && (
-        <PrototypeRow
-          icon="qr_code_scanner"
-          title={lang === 'zh' ? '同步登录新设备' : 'Sync sign-in to a new device'}
-          trailing={<button type="button" className="prototype-button prototype-button--ghost" onClick={onScan}>{lang === 'zh' ? '扫描' : 'Scan'}</button>}
-        />
-      )}
+      <PrototypeRow
+        icon="qr_code_scanner"
+        title={lang === 'zh' ? '登录到另一台设备' : 'Sign in on another device'}
+        subtitle={lang === 'zh'
+          ? '用一次性二维码把这个账号登录到新设备。设备越多,KC 越不容易漏掉您的活动。'
+          : 'Use a one-time QR code to sign this account in on another device. More devices means fewer gaps in what KC can see.'}
+        trailing={<button type="button" className="prototype-button prototype-button--ghost" onClick={onScan}>{lang === 'zh' ? '扫描' : 'Scan'}</button>}
+      />
       <PrototypeDisclosure label={lang === 'zh' ? '账户操作' : 'Account actions'}>
         <div className="home-prototype__danger-actions">
           <button type="button" className="prototype-button prototype-button--ghost" onClick={() => void signOut()}>{t('header.signout')}</button>
@@ -125,35 +134,56 @@ function AccountCard({ onScan, signOut }: { onScan: () => void; signOut: () => P
           </button>
         </div>
       </PrototypeDisclosure>
-    </PrototypeCard>
+    </>
   )
 }
 
 function SafetyCheckinCard() {
   const { startSetup, startPractice } = useLivenessContext()
+  const { user } = useAuth()
   const { t, lang } = useI18n()
-  return (
-    <PrototypeCard>
-      <PrototypeRow icon="pattern" title={t('live.pattern')} subtitle={lang === 'zh' ? '用于本人安全确认与解除误报。' : 'Used to confirm you are safe and clear a false alarm.'} />
-      <div className="home-prototype__button-row">
-        <button type="button" className="prototype-button prototype-button--ghost" onClick={startSetup}>{t('live.setPattern')}</button>
-        <button type="button" className="prototype-button prototype-button--ghost" onClick={startPractice}>{t('live.practice')}</button>
-      </div>
-    </PrototypeCard>
-  )
-}
+  const zh = lang === 'zh'
+  const [settingPasscode, setSettingPasscode] = useState(false)
+  const [methods, setMethods] = useState(() =>
+    user?.id ? availableUnlockMethods(user.id) : { pattern: false, passcode: false })
 
-function LinkedDevicesCard({ onScan }: { onScan: () => void }) {
-  const { lang } = useI18n()
+  // 两者各自独立,都能解锁。所以这里报的是「设了哪些」,不是「当前是哪个」。
+  const set = [methods.pattern && (zh ? '手势' : 'Pattern'), methods.passcode && (zh ? '数字密码' : 'Passcode')]
+    .filter(Boolean) as string[]
+
   return (
-    <PrototypeCard compact>
+    <>
       <PrototypeRow
-        icon="devices"
-        title={lang === 'zh' ? '设备登录同步' : 'Device sign-in sync'}
-        subtitle={lang === 'zh' ? '当前版本可通过一次性二维码安全登录新设备；设备清单仍由后台维护。' : 'Use a one-time QR code to sign in another device. The device inventory remains backend-managed in this version.'}
-        trailing={<button type="button" className="prototype-button prototype-button--ghost" onClick={onScan}>{lang === 'zh' ? '扫描' : 'Scan'}</button>}
+        icon="lock"
+        title={t('live.pattern')}
+        subtitle={set.length === 0
+          ? (zh ? '还没有设置。用于本人安全确认与解除误报。' : 'Not set yet. Used to confirm you are safe and clear a false alarm.')
+          : (zh
+              ? `已设置:${set.join(' 和 ')}。解锁时可以任选一种。`
+              : `Set: ${set.join(' and ')}. Either one unlocks.`)}
       />
-    </PrototypeCard>
+      {settingPasscode && user?.id ? (
+        <PasscodeSetup
+          uid={user.id}
+          zh={zh}
+          onDone={() => {
+            if (user?.id) setMethods(availableUnlockMethods(user.id))
+            setSettingPasscode(false)
+          }}
+          onCancel={() => setSettingPasscode(false)}
+        />
+      ) : (
+        <div className="home-prototype__button-row">
+          <button type="button" className="prototype-button prototype-button--ghost" onClick={() => { setSettingPasscode(false); startSetup() }}>
+            {zh ? '设置手势' : 'Set pattern'}
+          </button>
+          <button type="button" className="prototype-button prototype-button--ghost" onClick={() => setSettingPasscode(true)}>
+            {methods.passcode ? (zh ? '更改数字密码' : 'Change passcode') : (zh ? '设置数字密码' : 'Set passcode')}
+          </button>
+          <button type="button" className="prototype-button prototype-button--ghost" onClick={startPractice}>{t('live.practice')}</button>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -235,7 +265,7 @@ function EmergencyGpsCard() {
   }
 
   return (
-    <PrototypeCard tone={enabled ? 'ready' : 'limited'} compact>
+    <>
       <label className="home-prototype__consent" style={{ cursor: 'pointer' }}>
         <input
           type="checkbox"
@@ -244,28 +274,32 @@ function EmergencyGpsCard() {
           onChange={(e) => void handleToggle(e.target.checked)}
         />
         <span>
-          <strong>{lang === 'zh' ? '紧急情况发生时允许调用设备 GPS' : 'Allow device GPS during an emergency'}</strong>
+          <strong>{lang === 'zh' ? '紧急定位' : 'Emergency location'}</strong>
+          {/* 和这一块其他权限一样写后果:少了它,来找您的人不知道去哪里找。
+              「勾选即可发起设备定位权限申请」说的是系统流程,不是用户关心的事。 */}
           <small>
             {enabled
-              ? (lang === 'zh' ? '已授权设备 GPS · 仅在触发紧急告警时由安全机制调取物理坐标。' : 'Device GPS authorized · coordinates accessed only upon emergency alert trigger.')
-              : (lang === 'zh' ? '勾选即可发起设备定位权限申请，授权后仅在危机发生时附带物理位置。' : 'Check to grant device location permission for emergency situations.')}
+              ? (lang === 'zh'
+                  ? '开启。位置只在告警真正发生时读取一次,平时不记录,也不追踪行程。'
+                  : 'On. Your location is read once, only when an alert actually fires. Nothing is recorded or tracked otherwise.')
+              : (lang === 'zh'
+                  ? '未开启。出事时,来找您的人不知道该去哪里找。'
+                  : 'Off. If something happens, the people coming for you will not know where to look.')}
           </small>
         </span>
       </label>
-    </PrototypeCard>
+    </>
   )
 }
 
 function PreferencesCard({ isGm }: { isGm: boolean }) {
   const { lang } = useI18n()
   return (
-    <div className="home-prototype__stack">
-      <PrototypeCard compact>
-        <PrototypeRow icon="language" title={lang === 'zh' ? '语言' : 'Language'} trailing={<LangToggle className="prototype-button prototype-button--ghost" />} />
-        <PrototypeRow icon="contrast" title={lang === 'zh' ? '外观' : 'Appearance'} trailing={<ThemeToggle className="prototype-button prototype-button--ghost" />} />
-      </PrototypeCard>
+    <>
+      <PrototypeRow icon="language" title={lang === 'zh' ? '语言' : 'Language'} trailing={<LangToggle className="prototype-button prototype-button--ghost" />} />
+      <PrototypeRow icon="contrast" title={lang === 'zh' ? '外观' : 'Appearance'} trailing={<ThemeToggle className="prototype-button prototype-button--ghost" />} />
       <UpdatesCard isGm={isGm} />
-    </div>
+    </>
   )
 }
 
@@ -455,7 +489,7 @@ export function HomeScreen() {
           <PrototypeDisclosure label={lang === 'zh' ? '谁能看到什么' : 'Who can see what'}>
             <p className="home-prototype__privacy-text">
               {lang === 'zh'
-                ? '社群响应者只能看到分配给他们的告警和最低必要的处理信息。日常活动和作息时间戳只保留在你的关照圈内。'
+                ? '社群响应者只能看到分配给他们的告警和最低必要的处理信息。日常活动和作息时间戳只保留在您的关照圈内。'
                 : 'Community responders see an assigned alert and the minimum information needed to act. Routine evidence stays inside your Circle.'}
             </p>
           </PrototypeDisclosure>
@@ -498,7 +532,7 @@ export function HomeScreen() {
             icon="groups"
             title={<EditableName value={group.name} canEdit={group.created_by === user?.id} onSave={async (name) => { await renameGroup(group.id, name); await refresh() }} />}
             subtitle={lang === 'zh'
-              ? `${role === 'admin' ? '管理员 · ' : ''}${monitored && watching ? '双向关照 · 时间戳共享' : monitored ? '对方关照你' : watching ? '你关照对方' : '单向'}`
+              ? `${role === 'admin' ? '管理员 · ' : ''}${monitored && watching ? '双向关照 · 时间戳共享' : monitored ? '对方关照您' : watching ? '您关照对方' : '单向'}`
               : `${role === 'admin' ? 'Admin · ' : ''}${monitored && watching ? 'Reciprocal care' : 'One-way care'}`
             }
             trailing={<PrototypeBadge tone={monitored && watching ? 'ready' : 'limited'}>{monitored && watching ? (lang === 'zh' ? '双向' : 'Reciprocal') : (lang === 'zh' ? '单向' : 'One-way')}</PrototypeBadge>}
@@ -568,7 +602,7 @@ export function HomeScreen() {
       labels={{ gm: lang === 'zh' ? '管理员工具' : 'Manager tools', notifications: lang === 'zh' ? '通知' : 'Notifications', people: lang === 'zh' ? '大家的状态' : "Everyone's status", alert: lang === 'zh' ? '需要处理' : 'Needs action' }}
     />
   ) : activeTab === 'routine' ? (
-    <RoutineScreen title={lang === 'zh' ? '日常与节奏' : 'Routine & rhythm'} subtitle={lang === 'zh' ? '调整系统如何理解你的正常生活。' : 'Tune how Keep Contact understands your normal day.'}><RoutineSettings /></RoutineScreen>
+    <RoutineScreen title={lang === 'zh' ? '日常与节奏' : 'Routine & rhythm'} subtitle={lang === 'zh' ? '调整系统如何理解您的正常生活。' : 'Tune how Keep Contact understands your normal day.'}><RoutineSettings /></RoutineScreen>
   ) : activeTab === 'circles' ? (
     <CirclesScreen
       title={lang === 'zh' ? '关照圈' : 'Circles'}
@@ -587,13 +621,11 @@ export function HomeScreen() {
       subtitle={lang === 'zh' ? '账户、设备与紧急资料都在这里。' : 'Your account, devices, and emergency information.'}
       account={<AccountCard onScan={() => setIsScanning(true)} signOut={signOut} />}
       safetyCheckin={<SafetyCheckinCard />}
-      thisDevice={<PassiveSignalCard />}
-      linkedDevices={<LinkedDevicesCard onScan={() => setIsScanning(true)} />}
-      emergencyContacts={<EmergencyInfoCard section="contact" />}
-      emergencyAddresses={<EmergencyInfoCard section="address" />}
+      guardianPermissions={<><GuardianPermissionsCard /><PassiveSignalCard /></>}
+      emergency={<EmergencyInfoCard section="all" />}
       emergencyGps={<EmergencyGpsCard />}
       preferencesUpdates={<PreferencesCard isGm={isGm} />}
-      labels={{ account: lang === 'zh' ? '账户' : 'Account', safetyCheckin: lang === 'zh' ? '安全确认' : 'Safety check-in', thisDevice: lang === 'zh' ? '这台设备' : 'This device', linkedDevices: lang === 'zh' ? '已连接设备' : 'Linked devices', emergencyContacts: lang === 'zh' ? '紧急联络人' : 'Emergency contacts', emergencyAddresses: lang === 'zh' ? '紧急地址与医疗备注' : 'Emergency address & medical notes', emergencyGps: lang === 'zh' ? '紧急 GPS' : 'Emergency GPS', preferencesUpdates: lang === 'zh' ? '偏好与更新' : 'Preferences & updates' }}
+      labels={{ account: lang === 'zh' ? '账户与设备' : 'Account & devices', safetyCheckin: lang === 'zh' ? '安全确认' : 'Safety check-in', guardianPermissions: lang === 'zh' ? '守护权限与设置' : 'Guardian permissions', emergency: lang === 'zh' ? '紧急资料' : 'Emergency information', preferencesUpdates: lang === 'zh' ? '偏好与更新' : 'Preferences & updates' }}
     />
   )
 

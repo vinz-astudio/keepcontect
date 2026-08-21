@@ -1,15 +1,12 @@
 import type { ReactNode } from 'react'
-import { PrototypeSection } from '@/features/prototype/PrototypeUI'
+import { PrototypeCard, PrototypeSection } from '@/features/prototype/PrototypeUI'
 import './MeScreen.css'
 
 type MeLabelKey =
   | 'account'
   | 'safetyCheckin'
-  | 'thisDevice'
-  | 'linkedDevices'
-  | 'emergencyContacts'
-  | 'emergencyAddresses'
-  | 'emergencyGps'
+  | 'guardianPermissions'
+  | 'emergency'
   | 'preferencesUpdates'
 
 export function MeScreen({
@@ -17,10 +14,8 @@ export function MeScreen({
   subtitle,
   account,
   safetyCheckin,
-  thisDevice,
-  linkedDevices,
-  emergencyContacts,
-  emergencyAddresses,
+  guardianPermissions,
+  emergency,
   emergencyGps,
   preferencesUpdates,
   labels,
@@ -29,28 +24,40 @@ export function MeScreen({
   subtitle: string
   account: ReactNode
   safetyCheckin: ReactNode
-  thisDevice: ReactNode
-  linkedDevices: ReactNode
-  emergencyContacts: ReactNode
-  emergencyAddresses: ReactNode
+  guardianPermissions: ReactNode
+  emergency: ReactNode
   emergencyGps: ReactNode
   preferencesUpdates: ReactNode
   labels?: Partial<Record<MeLabelKey, string>>
 }) {
   return (
-    <div className="me-screen" data-me-sections="account,safety-checkin,this-device,linked-devices,emergency-contacts,emergency-addresses,emergency-gps,preferences-updates">
+    <div className="me-screen" data-me-sections="account,safety-checkin,guardian-permissions,emergency,preferences-updates">
       <header className="me-screen__heading">
         <h1>{title}</h1>
         <p>{subtitle}</p>
       </header>
-      <PrototypeSection title={labels?.account ?? 'Account'}>{account}</PrototypeSection>
-      <PrototypeSection title={labels?.safetyCheckin ?? 'Safety Check-in'}>{safetyCheckin}</PrototypeSection>
-      <PrototypeSection title={labels?.thisDevice ?? 'This Device'}>{thisDevice}</PrototypeSection>
-      <PrototypeSection title={labels?.linkedDevices ?? 'Linked Devices'}>{linkedDevices}</PrototypeSection>
-      <PrototypeSection title={labels?.emergencyContacts ?? 'Emergency Contacts'}>{emergencyContacts}</PrototypeSection>
-      <PrototypeSection title={labels?.emergencyAddresses ?? 'Emergency Addresses'}>{emergencyAddresses}</PrototypeSection>
-      <PrototypeSection title={labels?.emergencyGps ?? 'Emergency GPS'}>{emergencyGps}</PrototypeSection>
-      <PrototypeSection title={labels?.preferencesUpdates ?? 'Preferences & Updates'}>{preferencesUpdates}</PrototypeSection>
+      {/* 一个区块 = 一张卡。区块标题已经说明了这一块回答什么问题,内部再分卡
+          只会让人以为那是几件要分别处理的事。 */}
+      <PrototypeSection title={labels?.account ?? 'Account'}>
+        <PrototypeCard>{account}</PrototypeCard>
+      </PrototypeSection>
+      <PrototypeSection title={labels?.safetyCheckin ?? 'Safety Check-in'}>
+        <PrototypeCard>{safetyCheckin}</PrototypeCard>
+      </PrototypeSection>
+      <PrototypeSection title={labels?.guardianPermissions ?? 'Guardian permissions'}>
+        <PrototypeCard>
+          {guardianPermissions}
+          {emergencyGps}
+        </PrototypeCard>
+      </PrototypeSection>
+      <PrototypeSection title={labels?.emergency ?? 'Emergency information'}>
+        <PrototypeCard>{emergency}</PrototypeCard>
+      </PrototypeSection>
+      {/* 语言、外观这类两三行的开关不需要分隔线。分隔线是给密集或多行内容用的,
+          放在几行短开关之间只是把它们挤在一起。 */}
+      <PrototypeSection title={labels?.preferencesUpdates ?? 'Preferences & Updates'} className="me-section--preferences">
+        <PrototypeCard>{preferencesUpdates}</PrototypeCard>
+      </PrototypeSection>
     </div>
   )
 }
