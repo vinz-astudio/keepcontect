@@ -64,7 +64,8 @@ SELECT is((SELECT count(*)::integer FROM public.passive_monitoring_epochs WHERE 
 SELECT is((SELECT start_reason FROM public.passive_monitoring_epochs WHERE user_id='73000000-0000-4000-8000-000000000001' AND ended_at IS NULL),'explicit_resolution','explicit answer starts a fresh epoch');
 SELECT is((SELECT ordinal::integer FROM public.passive_checkin_windows w JOIN public.passive_checkin_accounts a ON a.active_epoch_id=w.epoch_id WHERE a.user_id='73000000-0000-4000-8000-000000000001'),0,'resolution starts a fresh first window');
 
--- A boundary event belongs to the next half-open window.
+-- A report at the window's end belongs to that window, because the end is a
+-- rolling deadline rather than a grid boundary: the report moves it.
 SELECT set_config('request.jwt.claim.sub','73000000-0000-4000-8000-000000000002',true);
 SELECT public.set_passive_checkin_contract(20,2,'none',NULL,NULL,NULL,'shadow','passive-checkin-v1');
 UPDATE public.passive_monitoring_epochs SET started_at=clock_timestamp()-interval '20 minutes'
@@ -74,7 +75,7 @@ WHERE user_id='73000000-0000-4000-8000-000000000002';
 CREATE TEMP TABLE boundary_binding(id uuid);
 INSERT INTO boundary_binding SELECT (public.bind_passive_collector('boundary-pwa','pwa_browser','pwa-interaction-v1','0.7.0')->>'binding_id')::uuid;
 SELECT is(public.record_authenticated_passive_evidence((SELECT id FROM boundary_binding),'73000000-0000-4000-8000-000000000201',0,clock_timestamp(),'direct_device_use','passive-qualification-v1',NULL,'{"interaction":true}'),'inserted','boundary evidence is accepted');
-SELECT is((SELECT w.ordinal::integer FROM private.passive_evidence_events e JOIN public.passive_checkin_windows w ON w.id=e.window_id WHERE e.event_id='73000000-0000-4000-8000-000000000201'),1,'evidence at window end belongs to the next window');
+SELECT is((SELECT w.ordinal::integer FROM private.passive_evidence_events e JOIN public.passive_checkin_windows w ON w.id=e.window_id WHERE e.event_id='73000000-0000-4000-8000-000000000201'),0,'evidence at the window end extends that window rather than opening the next');
 SELECT is((SELECT count(*)::integer FROM public.alerts WHERE user_id='73000000-0000-4000-8000-000000000002'),0,'shadow evaluation has no alert side effect');
 
 -- Sleep counts misses but defers the alert through post-wake grace.

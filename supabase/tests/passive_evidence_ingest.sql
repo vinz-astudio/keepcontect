@@ -101,7 +101,13 @@ SELECT is(public.record_passive_evidence_with_credential(
  'direct_device_use','passive-qualification-v1','unlock-1','{"interaction":true}',NULL,NULL,false
 ),'inserted','qualified current evidence is inserted');
 SELECT is((SELECT count(*)::integer FROM private.passive_evidence_events WHERE user_id='72000000-0000-4000-8000-000000000001'),2,'each qualified assertion stores one normalized event');
-SELECT ok(EXISTS(SELECT 1 FROM public.passive_checkin_windows WHERE user_id='72000000-0000-4000-8000-000000000001' AND outcome='checked_in'),'qualified evidence checks in its window');
+-- Ingest binds evidence to the live window and leaves it open. Under a rolling
+-- deadline a report EXTENDS the window rather than ending it, so that the next
+-- report keeps pushing the same deadline out; only the evaluator may finalize.
+SELECT ok((SELECT outcome='pending' FROM public.passive_checkin_windows AS live
+  WHERE live.id=(SELECT window_id FROM private.passive_evidence_events
+    WHERE user_id='72000000-0000-4000-8000-000000000001' ORDER BY observed_at DESC, id DESC LIMIT 1)),
+  'qualified evidence extends its live window instead of closing it');
 SELECT is(public.record_passive_evidence_with_credential(
  (SELECT binding_id FROM evidence_fixture),(SELECT credential FROM evidence_fixture),
  '72000000-0000-4000-8000-000000000101',7,(SELECT observed_at FROM evidence_time),

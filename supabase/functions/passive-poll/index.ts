@@ -15,7 +15,9 @@
 // What this function does NOT do is decide anything. It only knocks. Whether
 // silence means trouble is `process_escalations`' judgement, and a device that
 // never answers must still be treated as unusual — that authority stays in the
-// database, not here.
+// database, not here. It does not choose WHO to knock either: `passive_knock_targets`
+// names the subjects whose deadline is close, so a subject who reported recently
+// is never disturbed.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -156,6 +158,23 @@ async function knock(
 }
 
 Deno.serve(async () => {
+  // Ask who is due BEFORE anything expensive. Now that the knock is targeted,
+  // most runs have nobody to wake, and minting a Google OAuth token every cycle
+  // for an empty list is both waste and an avoidable rate-limit risk.
+  const { data: targets, error: targetError } = await supabase.rpc('passive_knock_targets')
+  if (targetError) {
+    return new Response(JSON.stringify({ ok: false, reason: 'target query failed' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+  const dueSubjects = (targets ?? []) as { user_id: string; window_id: string }[]
+  if (!dueSubjects.length) {
+    return new Response(JSON.stringify({ ok: true, knocked: 0, subjects: 0 }), {
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
   const sa = await getServiceAccount()
   if (!sa) {
     return new Response(JSON.stringify({ ok: false, reason: 'no service account' }), {
@@ -171,29 +190,49 @@ Deno.serve(async () => {
     })
   }
 
-  const { data: tokens, error } = await supabase
-    .from('push_tokens')
-    .select('token')
-    .eq('platform', 'ios')
-
-  if (error) {
-    return new Response(JSON.stringify({ ok: false, reason: 'query failed' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-  if (!tokens?.length) {
-    return new Response(JSON.stringify({ ok: true, knocked: 0 }), {
-      headers: { 'Content-Type': 'application/json' },
-    })
+  // `.in()` travels as a query string. After an outage a great many deadlines fall
+  // due at once, and one list of every subject would exceed the URL the server
+  // accepts — which would fail exactly when the knock matters most.
+  const bySubject = new Map<string, string[]>()
+  for (let from = 0; from < dueSubjects.length; from += 100) {
+    const chunk = dueSubjects.slice(from, from + 100).map((subject) => subject.user_id)
+    const { data: tokens, error } = await supabase
+      .from('push_tokens')
+      .select('token, user_id')
+      .eq('platform', 'ios')
+      .in('user_id', chunk)
+    if (error) {
+      return new Response(JSON.stringify({ ok: false, reason: 'query failed' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    for (const row of tokens ?? []) {
+      const owner = row.user_id as string
+      bySubject.set(owner, [...(bySubject.get(owner) ?? []), row.token as string])
+    }
   }
 
   let knocked = 0
   const dead: string[] = []
-  for (const row of tokens) {
-    const result = await knock(sa, token, row.token as string)
-    if (result === 'sent') knocked++
-    if (result === 'dead') dead.push(row.token as string)
+  for (const subject of dueSubjects) {
+    let reached = 0
+    for (const deviceToken of bySubject.get(subject.user_id) ?? []) {
+      const result = await knock(sa, token, deviceToken)
+      if (result === 'sent') {
+        knocked++
+        reached++
+      }
+      if (result === 'dead') dead.push(deviceToken)
+    }
+    // Recorded even when nothing was reached. Zero surfaces is what tells the
+    // health writer that this subject has no way to answer, which is a fact about
+    // the equipment rather than about the person.
+    await supabase.rpc('record_passive_knock', {
+      _user_id: subject.user_id,
+      _window_id: subject.window_id,
+      _surfaces: reached,
+    })
   }
 
   // A token FCM calls unregistered belongs to an app that was deleted or
@@ -202,7 +241,8 @@ Deno.serve(async () => {
     await supabase.from('push_tokens').delete().in('token', dead)
   }
 
-  return new Response(JSON.stringify({ ok: true, knocked, dead: dead.length }), {
-    headers: { 'Content-Type': 'application/json' },
-  })
+  return new Response(
+    JSON.stringify({ ok: true, knocked, subjects: dueSubjects.length, dead: dead.length }),
+    { headers: { 'Content-Type': 'application/json' } },
+  )
 })
