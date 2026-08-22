@@ -104,6 +104,51 @@ describe('launchUpdate', () => {
     expect(openWindow).not.toHaveBeenCalled()
   })
 
+  it('reloads or opens TestFlight on iOS Native and never downloads APK', async () => {
+    const openExternalBrowser = vi.fn().mockResolvedValue(undefined)
+    const openCapacitorBrowser = vi.fn()
+    const reload = vi.fn()
+
+    // Without custom iOS URL, iOS native reloads rather than downloading APK
+    await launchUpdate(
+      { apkUrl: 'https://example.com/app.apk' },
+      {
+        isTauri: () => false,
+        isNativePlatform: () => true,
+        getNativePlatform: () => 'ios',
+        getTauriInternals: () => null,
+        openExternalBrowser,
+        openCapacitorBrowser,
+        openWindow: vi.fn(),
+        reload,
+      },
+    )
+
+    expect(openExternalBrowser).toHaveBeenCalledWith('https://testflight.apple.com')
+    expect(openCapacitorBrowser).not.toHaveBeenCalled()
+    expect(reload).not.toHaveBeenCalled()
+
+
+
+    // With custom iOS URL, opens iOS URL
+    const openIosExternal = vi.fn().mockResolvedValue(undefined)
+    await launchUpdate(
+      { apkUrl: 'https://example.com/app.apk', iosUrl: 'https://testflight.apple.com/join/xyz' },
+      {
+        isTauri: () => false,
+        isNativePlatform: () => true,
+        getNativePlatform: () => 'ios',
+        getTauriInternals: () => null,
+        openExternalBrowser: openIosExternal,
+        openCapacitorBrowser: vi.fn(),
+        openWindow: vi.fn(),
+        reload: vi.fn(),
+      },
+    )
+
+    expect(openIosExternal).toHaveBeenCalledWith('https://testflight.apple.com/join/xyz')
+  })
+
   it('reloads the web app when no native installer is needed', async () => {
     const reload = vi.fn()
 

@@ -15,6 +15,7 @@ export interface LatestInfo {
   version: string
   apkUrl?: string
   exeUrl?: string
+  iosUrl?: string
   status?: Exclude<VersionChannel, 'public'>
   publicRollout?: boolean
 }
@@ -26,6 +27,7 @@ export interface FetchLatestOptions {
 interface DbVersionRow extends VersionRecord {
   apk_url?: string | null
   exe_url?: string | null
+  ios_url?: string | null
 }
 
 const NOTIFIED_DAY_KEY = 'kc.update.notifiedDay'
@@ -36,10 +38,12 @@ function toLatestInfo(row: DbVersionRow): LatestInfo {
     version: row.version,
     apkUrl: row.apk_url || undefined,
     exeUrl: row.exe_url || undefined,
+    iosUrl: row.ios_url || undefined,
     status: row.status ?? 'released',
     publicRollout: row.public_rollout === true,
   }
 }
+
 
 export async function fetchLatest(options: FetchLatestOptions = {}): Promise<LatestInfo | null> {
   const channel = options.channel ?? 'released'
@@ -49,7 +53,7 @@ export async function fetchLatest(options: FetchLatestOptions = {}): Promise<Lat
     if (u?.user) {
       let query = (supabase as any)
         .from('app_versions')
-        .select('version, apk_url, exe_url, status, public_rollout, created_at')
+        .select('version, apk_url, exe_url, ios_url, status, public_rollout, created_at')
         .order('created_at', { ascending: false })
         .limit(DB_VERSION_LIMIT)
 
@@ -76,9 +80,16 @@ export async function fetchLatest(options: FetchLatestOptions = {}): Promise<Lat
     if (!r.ok) return null
     const j = (await r.json()) as Partial<LatestInfo>
     if (typeof j.version === 'string') {
-      return { version: j.version, apkUrl: j.apkUrl, exeUrl: j.exeUrl, status: 'released' }
+      return {
+        version: j.version,
+        apkUrl: j.apkUrl,
+        exeUrl: j.exeUrl,
+        iosUrl: j.iosUrl || 'https://testflight.apple.com',
+        status: 'released',
+      }
     }
   } catch {
+
     // Offline, CORS, preview, and shell cases should not interrupt app use.
   }
   return null

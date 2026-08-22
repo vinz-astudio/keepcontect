@@ -24,8 +24,9 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
   const [updStatus, setUpdStatus] = useState<'idle' | 'checking' | 'checked'>('idle')
   const [hasNewUpdate, setHasNewUpdate] = useState(false)
   const [newVersion, setNewVersion] = useState('')
-  const [updateUrls, setUpdateUrls] = useState<{ apkUrl?: string; exeUrl?: string }>({})
+  const [updateUrls, setUpdateUrls] = useState<{ apkUrl?: string; exeUrl?: string; iosUrl?: string }>({})
   const [progress, setProgress] = useState<number | null>(null)
+
 
   useEffect(() => {
     let unlisten: (() => void) | null = null
@@ -53,14 +54,21 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
     return Capacitor.getPlatform() === 'android' ? 'native' : 'web'
   })()
 
+  const ios = (() => {
+    if (getPlatform() !== 'ios') return null
+    return Capacitor.getPlatform() === 'ios' ? 'native' : 'web'
+  })()
+
   const getDeviceLabel = () => {
     const platform = getPlatform()
     if (isTauri()) return lang === 'zh' ? 'Windows 桌面客户端' : 'Windows Desktop App'
     if (android === 'native') return lang === 'zh' ? 'Android 原生客户端' : 'Android Native App'
+    if (ios === 'native') return lang === 'zh' ? 'iOS 原生客户端 (TestFlight)' : 'iOS Native App (TestFlight)'
     if (platform === 'ios') return lang === 'zh' ? 'iOS 网页/快捷指令' : 'iOS Web/Shortcuts'
     if (platform === 'android') return lang === 'zh' ? 'Android 网页版' : 'Android Web PWA'
     return lang === 'zh' ? '网页版' : 'Web Browser'
   }
+
 
   async function handleCheckUpdate() {
     setUpdStatus('checking')
@@ -81,7 +89,7 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
             ? desktopOfferedVersion(latest.exeUrl) ?? latest.version
             : latest.version,
         )
-        setUpdateUrls({ apkUrl: latest.apkUrl, exeUrl: latest.exeUrl })
+        setUpdateUrls({ apkUrl: latest.apkUrl, exeUrl: latest.exeUrl, iosUrl: latest.iosUrl })
       } else {
         setHasNewUpdate(false)
         setNewVersion('')
@@ -182,11 +190,14 @@ export function UpdatesCard({ isGm = false, onVersionTap }: UpdatesCardProps) {
               onClick={() => void handleTriggerUpdate()}
             >
               {updBusy
-                ? (lang === 'zh' ? '安装中...' : 'Installing...')
-                : (isTauri()
-                  ? (lang === 'zh' ? '立即更新' : 'Update')
-                  : (lang === 'zh' ? '下载更新' : 'Download'))}
+                ? (lang === 'zh' ? '处理中...' : 'Processing...')
+                : (ios === 'native'
+                  ? (lang === 'zh' ? '前往 TestFlight' : 'Open TestFlight')
+                  : isTauri()
+                    ? (lang === 'zh' ? '立即更新' : 'Update')
+                    : (lang === 'zh' ? '下载更新' : 'Download'))}
             </button>
+
           ) : (
             <button
               className="share"

@@ -1,12 +1,26 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { deleteMyAccount } from '@/features/profile/profileApi'
 import './Legal.css'
 
 export function AccountDeletion() {
   const [email, setEmail] = useState('')
-  const [submitted, setSubmitted] = useState(false)
+  const [confirmPhrase, setConfirmPhrase] = useState('')
+  const [sessionUser, setSessionUser] = useState<string | null>(null)
+  const [submittedType, setSubmittedType] = useState<'deleted' | 'sent_link' | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setSessionUser(session.user.email ?? session.user.id)
+        if (session.user.email) setEmail(session.user.email)
+      }
+    })
+  }, [])
+
+  const isLoggedInAsTarget = Boolean(sessionUser && sessionUser === email)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -14,12 +28,39 @@ export function AccountDeletion() {
       setError('Please enter a valid email address / 请输入有效的电子邮箱')
       return
     }
+    if (isLoggedInAsTarget && confirmPhrase !== 'DELETE') {
+      setError('Please type exact "DELETE" to confirm permanent deletion / 请输入完全匹配的 "DELETE" 以确认注销')
+      return
+    }
+
+
+
     setLoading(true)
     setError(null)
     try {
-      // Execute sign out / delete request trigger
-      await supabase.auth.signOut()
-      setSubmitted(true)
+      const { data: { session } } = await supabase.auth.getSession()
+      const isFreshLoggedInAsTarget = Boolean(session?.user && session.user.email === email)
+      if (isFreshLoggedInAsTarget) {
+        if (confirmPhrase !== 'DELETE') {
+          setError('Please type exact "DELETE" to confirm permanent deletion / 请输入完全匹配的 "DELETE" 以确认注销')
+          setLoading(false)
+          return
+        }
+        await deleteMyAccount()
+        setSubmittedType('deleted')
+      } else {
+
+        // If not logged in as this email, send sign-in link with shouldCreateUser: false to prove ownership
+        const { error: otpErr } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            shouldCreateUser: false,
+            emailRedirectTo: window.location.href,
+          },
+        })
+        if (otpErr) throw otpErr
+        setSubmittedType('sent_link')
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to submit request / 提交失败')
     } finally {
@@ -55,16 +96,29 @@ export function AccountDeletion() {
 
       <section className="legal-section">
         <h2>Submit Deletion Request / 提交注销申请</h2>
-        {submitted ? (
+        {submittedType === 'deleted' ? (
           <div className="legal-box" style={{ background: 'var(--ok-soft)', borderColor: 'var(--ok)' }}>
-            <strong style={{ color: 'var(--ok)' }}>Request Received / 申请已接收</strong>
+            <strong style={{ color: 'var(--ok)' }}>Account Deleted / 账号已永久注销</strong>
             <p style={{ margin: '0.5rem 0 0' }}>
-              Your account deletion request has been registered. Associated active sessions have been invalidated and your data will be permanently wiped.
-              您的注销申请已接收，关联会话已失效，数据擦除流程正在处理中。
+              Your account and all associated emergency contacts and passive signal data have been permanently wiped.
+              您的账号及所有关联紧急联系人与被动信号数据已彻底销毁。
+            </p>
+          </div>
+        ) : submittedType === 'sent_link' ? (
+          <div className="legal-box" style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)' }}>
+            <strong style={{ color: 'var(--fg)' }}>Verification Email Sent / 验证邮件已发送</strong>
+            <p style={{ margin: '0.5rem 0 0' }}>
+              A confirmation sign-in link has been sent to {email}. Please click the link in your email to authenticate and confirm permanent account deletion.
+              确认邮件已发送至 {email}。请点击邮件中的链接登录以验证账号所有权并确认永久注销。
             </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="legal-box" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {sessionUser && (
+              <div style={{ fontSize: '0.88rem', opacity: 0.8 }}>
+                Logged in as / 当前登录身份: <strong>{sessionUser}</strong>
+              </div>
+            )}
             {error && <div style={{ color: 'var(--danger)', fontSize: '0.88rem' }}>{error}</div>}
             <label style={{ fontSize: '0.9rem', color: 'var(--fg)' }}>
               Registered Email Address / 注册电子邮箱:
@@ -87,17 +141,50 @@ export function AccountDeletion() {
                 }}
               />
             </label>
+
+            {isLoggedInAsTarget && (
+              <label style={{ fontSize: '0.9rem', color: 'var(--fg)' }}>
+                Type <strong>DELETE</strong> to confirm / 输入 <strong>DELETE</strong> 以确认永久注销:
+                <input
+                  type="text"
+                  value={confirmPhrase}
+                  onChange={(e) => setConfirmPhrase(e.target.value)}
+                  placeholder="DELETE"
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.8rem',
+                    marginTop: '0.4rem',
+                    fontSize: '0.95rem',
+                    background: 'var(--bg)',
+                    color: 'var(--fg)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--r-sm)',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </label>
+            )}
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (isLoggedInAsTarget && confirmPhrase !== 'DELETE')}
               className="legal-btn legal-btn--danger"
               style={{ alignSelf: 'flex-start' }}
             >
-              {loading ? 'Processing... / 处理中...' : 'Confirm Account Deletion / 确认注销账号'}
+
+
+              {loading
+                ? 'Processing... / 处理中...'
+                : isLoggedInAsTarget
+                  ? 'Permanently Delete Account / 永久注销此账号'
+                  : 'Send Verification Link / 发送验证链接'}
             </button>
           </form>
         )}
       </section>
+
+
 
       <footer className="legal-footer">
         <div>© 2026 Keep Contact. All rights reserved.</div>

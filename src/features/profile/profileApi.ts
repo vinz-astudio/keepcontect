@@ -52,31 +52,33 @@ export async function updateRoutineProfile(updates: Partial<RoutineProfile>): Pr
 }
 
 /**
- * 注销本人账号并清空个人数据，符合 Google Play Data Deletion 政策。
+ * 注销本人账号并清空个人数据，符合 Google Play Data Deletion 与 Apple App Store 5.1.1(v) 政策。
+ * 遵循 Fail-Closed 原则：服务端删除失败立即抛出异常，绝不吞错假冒登出。
  */
 export async function deleteMyAccount(): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
-  const uid = user.id
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('未检测到有效登录会话')
 
-  try {
-    // 1. 删除业务与关联层数据
-    await supabase.from('profiles').delete().eq('id', uid)
-    await (supabase.from('user_settings').delete().eq('user_id', uid) as any)
-    await (supabase.from('user_activity_profiles').delete().eq('user_id', uid) as any)
-    await (supabase.from('device_state').delete().eq('user_id', uid) as any)
-  } catch (err) {
-    console.error('Failed to clear server account records:', err)
+  // 1. 调用服务端 delete-account Edge Function
+  const { data, error: fnError } = await supabase.functions.invoke('delete-account')
+  if (fnError) {
+    throw new Error(fnError.message || '账户注销服务调用失败')
+  }
+  if (!data?.ok) {
+    throw new Error(data?.error || '服务端数据销毁失败')
   }
 
-  // 2. 清理本地所有存储 Key
+  // 2. 清理本地所有存储 Key (Fail-Closed: 严禁吞错)
   try {
     localStorage.clear()
-  } catch {
-    /* ignore */
+  } catch (lsErr: any) {
+    throw new Error(`本地存储清理失败: ${lsErr?.message || String(lsErr)}`)
   }
 
-  // 3. 安全登出
+  // 3. 清理 IndexedDB 信号数据 (Fail-Closed)
+  const { clearLocalSignalStore } = await import('@/features/signals/store')
+  await clearLocalSignalStore()
+
+  // 4. 安全登出
   await supabase.auth.signOut()
 }
-

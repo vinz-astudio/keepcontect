@@ -59,4 +59,23 @@ describe('relationship api', () => {
 
     await expect(leaveGroup('group-1')).rejects.toThrow(/already left/i)
   })
+
+  it('checks guardian status requiring active status in guardianships', async () => {
+    const { checkIsGuardian } = await import('@/features/relationships/api')
+
+    // Self check returns true immediately
+    expect(await checkIsGuardian('user-1')).toBe(true)
+
+    // Active status query
+    const guardianQuery = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'g-1' }, error: null }),
+    }
+    from.mockReturnValue(guardianQuery)
+
+    const isGuardian = await checkIsGuardian('ward-1')
+    expect(isGuardian).toBe(true)
+    expect(guardianQuery.eq).toHaveBeenCalledWith('status', 'active')
+  })
 })

@@ -28,6 +28,7 @@ import { GMScreen } from '@/features/gm/GMScreen'
 import { UpdatesCard } from '@/features/update/UpdatesCard'
 import { amIGm } from '@/features/gm/gmApi'
 import { toast } from '@/lib/toast'
+import { importKey, encryptText } from '@/lib/crypto'
 import { ToastHost } from '@/features/common/ToastHost'
 import { ScanSyncModal } from '@/features/auth/ScanSyncModal'
 import { supabase } from '@/lib/supabase'
@@ -99,9 +100,15 @@ async function joinByInvite(inv: Invite): Promise<string> {
  * 「这个账号是谁」和「它在哪几台机器上」是同一个问题的两半。拆成两张卡之后,
  * 用户会以为那是两件要分别处理的事,而且中间那条卡片边界什么信息都不携带。
  */
-function AccountCard({ onScan, signOut }: { onScan: () => void; signOut: () => Promise<void> }) {
-  const { user } = useAuth()
+function AccountCard({ onScan, signOut: propSignOut }: { onScan: () => void; signOut?: () => Promise<void> }) {
+  const { user, signOut: authSignOut } = useAuth()
+  const signOut = propSignOut ?? authSignOut
   const { t, lang } = useI18n()
+  const [confirming, setConfirming] = useState(false)
+  const [typedPhrase, setTypedPhrase] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+
   return (
     <>
       <PrototypeRow
@@ -120,19 +127,66 @@ function AccountCard({ onScan, signOut }: { onScan: () => void; signOut: () => P
       <PrototypeDisclosure label={lang === 'zh' ? '账户操作' : 'Account actions'}>
         <div className="home-prototype__danger-actions">
           <button type="button" className="prototype-button prototype-button--ghost" onClick={() => void signOut()}>{t('header.signout')}</button>
-          <button
-            type="button"
-            className="prototype-button home-prototype__danger"
-            onClick={() => {
-              const message = lang === 'zh'
-                ? '确定要注销账号并永久删除所有个人数据吗？此操作无法恢复。'
-                : 'Delete your account and all personal data permanently? This cannot be undone.'
-              if (window.confirm(message)) void deleteMyAccount()
-            }}
-          >
-            {lang === 'zh' ? '删除账户与全部数据' : 'Delete account and all data'}
-          </button>
+          {!confirming ? (
+            <button
+              type="button"
+              className="prototype-button home-prototype__danger"
+              onClick={() => setConfirming(true)}
+            >
+              {lang === 'zh' ? '删除账户与全部数据' : 'Delete account and all data'}
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', marginTop: '4px' }}>
+              <div style={{ fontSize: '0.82rem', color: 'var(--danger)' }}>
+                {lang === 'zh' ? '输入 DELETE 以确认注销：' : 'Type DELETE to confirm deletion:'}
+              </div>
+              <input
+                type="text"
+                value={typedPhrase}
+                onChange={(e) => setTypedPhrase(e.target.value)}
+                placeholder="DELETE"
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 'var(--r-sm)',
+                  border: '1px solid var(--line)',
+                  background: 'var(--bg)',
+                  color: 'var(--fg)',
+                  fontSize: '0.9rem',
+                }}
+              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  disabled={deleting || typedPhrase !== 'DELETE'}
+                  className="prototype-button home-prototype__danger"
+
+                  onClick={async () => {
+                    setDeleting(true)
+                    try {
+                      await deleteMyAccount()
+                    } catch (err: any) {
+                      toast(err?.message || '注销失败', 'danger')
+                      setDeleting(false)
+                    }
+                  }}
+                >
+                  {deleting ? '...' : (lang === 'zh' ? '确认永久注销' : 'Confirm Deletion')}
+                </button>
+                <button
+                  type="button"
+                  className="prototype-button prototype-button--ghost"
+                  onClick={() => {
+                    setConfirming(false)
+                    setTypedPhrase('')
+                  }}
+                >
+                  {lang === 'zh' ? '取消' : 'Cancel'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
+
       </PrototypeDisclosure>
     </>
   )
@@ -334,23 +388,51 @@ export function HomeScreen() {
       toast(t('profile.scan.failed'), 'danger')
       return
     }
-    const targetToken = data.replace('keepcontact://sync?token=', '')
+    let targetToken = data.replace('keepcontact://sync?token=', '')
+    let scanKey = ''
+    if (targetToken.includes('&key=')) {
+      const parts = targetToken.split('&key=')
+      targetToken = parts[0]
+      scanKey = decodeURIComponent(parts[1])
+    }
+
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error(t('err.load'))
       const { data: payload, error: syncError } = await supabase.functions.invoke('sync-auth')
-      if (syncError || !payload?.email || !payload?.otp) throw syncError ?? new Error('sync-auth unavailable')
+      if (syncError || !payload?.email || !payload?.otp) {
+        throw syncError ?? new Error('sync-auth unavailable')
+      }
+      if (!scanKey) {
+        throw new Error('Scan2Sync requires E2EE encryption key')
+      }
+
+      const cryptoKey = await importKey(scanKey)
+      const { ciphertext, iv } = await encryptText(
+        JSON.stringify({ email: payload.email, otp: payload.otp }),
+        cryptoKey,
+      )
+      const broadcastPayload = { cipher: ciphertext, iv }
+
+
+
       const channel = supabase.channel(`scan2sync:${targetToken}`, { config: { broadcast: { self: false } } })
       channel.subscribe(async (status) => {
         if (status !== 'SUBSCRIBED') return
-        await channel.send({ type: 'broadcast', event: 'sync', payload: { email: payload.email, otp: payload.otp } })
-        toast(t('profile.scan.success'), 'ok')
-        window.setTimeout(() => void supabase.removeChannel(channel), 2000)
+        const sendResult = await channel.send({ type: 'broadcast', event: 'sync', payload: broadcastPayload })
+        if (sendResult === 'ok') {
+          toast(t('profile.scan.success'), 'ok')
+        } else {
+          toast(t('profile.scan.failed'), 'danger')
+        }
+        window.setTimeout(() => void supabase.removeChannel(channel), 4000)
       })
     } catch {
       toast(t('profile.scan.failed'), 'danger')
     }
   }
+
+
 
   const refresh = useCallback(async () => {
     setError(null)

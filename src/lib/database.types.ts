@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -611,6 +611,7 @@ export type Database = {
           apk_url: string | null
           created_at: string
           exe_url: string | null
+          ios_url: string | null
           public_rollout: boolean
           status: string
           version: string
@@ -619,6 +620,7 @@ export type Database = {
           apk_url?: string | null
           created_at?: string
           exe_url?: string | null
+          ios_url?: string | null
           public_rollout?: boolean
           status?: string
           version: string
@@ -627,12 +629,14 @@ export type Database = {
           apk_url?: string | null
           created_at?: string
           exe_url?: string | null
+          ios_url?: string | null
           public_rollout?: boolean
           status?: string
           version?: string
         }
         Relationships: []
       }
+
       behavior_pings: {
         Row: {
           at: string

@@ -26,6 +26,81 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
+export async function clearLocalSignalStore(): Promise<void> {
+  if (typeof indexedDB === 'undefined') return
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        reject(new Error('IndexedDB signals database deletion timed out'))
+      }
+    }, 1500)
+
+    try {
+      const req = indexedDB.deleteDatabase(DB_NAME)
+      req.onsuccess = () => {
+        if (!settled) {
+          settled = true
+          clearTimeout(timer)
+          resolve()
+        }
+      }
+      req.onerror = () => {
+        if (!settled) {
+          settled = true
+          clearTimeout(timer)
+          reject(req.error || new Error('Failed to delete IndexedDB signals database'))
+        }
+      }
+      req.onblocked = () => {
+        setTimeout(() => {
+          if (settled) return
+          try {
+            const retryReq = indexedDB.deleteDatabase(DB_NAME)
+            retryReq.onsuccess = () => {
+              if (!settled) {
+                settled = true
+                clearTimeout(timer)
+                resolve()
+              }
+            }
+            retryReq.onerror = () => {
+              if (!settled) {
+                settled = true
+                clearTimeout(timer)
+                reject(retryReq.error || new Error('IndexedDB signals database deletion failed after blocked'))
+              }
+            }
+            retryReq.onblocked = () => {
+              if (!settled) {
+                settled = true
+                clearTimeout(timer)
+                reject(new Error('IndexedDB signals database deletion persistently blocked by open connections'))
+              }
+            }
+          } catch (e) {
+            if (!settled) {
+              settled = true
+              clearTimeout(timer)
+              reject(e)
+            }
+          }
+        }, 100)
+      }
+    } catch (e) {
+      if (!settled) {
+        settled = true
+        clearTimeout(timer)
+        reject(e)
+      }
+    }
+  })
+}
+
+
+
+
 function generateUUID(): string {
   const cryptoObj = typeof window !== 'undefined' ? window.crypto : (globalThis as any).crypto
   if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {

@@ -143,13 +143,6 @@ export async function getAlert(alertId: string): Promise<Alert | null> {
   return data
 }
 
-/** 取某用户的紧急信息（RLS：仅在该用户有 open 告警且我是授权响应者时返回） */
-export async function getEmergencyInfoForUser(
-  userId: string,
-): Promise<EmergencyInfo | null> {
-  const { getEmergencyInfoForUser: decryptGet } = await import('@/features/profile/emergencyApi')
-  return decryptGet(userId)
-}
 
 export async function getProfileName(userId: string): Promise<string | null> {
   const { data, error } = await supabase

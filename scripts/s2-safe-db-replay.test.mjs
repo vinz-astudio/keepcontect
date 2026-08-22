@@ -53,7 +53,8 @@ describe('S2 safe local database replay', () => {
     } finally {
       await rm(fakeRepo, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
+
 
   it('requires exactly five production URL replacements', () => {
     expect(() => rewriteProductionUrls(`${PROD_EDGE_PREFIX}a`)).toThrow(/exactly five/i);

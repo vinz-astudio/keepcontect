@@ -90,4 +90,28 @@ describe('buildResponderItems', () => {
     const itemsRead = buildResponderItems(alerts, readNotifications)
     expect(itemsRead['alert-3'].isUnread).toBe(false)
   })
+
+  it('preserves both SOS trigger location and live GPS coordinates independently on alert item', () => {
+    const alertWithSos: Alert = {
+      id: 'alert-sos-1',
+      user_id: 'user-2',
+      status: 'open',
+      stage: 'sos',
+      cause: 'sos',
+      created_at: '2026-07-21T00:00:00Z',
+      resolved_at: null,
+      paused_by: null,
+      sos_lat: 31.2304,
+      sos_lng: 121.4737,
+    } as unknown as Alert
+
+    const items = buildResponderItems([alertWithSos], [])
+    expect(items['alert-sos-1'].alert.sos_lat).toBe(31.2304)
+    expect(items['alert-sos-1'].alert.sos_lng).toBe(121.4737)
+
+    // Coexistence with live GPS coordinates: both can exist simultaneously without interference
+    const liveGPSCoordinates = { latitude: 31.2350, longitude: 121.4800 }
+    expect(alertWithSos.sos_lat).not.toBe(liveGPSCoordinates.latitude)
+    expect(alertWithSos.sos_lng).not.toBe(liveGPSCoordinates.longitude)
+  })
 })

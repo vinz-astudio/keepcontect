@@ -20,6 +20,8 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/config'
 import { authRedirectUrl } from '@/features/auth/authRedirect'
 import { LangToggle, useI18n } from '@/lib/i18n'
 import { ThemeToggle } from '@/lib/theme'
+import { generateGroupKey, exportKey, importKey, decryptText } from '@/lib/crypto'
+import QRCode from 'qrcode'
 import './AuthScreen.css'
 
 import { APP_VERSION } from '@/lib/version'
@@ -105,31 +107,61 @@ export function AuthScreen() {
   const [phone, setPhone] = useState('')
   const [countryCode, setCountryCode] = useState('+60')
   const [scanToken, setScanToken] = useState<string | null>(null)
+  const [scanKey, setScanKey] = useState<string | null>(null)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   // Realtime sync login subscriber
   useEffect(() => {
     if (authMethod !== 'scan' || !scanToken) return
-    
+
     setNotice(t('auth.scan2sync.waiting'))
-    const channel = supabase.channel(`scan2sync:${scanToken}`, {
+    // Strip &key= param if present to get bare channel ID
+    const chanId = scanToken.includes('&key=') ? scanToken.split('&key=')[0] : scanToken
+    const currentKey = scanKey
+    const channel = supabase.channel(`scan2sync:${chanId}`, {
       config: { broadcast: { self: false } }
     })
-    
+
     channel.on('broadcast', { event: 'sync' }, async (payload: any) => {
-      const { email, otp } = payload.payload ?? {}
-      // KCA-15 containment (ADR-0015): accept ONLY the OTP pairing path. Raw
-      // access/refresh token payloads are ignored — honoring them let anyone
-      // who learned the channel token session-swap this device into an account
-      // they control. The legitimate sender only ever broadcasts {email, otp};
-      // the OTP is server-issued, so a bare channel token is not enough to log
-      // this device in. Full signed server-side pairing is a separate redesign ADR.
-      if (!email || !otp) return
+      // KCA-15 / ADR-0015 containment: accept ONLY server-issued OTP pairing.
+      // Raw access/refresh tokens are strictly ignored to prevent session-swap hijacking.
+      // E2EE decryption: strictly require valid key and ciphertext (Fail-Closed, zero plain fallback)
+      if (!currentKey || !payload.payload?.cipher || !payload.payload?.iv) {
+        console.warn('Scan2Sync rejected payload: missing required E2EE ciphertext or key')
+        return
+      }
+
+      let email: string | undefined
+      let otp: string | undefined
+
+      try {
+        const keyObj = await importKey(currentKey)
+        const decryptedJson = await decryptText(payload.payload.cipher, payload.payload.iv, keyObj)
+        const parsed = JSON.parse(decryptedJson)
+        email = parsed.email
+        otp = parsed.otp
+      } catch (decryptErr) {
+        console.error('Failed to decrypt scan2sync payload:', decryptErr)
+        return
+      }
+
+
+      if (
+        typeof email !== 'string' ||
+        typeof otp !== 'string' ||
+        !email.includes('@') ||
+        otp.trim().length < 6
+      ) {
+        console.warn('Scan2Sync rejected invalid payload structure')
+        return
+      }
 
       const result = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
+        email: email.trim(),
+        token: otp.trim(),
         type: 'magiclink',
       })
+
 
       if (result.error) {
         setError(result.error.message)
@@ -139,13 +171,15 @@ export function AuthScreen() {
         setNotice(t('auth.scan2sync.success'))
       }
     })
-    
+
     channel.subscribe()
 
     return () => {
       void supabase.removeChannel(channel)
     }
-  }, [authMethod, scanToken, t])
+  }, [authMethod, scanToken, scanKey, t])
+
+
 
   async function onPhoneSubmit(e: FormEvent) {
     e.preventDefault()
@@ -396,15 +430,33 @@ export function AuthScreen() {
           <button
             type="button"
             className={`auth__tab${authMethod === 'scan' ? ' is-active' : ''}`}
-            onClick={() => {
+            onClick={async () => {
               setAuthMethod('scan')
               setError(null)
               setNotice(null)
-              setScanToken(Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2))
+              const bytes = new Uint8Array(16)
+              window.crypto.getRandomValues(bytes)
+              const chan = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+              try {
+                const key = await generateGroupKey()
+                const keyStr = await exportKey(key)
+                setScanKey(keyStr)
+                setScanToken(chan)
+                const qrUrl = `keepcontact://sync?token=${chan}&key=${encodeURIComponent(keyStr)}`
+                const dataUrl = await QRCode.toDataURL(qrUrl, { width: 180, margin: 1, errorCorrectionLevel: 'M' })
+                setQrDataUrl(dataUrl)
+              } catch (err: any) {
+                setScanKey(null)
+                setScanToken(null)
+                setQrDataUrl(null)
+                setError(err?.message || 'Failed to initialize secure QR channel')
+              }
             }}
+
           >
             {t('auth.scan2sync')}
           </button>
+
         </div>
 
         {pendingInvite && authMethod !== 'scan' && (
@@ -588,11 +640,9 @@ export function AuthScreen() {
 
         {authMethod === 'scan' && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            {scanToken && (
+            {qrDataUrl ? (
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                  `keepcontact://sync?token=${scanToken}`,
-                )}`}
+                src={qrDataUrl}
                 alt="Scan to Sync"
                 style={{
                   margin: '1.2rem auto',
@@ -601,10 +651,30 @@ export function AuthScreen() {
                   border: '1px solid var(--line)',
                   background: '#fff',
                   padding: '6px',
+                  width: '180px',
+                  height: '180px',
                 }}
               />
+            ) : (
+              <div
+                style={{
+                  width: '180px',
+                  height: '180px',
+                  margin: '1.2rem auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '8px',
+                  border: '1px dashed var(--line)',
+                  fontSize: '0.82rem',
+                  opacity: 0.6,
+                }}
+              >
+                {t('auth.scan2sync.waiting')}
+              </div>
             )}
-            
+
+
             {error && <p className="auth__error">{error}</p>}
             {notice && <p className="auth__notice">{notice}</p>}
 

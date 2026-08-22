@@ -52,3 +52,6 @@ supabase/.temp/
 
 # TestFlight 反馈包含测试者的真实设备信息与身份,进了版本库就永远删不掉。
 ios/Crash report/
+
+# TypeScript build cache
+*.tsbuildinfo

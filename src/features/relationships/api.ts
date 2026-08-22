@@ -274,3 +274,18 @@ export async function listCommunityMembers(
   }))
 }
 
+export async function checkIsGuardian(targetUserId: string): Promise<boolean> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const uid = session?.user?.id
+  if (!uid) return false
+  if (targetUserId === uid) return true
+  const { data, error } = await supabase
+    .from('guardianships')
+    .select('id')
+    .eq('ward_id', targetUserId)
+    .eq('guardian_id', uid)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (error || !data) return false
+  return true
+}

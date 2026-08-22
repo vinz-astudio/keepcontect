@@ -1,90 +1,16 @@
 import { useEffect, useState } from 'react'
 import {
-  getEmergencyInfo,
-  saveEmergencyInfo,
-  type EmergencyInfoInput,
+  getEmergencyCards,
+  saveEmergencyCards,
+  type ContactCardItem,
+  type AddressCardItem,
 } from '@/features/profile/emergencyApi'
 import { PrototypeBadge, PrototypeRow } from '@/features/prototype/PrototypeUI'
 import { useI18n } from '@/lib/i18n'
 
-export interface ContactCardItem {
-  id: string
-  name: string
-  phone: string
-  relationship?: string
-  isPrimary?: boolean
-}
-
-export interface AddressCardItem {
-  id: string
-  label: string
-  address: string
-  accessCode?: string
-  isPrimary?: boolean
-}
+export type { ContactCardItem, AddressCardItem }
 
 type EmergencySection = 'all' | 'contact' | 'address'
-
-function parseContacts(nameStr: string, phoneStr: string): ContactCardItem[] {
-  if (!nameStr && !phoneStr) return []
-  try {
-    if (nameStr.startsWith('[') && nameStr.endsWith(']')) {
-      const parsed = JSON.parse(nameStr)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
-    }
-  } catch (e) {
-    // fallback to single contact
-  }
-  return [
-    {
-      id: 'contact-1',
-      name: nameStr || 'Emergency Contact',
-      phone: phoneStr || '',
-      relationship: 'Primary Responder',
-      isPrimary: true,
-    },
-  ]
-}
-
-function serializeContacts(contacts: ContactCardItem[]): { name: string; phone: string } {
-  if (contacts.length === 0) return { name: '', phone: '' }
-  if (contacts.length === 1 && !contacts[0].relationship) {
-    return { name: contacts[0].name, phone: contacts[0].phone }
-  }
-  return {
-    name: JSON.stringify(contacts),
-    phone: contacts[0]?.phone || '',
-  }
-}
-
-function parseAddresses(addrStr: string): AddressCardItem[] {
-  if (!addrStr) return []
-  try {
-    if (addrStr.startsWith('[') && addrStr.endsWith(']')) {
-      const parsed = JSON.parse(addrStr)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
-    }
-  } catch (e) {
-    // fallback to single address
-  }
-  return [
-    {
-      id: 'addr-1',
-      label: 'Home',
-      address: addrStr,
-      accessCode: '',
-      isPrimary: true,
-    },
-  ]
-}
-
-function serializeAddresses(addresses: AddressCardItem[]): string {
-  if (addresses.length === 0) return ''
-  if (addresses.length === 1 && !addresses[0].accessCode && addresses[0].label === 'Home') {
-    return addresses[0].address
-  }
-  return JSON.stringify(addresses)
-}
 
 export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySection }) {
   const { t, lang } = useI18n()
@@ -101,13 +27,11 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
   const [editingAddress, setEditingAddress] = useState<AddressCardItem | null>(null)
 
   useEffect(() => {
-    getEmergencyInfo()
-      .then((info) => {
-        if (info) {
-          setContacts(parseContacts(info.emergency_contact_name ?? '', info.emergency_contact_phone ?? ''))
-          setAddresses(parseAddresses(info.home_address ?? ''))
-          setMedicalNotes(info.medical_notes ?? '')
-        }
+    getEmergencyCards()
+      .then((payload) => {
+        setContacts(payload.contacts)
+        setAddresses(payload.addresses)
+        setMedicalNotes(payload.medicalNotes)
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : t('err.load')))
       .finally(() => setLoading(false))
@@ -118,15 +42,7 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
     setError(null)
     setSaved(false)
     try {
-      const contactSer = serializeContacts(newContacts)
-      const addressSer = serializeAddresses(newAddresses)
-      const input: EmergencyInfoInput = {
-        emergency_contact_name: contactSer.name,
-        emergency_contact_phone: contactSer.phone,
-        home_address: addressSer,
-        medical_notes: newNotes,
-      }
-      await saveEmergencyInfo(input)
+      await saveEmergencyCards(newContacts, newAddresses, newNotes)
       setContacts(newContacts)
       setAddresses(newAddresses)
       setMedicalNotes(newNotes)
@@ -137,6 +53,7 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
       setBusy(false)
     }
   }
+
 
   // Contact Handlers
   function saveContactItem(item: ContactCardItem) {
@@ -317,7 +234,7 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
                       <button
                         type="button"
                         className="prototype-button prototype-button--ghost"
-                        onClick={() => setPrimaryContact(c.id)}
+                        onClick={() => setPrimaryContact(c.id!)}
                       >
                         {lang === 'zh' ? '设为主联络人' : 'Make Primary'}
                       </button>
@@ -325,10 +242,11 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
                     <button
                       type="button"
                       className="prototype-button home-prototype__danger"
-                      onClick={() => removeContactItem(c.id)}
+                      onClick={() => removeContactItem(c.id!)}
                     >
                       {lang === 'zh' ? '删除' : 'Remove'}
                     </button>
+
                   </div>
                 </div>
               ))
@@ -449,7 +367,7 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
                       <button
                         type="button"
                         className="prototype-button prototype-button--ghost"
-                        onClick={() => setPrimaryAddress(a.id)}
+                        onClick={() => setPrimaryAddress(a.id!)}
                       >
                         {lang === 'zh' ? '设为主地址' : 'Make Primary'}
                       </button>
@@ -457,10 +375,11 @@ export function EmergencyInfoCard({ section = 'all' }: { section?: EmergencySect
                     <button
                       type="button"
                       className="prototype-button home-prototype__danger"
-                      onClick={() => removeAddressItem(a.id)}
+                      onClick={() => removeAddressItem(a.id!)}
                     >
                       {lang === 'zh' ? '删除' : 'Remove'}
                     </button>
+
                   </div>
                 </div>
               ))
