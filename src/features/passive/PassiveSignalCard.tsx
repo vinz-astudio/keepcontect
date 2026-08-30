@@ -50,6 +50,7 @@ export function PassiveSignalCard() {
   const [appActivitySensor, setAppActivitySensor] = useState(() => isSensorEnabled('app_activity'))
   const [motionSensor, setMotionSensor] = useState(() => isSensorEnabled('motion'))
   const [chargerSensor, setChargerSensor] = useState(() => isSensorEnabled('phone_charger'))
+  const iosEvidenceReady = guard?.enabled === true && guard.evidenceConfigured === true
 
   const handleToggleAppActivity = async (checked: boolean) => {
     setAppActivitySensor(checked)
@@ -302,6 +303,17 @@ export function PassiveSignalCard() {
                 </strong>
               </div>
 
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', padding: '8px 10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', fontSize: '0.82rem' }}>
+                <span style={{ fontWeight: '600' }}>
+                  {lang === 'zh' ? '被动证据采集状态' : 'Passive Evidence Collection'}
+                </span>
+                <strong style={{ color: guard?.evidenceConfigured ? 'var(--ok)' : 'var(--danger)', flexShrink: 0, textAlign: 'right' }}>
+                  {guard?.evidenceConfigured
+                    ? (lang === 'zh' ? '已绑定并可采集' : 'Bound and collecting')
+                    : (lang === 'zh' ? '未就绪（仅心跳）' : 'Not ready (heartbeat only)')}
+                </strong>
+              </div>
+
               <p className="muted" style={{ margin: 0, fontSize: '0.8rem' }}>
                 {lang === 'zh'
                   ? '小米/HyperOS、华为等国产系统需开启「自启动」并将省电策略设为「无限制」，否则后台仍会被强杀。'
@@ -354,16 +366,16 @@ export function PassiveSignalCard() {
                   <span style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
                     {lang === 'zh' ? 'iOS 原生解锁被动守护 (PassiveGuard)' : 'iOS Native Unlock Guard'}
                   </span>
-                  <strong style={{ color: guard?.enabled ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
-                    {guard?.enabled
+                  <strong style={{ color: iosEvidenceReady ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
+                    {iosEvidenceReady
                       ? (lang === 'zh' ? '运行中 (解锁静默告活已就绪)' : 'Running (Unlock detection active)')
-                      : (lang === 'zh' ? '未初始化 (需开启位置"始终"权限)' : 'Not initialized (Requires "Always" location)')}
+                      : (lang === 'zh' ? '未就绪 (等待被动证据绑定)' : 'Not ready (Passive evidence binding required)')}
                   </strong>
                 </div>
                 <p className="muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: '1.3' }}>
                   {lang === 'zh'
-                    ? '检测设备解锁行为并生成告活 Ping（绝不收集或传输地理位置）。请确保在 iOS 系统设置中已授予【位置权限 -> 始终】及开启【后台 App 刷新】。'
-                    : 'Detects phone unlocks in background without uploading location. Make sure Location is set to "Always" and Background App Refresh is enabled in iOS Settings.'}
+                    ? '只采集 KC 能观察到的解锁和前台事件，不会把一般手机使用当作可见信号。保存 Routine 后，必须成功绑定被动证据才会显示“已就绪”。'
+                    : 'Collects only KC-observable unlock and foreground events; general phone use is not visible to iOS. It shows ready only after passive evidence binds successfully.'}
                 </p>
               </div>
             )}

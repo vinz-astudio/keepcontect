@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getDailyCheckin, saveDailyCheckin, type DailyCheckinStatus } from '@/features/passive/dailyCheckinApi'
+import { refreshNativePassivePing } from '@/features/passive/native'
 import { getPassiveCollectorHealth, type PassiveCollectorHealth } from '@/features/passive/passiveCheckinPresentation'
 import { getPassiveRecommendation, type PassiveRecommendation } from '@/features/passive/recommendationApi'
 import {
@@ -165,6 +166,7 @@ export function RoutineSettings() {
     try {
       const { misses: nextMisses, ...draftPatch } = patch
       await saveDailyCheckin({ ...draft, ...draftPatch }, target, nextMisses ?? misses)
+      await refreshNativePassivePing()
       await loadCheckin()
       toast(zh ? '已更新' : 'Updated', 'ok')
     } catch (cause) {

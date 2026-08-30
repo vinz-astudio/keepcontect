@@ -6,10 +6,14 @@ const nativeHarness = vi.hoisted(() => ({
     bind: vi.fn(),
     revoke: vi.fn(),
   },
+  token: {
+    get: vi.fn(),
+  },
   plugin: {
     configure: vi.fn().mockResolvedValue(undefined),
     clear: vi.fn().mockResolvedValue(undefined),
     pingApp: vi.fn().mockResolvedValue(undefined),
+    getGuardStatus: vi.fn(),
     getNotificationPermissionStatus: vi.fn(),
     openNotificationSettings: vi.fn().mockResolvedValue(undefined),
     enableHealthWake: vi.fn().mockResolvedValue({ granted: true }),
@@ -32,6 +36,7 @@ vi.mock('./evidenceContract', () => ({
   bindPassiveCollector: nativeHarness.binding.bind,
   revokePassiveCollector: nativeHarness.binding.revoke,
 }))
+vi.mock('./api', () => ({ getHeartbeatToken: nativeHarness.token.get }))
 
 const storage = new Map<string, string>()
 vi.stubGlobal('localStorage', {
@@ -60,6 +65,7 @@ describe('native passive setup truth', () => {
         : 'ios-passive-evidence-v1',
     })
     nativeHarness.binding.revoke.mockResolvedValue(true)
+    nativeHarness.token.get.mockResolvedValue('session-token')
     storage.clear()
   })
 
@@ -137,5 +143,37 @@ describe('native passive setup truth', () => {
     )
     expect(nativeHarness.binding.bind).toHaveBeenCalledTimes(2)
     expect(nativeHarness.plugin.configure).toHaveBeenCalledTimes(3)
+  })
+
+  it('retries iOS evidence binding after routine configuration makes the account eligible', async () => {
+    nativeHarness.binding.bind.mockRejectedValueOnce(new Error('legacy account'))
+
+    await native.configureNativePassivePing('session-token')
+    await native.refreshNativePassivePing()
+
+    expect(nativeHarness.token.get).toHaveBeenCalledOnce()
+    expect(nativeHarness.binding.bind).toHaveBeenCalledTimes(2)
+    expect(nativeHarness.plugin.configure).toHaveBeenLastCalledWith(expect.objectContaining({
+      bindingId: '00000000-0000-4000-8000-000000000001',
+      evidenceCredential: 'a'.repeat(64),
+      evidenceCollectorContract: 'ios-passive-evidence-v1',
+    }))
+  })
+
+  it('fails closed when an older native shell omits evidence readiness', async () => {
+    nativeHarness.platform = 'android'
+    nativeHarness.plugin.getGuardStatus.mockResolvedValue({
+      enabled: true,
+      connectedAt: 1,
+      lastEventAt: 2,
+      lastPingAt: 3,
+      usageGranted: true,
+      activityGranted: true,
+    })
+
+    await expect(native.getGuardStatus()).resolves.toMatchObject({
+      enabled: true,
+      evidenceConfigured: false,
+    })
   })
 })

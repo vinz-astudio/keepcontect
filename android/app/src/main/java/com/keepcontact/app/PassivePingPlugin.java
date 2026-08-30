@@ -389,6 +389,10 @@ public class PassivePingPlugin extends Plugin {
         ret.put("lastPingAt", PassivePing.lastPingAt(context));
         ret.put("usageGranted", usageGranted);
         ret.put("activityGranted", activityGranted);
+        // Heartbeat/service liveness is not evidence liveness. Expose the
+        // credential state so Android cannot render a heartbeat-only install
+        // as fully ready after a legacy binding attempt failed.
+        ret.put("evidenceConfigured", PassivePing.isEvidenceConfigured(context));
         call.resolve(ret);
     }
 

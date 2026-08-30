@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { isTauri } from '@/lib/platform'
 import { bindPassiveCollector, revokePassiveCollector } from './evidenceContract'
 import { clearTauriPassiveEvidence } from './shadowCoverage'
+import { getHeartbeatToken } from './api'
 
 const NATIVE_BINDING_ID_KEY = 'kc.passiveEvidence.bindingId'
 const NATIVE_BINDING_OWNER_KEY = 'kc.passiveEvidence.ownerId'
@@ -27,6 +28,8 @@ export interface GuardStatus {
   lastPingAt: number
   usageGranted?: boolean
   activityGranted?: boolean
+  /** Native evidence credential accepted by the collector. */
+  evidenceConfigured?: boolean
   /** iOS only, and absent on shells built before the HealthKit wake. */
   health?: HealthWakeStatus
 }
@@ -244,6 +247,22 @@ export async function configureNativePassivePing(
     await PassivePing.pingApp()
   } catch {
     // Native bridge is best-effort; PWA ping URLs remain the fallback.
+  }
+}
+
+/**
+ * Re-applies native passive collection after the server-side Routine contract
+ * changes. A boot-time legacy binding can legitimately fail before that
+ * contract exists; leaving it untouched until a process restart strands the
+ * current TestFlight session without evidence collection.
+ */
+export async function refreshNativePassivePing(): Promise<void> {
+  try {
+    const token = await getHeartbeatToken()
+    if (token) await configureNativePassivePing(token)
+  } catch {
+    // The saved Routine contract remains valid. Boot retries on a later
+    // process start if token retrieval is temporarily unavailable.
   }
 }
 
@@ -524,7 +543,10 @@ export async function getGuardStatus(): Promise<GuardStatus | null> {
   const platform = Capacitor.getPlatform()
   if (platform !== 'android' && platform !== 'ios') return null
   try {
-    return await PassivePing.getGuardStatus()
+    const status = await PassivePing.getGuardStatus()
+    // Older native shells do not expose evidenceConfigured. Treat that as
+    // unverified so the UI cannot call a heartbeat-only install ready.
+    return { ...status, evidenceConfigured: status.evidenceConfigured === true }
   } catch {
     return null
   }
