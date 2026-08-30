@@ -17,6 +17,7 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "requestNotificationPermission", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getNotificationPermissionStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openNotificationSettings", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openAppSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getFcmToken", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "consumeLaunchNotificationKind", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "enableHealthWake", returnType: CAPPluginReturnPromise)
@@ -98,6 +99,18 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
             }
             guard let url = URL(string: urlString) else {
                 call.reject("notification settings URL unavailable")
+                return
+            }
+            UIApplication.shared.open(url) { _ in call.resolve() }
+        }
+    }
+
+    /// Opens the app's general settings page for background/privacy controls
+    /// that do not have a dedicated permission sheet on iOS.
+    @objc func openAppSettings(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let url = URL(string: UIApplication.openSettingsURLString) else {
+                call.reject("app settings URL unavailable")
                 return
             }
             UIApplication.shared.open(url) { _ in call.resolve() }

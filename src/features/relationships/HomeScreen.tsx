@@ -707,7 +707,7 @@ export function HomeScreen() {
       emergency={<EmergencyInfoCard section="all" />}
       emergencyGps={<EmergencyGpsCard />}
       preferencesUpdates={<PreferencesCard isGm={isGm} />}
-      labels={{ account: lang === 'zh' ? '账户与设备' : 'Account & devices', safetyCheckin: lang === 'zh' ? '安全确认' : 'Safety check-in', guardianPermissions: lang === 'zh' ? '守护权限与设置' : 'Guardian permissions', emergency: lang === 'zh' ? '紧急资料' : 'Emergency information', preferencesUpdates: lang === 'zh' ? '偏好与更新' : 'Preferences & updates' }}
+      labels={{ account: lang === 'zh' ? '账户与设备' : 'Account & devices', safetyCheckin: lang === 'zh' ? '安全确认' : 'Safety check-in', guardianPermissions: lang === 'zh' ? '采集权限' : 'Collection permissions', emergency: lang === 'zh' ? '紧急资料' : 'Emergency information', preferencesUpdates: lang === 'zh' ? '偏好与更新' : 'Preferences & updates' }}
     />
   )
 

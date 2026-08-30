@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core'
 import {
   getNativeNotificationPermissionStatus,
+  getGuardStatus,
   isActivityRecognitionEnabled,
   isBatteryExempt,
   isUsageStatsEnabled,
@@ -9,7 +10,9 @@ import {
   requestActivityRecognitionPermission,
   requestBatteryExemption,
   requestNativeNotificationPermission,
+  openNativeAppSettings,
 } from '@/features/passive/native'
+import { setSensorEnabled } from '@/features/signals/sensors'
 
 export type PermissionState = 'granted' | 'denied' | 'unavailable' | 'checking'
 
@@ -29,6 +32,7 @@ export interface GuardianPermission {
 
 const android = () => Capacitor.getPlatform() === 'android'
 const nativePhone = () => Capacitor.getPlatform() === 'android' || Capacitor.getPlatform() === 'ios'
+const ios = () => Capacitor.getPlatform() === 'ios'
 
 /**
  * 权限清单按「少了它 KC 做不到什么」排序,不按系统的权限分类排。
@@ -87,6 +91,23 @@ export function getGuardianPermissions(): GuardianPermission[] {
       supported: android(),
       check: isUsageStatsEnabled,
       fix: openUsageStatsSettings,
+      fixIsSettings: true,
+    },
+    {
+      id: 'ios_guard',
+      labelZh: 'iOS 后台守护',
+      labelEn: 'iOS background guard',
+      costZh: '未绑定被动证据时，解锁后的静默报活不会运行。',
+      costEn: 'Without the passive-evidence binding, silent unlock check-ins cannot run.',
+      supported: ios(),
+      check: async () => {
+        const status = await getGuardStatus()
+        return status?.enabled === true && status.evidenceConfigured === true
+      },
+      fix: async () => {
+        await setSensorEnabled('app_activity', true)
+        await openNativeAppSettings()
+      },
       fixIsSettings: true,
     },
   ].filter((permission) => permission.supported)

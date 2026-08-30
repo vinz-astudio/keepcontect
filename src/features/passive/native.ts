@@ -55,6 +55,8 @@ interface PassivePingPlugin {
   requestNotificationPermission(): Promise<void>
   getNotificationPermissionStatus(): Promise<{ granted: boolean; canRequest: boolean }>
   openNotificationSettings(): Promise<void>
+  /** Opens this app's general OS settings page (iOS guard/privacy fallback). */
+  openAppSettings?(): Promise<void>
   getFcmToken(): Promise<{ token: string }>
   consumeLaunchNotificationKind(): Promise<{ kind: string }>
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>
@@ -549,6 +551,28 @@ export async function getGuardStatus(): Promise<GuardStatus | null> {
     return { ...status, evidenceConfigured: status.evidenceConfigured === true }
   } catch {
     return null
+  }
+}
+
+/**
+ * Opens the app's general settings page when a platform has no narrower
+ * permission sheet (notably iOS' background guard). Older shells do not expose
+ * the bridge method, so the web URL is a best-effort fallback.
+ */
+export async function openNativeAppSettings(): Promise<void> {
+  if (!isNativePushPlatform()) return
+  try {
+    if (typeof PassivePing.openAppSettings === 'function') {
+      await PassivePing.openAppSettings()
+      return
+    }
+  } catch {
+    // Fall through to the URL fallback below.
+  }
+  try {
+    if (Capacitor.getPlatform() === 'ios') window.open('app-settings:', '_system')
+  } catch {
+    /* Old shell or browser: the permission row remains honestly actionable. */
   }
 }
 

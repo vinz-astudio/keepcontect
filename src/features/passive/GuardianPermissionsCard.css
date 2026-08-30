@@ -57,3 +57,42 @@
   font-size: 0.82rem;
   font-weight: 600;
 }
+
+.guardian-perms__surface {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.guardian-perms__surface--notice {
+  color: var(--warning);
+}
+
+.guardian-perms__sensors {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.guardian-perms__sensors-heading {
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.guardian-perms__sensor-action {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+
+.guardian-perms__status {
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.guardian-perms__status.is-granted { color: var(--success); }
+.guardian-perms__status.is-denied { color: var(--warning); }
+.guardian-perms__status.is-unavailable { color: var(--muted); }
+.guardian-perms__status.is-checking { color: var(--muted); }

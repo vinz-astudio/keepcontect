@@ -117,6 +117,20 @@ public class PassivePingPlugin extends Plugin {
         call.resolve(new JSObject());
     }
 
+    /** Opens this app's general settings page for capabilities without a
+     * dedicated Android settings screen (for example OEM background limits). */
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        Intent intent = applicationDetailsSettingsIntent();
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            getContext().startActivity(intent);
+            call.resolve(new JSObject());
+        } catch (Exception exception) {
+            call.reject("unable to open app settings", exception);
+        }
+    }
+
     static String notificationSettingsActionForSdk(int sdk) {
         return sdk >= 26
             ? Settings.ACTION_APP_NOTIFICATION_SETTINGS

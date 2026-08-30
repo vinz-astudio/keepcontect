@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { useI18n } from '@/lib/i18n'
 import { toast } from '@/lib/toast'
 import {
@@ -7,6 +8,9 @@ import {
   type GuardianPermission,
   type PermissionState,
 } from './guardianPermissions'
+import { getAvailableSensors, isSensorEnabled, setSensorEnabled, type SensorConfig } from '@/features/signals/sensors'
+import { getGuardStatus, isActivityRecognitionEnabled, isUsageStatsEnabled, openUsageStatsSettings, requestActivityRecognitionPermission } from './native'
+import { resolveCollectionCapabilities, type CollectionCapabilitySnapshot } from './collectionCapabilities'
 import './GuardianPermissionsCard.css'
 
 /**
@@ -22,6 +26,9 @@ export function GuardianPermissionsCard() {
   const [permissions] = useState<GuardianPermission[]>(() => getGuardianPermissions())
   const [states, setStates] = useState<Record<string, PermissionState>>({})
   const [busy, setBusy] = useState<string | null>(null)
+  const [sensorStates, setSensorStates] = useState<Record<string, PermissionState>>({})
+  const [capabilitySnapshot, setCapabilitySnapshot] = useState<CollectionCapabilitySnapshot | null>(null)
+  const sensors = useMemo(() => getAvailableSensors(), [])
 
   const refresh = useCallback(async () => {
     const next: Record<string, PermissionState> = {}
@@ -33,7 +40,28 @@ export function GuardianPermissionsCard() {
       }
     }))
     setStates(next)
-  }, [permissions])
+    const sensorNext: Record<string, PermissionState> = {}
+    await Promise.all(sensors.map(async (sensor) => {
+      try {
+        const enabled = isSensorEnabled(sensor.key)
+        const iosGuard = sensor.key === 'app_activity' && Capacitor.getPlatform() === 'ios'
+          ? await getGuardStatus()
+          : null
+        const permission = sensor.key === 'app_activity' && Capacitor.getPlatform() === 'android'
+          ? await isUsageStatsEnabled()
+          : sensor.key === 'app_activity' && Capacitor.getPlatform() === 'ios'
+            ? iosGuard?.enabled === true && iosGuard.evidenceConfigured === true
+          : sensor.key === 'motion' && Capacitor.getPlatform() === 'android'
+            ? await isActivityRecognitionEnabled()
+            : true
+        sensorNext[sensor.key] = enabled && permission ? 'granted' : 'denied'
+      } catch {
+        sensorNext[sensor.key] = 'unavailable'
+      }
+    }))
+    setSensorStates(sensorNext)
+    setCapabilitySnapshot(await resolveCollectionCapabilities())
+  }, [permissions, sensors])
 
   useEffect(() => {
     void refresh()
@@ -47,17 +75,8 @@ export function GuardianPermissionsCard() {
     }
   }, [refresh])
 
-  if (permissions.length === 0) {
-    return (
-      <p className="guardian-perms__none">
-          {zh
-            ? '浏览器里没有可以授予的系统权限。装上 App 之后,这里会列出 KC 需要的权限和每一项的用途。'
-            : 'A browser has no system permissions to grant. Once the app is installed, this lists what KC needs and why.'}
-      </p>
-    )
-  }
-
   const missing = permissions.filter((p) => states[p.id] === 'denied').length
+    + Object.values(sensorStates).filter((state) => state === 'denied').length
 
   async function fix(permission: GuardianPermission) {
     setBusy(permission.id)
@@ -73,14 +92,52 @@ export function GuardianPermissionsCard() {
     setBusy(null)
   }
 
+  async function toggleSensor(sensor: SensorConfig, enabled: boolean) {
+    setBusy(sensor.key)
+    try {
+      await setSensorEnabled(sensor.key, enabled)
+      if (enabled && sensor.key === 'app_activity' && Capacitor.getPlatform() === 'android') {
+        await openUsageStatsSettings()
+      }
+      if (enabled && sensor.key === 'motion' && Capacitor.getPlatform() === 'android') {
+        await requestActivityRecognitionPermission()
+      }
+      await refresh()
+    } catch (cause) {
+      toast(cause instanceof Error ? cause.message : String(cause), 'danger')
+    }
+    setBusy(null)
+  }
+
   return (
     <>
+      {permissions.length === 0 && (
+        <p className="guardian-perms__none">
+          {zh
+            ? '当前平台没有可授予的系统权限；下面仍会显示这台设备实际支持的采集开关。'
+            : 'This platform has no system permission sheet; the supported collection controls are still shown below.'}
+        </p>
+      )}
+      {capabilitySnapshot && (
+        <>
+          <p className="guardian-perms__surface">
+            {zh ? `当前采集面：${capabilitySnapshot.distribution}` : `Collection surface: ${capabilitySnapshot.distribution}`}
+          </p>
+          {capabilitySnapshot.capabilities.some((capability) => capability.state === 'limited' || capability.state === 'unavailable') && (
+            <p className="guardian-perms__surface guardian-perms__surface--notice">
+              {zh
+                ? '部分能力受当前平台限制；KC 只会把实际能观察到的事件计入活跃证据。'
+                : 'Some capabilities are limited by this platform; KC counts only events it can actually observe.'}
+            </p>
+          )}
+        </>
+      )}
       <p className={`guardian-perms__summary${missing > 0 ? ' is-missing' : ''}`}>
         {missing === 0
           ? (zh ? 'KC 需要的权限都已开启。' : 'KC has everything it needs.')
           : (zh ? `有 ${missing} 项没有开启,KC 的守护是不完整的。` : `${missing} not granted. KC's guard is incomplete.`)}
       </p>
-      <ul className="guardian-perms__list">
+      {permissions.length > 0 && <ul className="guardian-perms__list">
         {sortByUrgency(permissions, states).map((permission) => {
           const state = states[permission.id] ?? 'checking'
           return (
@@ -112,7 +169,32 @@ export function GuardianPermissionsCard() {
             </li>
           )
         })}
-      </ul>
+      </ul>}
+      <div className="guardian-perms__sensors">
+        <p className="guardian-perms__sensors-heading">{zh ? '采集开关' : 'Collection controls'}</p>
+        <ul className="guardian-perms__list">
+          {sensors.map((sensor) => {
+            const state = sensorStates[sensor.key] ?? 'checking'
+            const enabled = isSensorEnabled(sensor.key)
+            return (
+              <li key={sensor.key} className={`guardian-perms__item is-${state}`}>
+                <div className="guardian-perms__text">
+                  <span className="guardian-perms__label">{zh ? sensor.labelZh : sensor.labelEn}</span>
+                  <span className="guardian-perms__cost">{zh ? sensor.descZh : sensor.descEn}</span>
+                </div>
+                <div className="guardian-perms__sensor-action">
+                  <span className={`guardian-perms__status is-${state}`}>
+                    {state === 'checking' ? (zh ? '检查中' : 'Checking') : state === 'granted' ? (zh ? '已授权' : 'Granted') : state === 'unavailable' ? (zh ? '不可用' : 'Unavailable') : (zh ? '未开启' : 'Denied')}
+                  </span>
+                  <button type="button" className="prototype-button prototype-button--ghost" disabled={busy === sensor.key || state === 'checking'} onClick={() => void toggleSensor(sensor, !enabled)}>
+                    {enabled ? (zh ? '关闭' : 'Turn off') : (zh ? '开启' : 'Turn on')}
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
     </>
   )
 }

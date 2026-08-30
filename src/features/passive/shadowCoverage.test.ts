@@ -72,6 +72,15 @@ describe('startTauriShadowCoverage', () => {
     stop()
   })
 
+  it('honors the system-idle collection toggle before probing or leasing', async () => {
+    const deps = makeDeps({ isCollectionEnabled: () => false })
+    const stop = startTauriShadowCoverage(deps)
+    await flush()
+    expect(deps.invokeCapability).not.toHaveBeenCalled()
+    expect(deps.recordLease).not.toHaveBeenCalled()
+    stop()
+  })
+
   it('sends immediately and every five minutes with exact RPC arguments', async () => {
     const deps = makeDeps()
     const stop = startTauriShadowCoverage(deps)

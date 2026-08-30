@@ -82,6 +82,15 @@ describe('Tauri reconstructed input evidence', () => {
     stop()
   })
 
+  it('does not sample or upload while the system-idle collection toggle is off', async () => {
+    const d = deps({ isCollectionEnabled: () => false })
+    const stop = startTauriPassiveEvidence(d)
+    await flush()
+    expect(d.invokeInputSample).not.toHaveBeenCalled()
+    expect(d.sendEvidence).not.toHaveBeenCalled()
+    stop()
+  })
+
   it('emits once until reconstructed last input advances', async () => {
     const invoke = vi.fn()
       .mockResolvedValueOnce(sample('2026-08-14T12:04:00.000Z'))

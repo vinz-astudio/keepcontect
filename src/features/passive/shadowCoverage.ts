@@ -4,6 +4,7 @@ import { SUPABASE_URL } from '@/lib/config'
 import { isTauri } from '@/lib/platform'
 import { supabase } from '@/lib/supabase'
 import { APP_VERSION } from '@/lib/version'
+import { isSensorEnabled } from '@/features/signals/sensors'
 import {
   bindPassiveCollector,
   buildPassiveEvidenceRequest,
@@ -45,6 +46,8 @@ export interface ShadowCoverageDeps {
   hashCanonical: (canonical: string) => Promise<string>
   setInterval: (callback: () => void, delay: number) => TimerHandle
   clearInterval: (handle: TimerHandle) => void
+  /** Runtime user toggle; absent in legacy tests/consumers means enabled. */
+  isCollectionEnabled?: () => boolean
 }
 
 const FIVE_MINUTES_MS = 5 * 60_000
@@ -87,6 +90,8 @@ export interface TauriEvidenceDeps {
   storage: Storage
   setInterval: (callback: () => void, delay: number) => TimerHandle
   clearInterval: (handle: TimerHandle) => void
+  /** Runtime user toggle; absent in legacy tests/consumers means enabled. */
+  isCollectionEnabled?: () => boolean
 }
 
 function readQueue(storage: Storage): StoredTauriEvidence[] {
@@ -161,6 +166,7 @@ const defaultTauriEvidenceDeps: TauriEvidenceDeps = {
   storage: globalThis.localStorage,
   setInterval: (callback, delay) => globalThis.setInterval(callback, delay),
   clearInterval: (handle) => globalThis.clearInterval(handle),
+  isCollectionEnabled: () => isSensorEnabled('system_idle'),
 }
 
 function validInputSample(sample: TauriInputSample, now: number): boolean {
@@ -190,7 +196,7 @@ export function startTauriPassiveEvidence(
   let binding: PassiveCollectorBinding | null = null
 
   const flush = async () => {
-    if (!binding || !ownerId) return
+    if (!binding || !ownerId || !(deps.isCollectionEnabled?.() ?? true)) return
     const queue = readQueue(deps.storage)
       .filter((item) => item.ownerId === ownerId && item.bindingId === binding?.bindingId)
     deps.storage.setItem(TAURI_QUEUE_KEY, JSON.stringify(queue))
@@ -209,7 +215,7 @@ export function startTauriPassiveEvidence(
   }
 
   const sampleInput = async () => {
-    if (stopped || inFlight || !binding || !ownerId) return
+    if (stopped || inFlight || !binding || !ownerId || !(deps.isCollectionEnabled?.() ?? true)) return
     inFlight = true
     try {
       await flush()
@@ -322,6 +328,7 @@ const defaultDeps: ShadowCoverageDeps = {
   hashCanonical: sha256,
   setInterval: (callback, delay) => globalThis.setInterval(callback, delay),
   clearInterval: (handle) => globalThis.clearInterval(handle),
+  isCollectionEnabled: () => isSensorEnabled('system_idle'),
 }
 
 function isOperational(
@@ -345,7 +352,7 @@ export function startTauriShadowCoverage(
   let inFlight = false
 
   const submit = async () => {
-    if (stopped || inFlight) return
+    if (stopped || inFlight || !(deps.isCollectionEnabled?.() ?? true)) return
     inFlight = true
     try {
       const capability = await deps.invokeCapability()
