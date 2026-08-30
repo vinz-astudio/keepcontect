@@ -10,8 +10,11 @@ android/
 ios/
 .gradle/
 .git/
+.worktrees/
 .mcp.json
 .claude/
 .codex/
 .remember/
+.superpowers/
+.vercel/
 supabase/
