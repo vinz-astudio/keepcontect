@@ -31,6 +31,13 @@ jobs:
           xcodebuild -version
           xcodebuild -showsdks | grep -i "iphoneos" || true
 
+      - name: Verify iOS evidence retry policies
+        run: |
+          swiftc ios-passive-ping/ios/Sources/KcPassivePingPlugin/HistoryQueryPolicy.swift \
+            ios-passive-ping/ios/Sources/KcPassivePingPlugin/EvidenceUploadPolicy.swift \
+            scripts/verify-ios-evidence-policy.swift -o "$RUNNER_TEMP/verify-ios-evidence-policy"
+          "$RUNNER_TEMP/verify-ios-evidence-policy"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

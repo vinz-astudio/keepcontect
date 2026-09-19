@@ -10,6 +10,7 @@ import {
   type SetupResult,
 } from '@/features/onboarding/onboardingPresentation'
 import { getPushStatus } from '@/features/push/pushApi'
+import { iosHealthReadiness } from './iosHealthReadiness'
 import {
   enableHealthWake,
   getGuardStatus,
@@ -66,7 +67,6 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
     unavailable: isZh ? '此环境不支持手机 App 的被动采集能力。安装手机 App 可使用更多低功耗信号，但系统仍可能延迟后台更新。' : 'This environment cannot use the phone app’s passive collector. The phone app adds more low-power signals, but the OS may still delay background updates.',
     enable: isZh ? '开启' : 'Enable',
     setUp: isZh ? '设置' : 'Set up',
-    setUpDone: isZh ? '已设置' : 'Set up',
     review: isZh ? '检查' : 'Review',
     reviewed: isZh ? '已检查' : 'Reviewed',
   }), [isZh])
@@ -169,13 +169,7 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
           notification,
           guardEnabled: Boolean(guard?.enabled),
         })
-        const healthState = guard?.health?.observing
-          ? 'ready'
-          : guard?.health?.supported === false
-            ? 'limited'
-            : guard?.health?.supported
-              ? 'action'
-              : 'unknown'
+        const healthState = iosHealthReadiness(guard?.health)
         next = [
           {
             key: 'notifications', icon: 'notifications_active', title: copy.notifications,
@@ -196,7 +190,7 @@ export function OnboardingWizard({ isGm, onComplete }: OnboardingWizardProps) {
             key: 'health', icon: 'health_and_safety', title: copy.health,
             description: copy.healthDescription, state: healthState,
             requirement: 'recommended',
-            stateLabel: healthState === 'ready' ? copy.setUpDone : undefined,
+            stateLabel: guard?.health?.asked ? (isZh ? '已设置 · 后台受限' : 'Set up · Background limited') : undefined,
             actionLabel: copy.setUp,
             onAction: async () => { await enableHealthWake(); await refreshCapabilities(false) },
           },

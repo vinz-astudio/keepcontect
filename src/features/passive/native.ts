@@ -19,6 +19,12 @@ export interface HealthWakeStatus {
   asked: boolean
   /** An observer query is registered right now. */
   observing: boolean
+  /** New shells report the actual registration/query results, never inferred authorization. */
+  backgroundDeliveryEnabled?: boolean | null
+  lastQuerySucceeded?: boolean | null
+  lastQueryAt?: number | null
+  lastPositiveAt?: number | null
+  lastBackgroundWakeAt?: number | null
 }
 
 export interface GuardStatus {

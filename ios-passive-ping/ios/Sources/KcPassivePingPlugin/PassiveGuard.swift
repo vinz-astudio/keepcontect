@@ -69,6 +69,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     private var armed = false
     private let evidenceLock = NSLock()
     private var evidenceSending = false
+    private var evidenceSendGeneration = 0
 
     private override init() {
         let configuration = URLSessionConfiguration.default
@@ -91,6 +92,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         // would be the last one it ever got.
         HealthWake.shared.resume()
         flushRecord()
+        flushEvidenceQueue()
     }
 
     func configure(
@@ -122,6 +124,8 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         )
         initializePowerBaseline()
         arm()
+        HealthWake.shared.resume()
+        HealthWake.shared.retryHistory()
         flushRecord()
         flushEvidenceQueue()
     }
@@ -166,6 +170,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             ) { [weak self] _ in
                 self?.recordEvent(reason: "unlock")
                 self?.recordDirectEvidence(observedAt: Date())
+                HealthWake.shared.retryHistory()
                 self?.captureSample(trigger: "unlock")
             }
         )
@@ -180,6 +185,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             ) { [weak self] _ in
                 self?.recordEvent(reason: "foreground")
                 self?.recordDirectEvidence(observedAt: Date())
+                HealthWake.shared.retryHistory()
                 // The control case. A foreground sample is the only one taken
                 // while a human is provably present, so it is what every
                 // background sample has to be calibrated against — without it
@@ -434,6 +440,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             return
         }
         evidenceSending = true
+        let sendGeneration = evidenceSendGeneration
         evidenceLock.unlock()
 
         var body = first
@@ -441,6 +448,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         let sentBindingId = first["binding_id"] as? String
         guard let payload = try? JSONSerialization.data(withJSONObject: body) else {
             finishEvidenceSend(
+                generation: sendGeneration,
                 sentBindingId: sentBindingId,
                 removeFirst: true,
                 revoked: false
@@ -451,33 +459,33 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         request.httpMethod = "POST"
         request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.httpBody = payload
-        session.dataTask(with: request) { [weak self] _, response, error in
+        session.dataTask(with: request) { [weak self] data, response, error in
             guard let self else { return }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if error != nil || status >= 500 || status == 0 {
-                self.finishEvidenceSend(
-                    sentBindingId: sentBindingId,
-                    removeFirst: false,
-                    revoked: false
-                )
-                return
-            }
-            self.finishEvidenceSend(
-                sentBindingId: sentBindingId,
-                removeFirst: true,
-                revoked: status == 409
+            let responseBody = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let disposition = EvidenceUploadPolicy.disposition(
+                httpStatus: status, bodyStatus: responseBody?["status"] as? String, failed: error != nil
             )
+            DispatchQueue.main.async {
+                self.finishEvidenceSend(
+                    generation: sendGeneration,
+                    sentBindingId: sentBindingId,
+                    removeFirst: disposition != .retry,
+                    revoked: disposition == .revoke
+                )
+            }
         }.resume()
     }
 
     private func finishEvidenceSend(
+        generation: Int,
         sentBindingId: String?,
         removeFirst: Bool,
         revoked: Bool
     ) {
         evidenceLock.lock()
-        guard defaults.string(forKey: Key.evidenceBindingId) == sentBindingId else {
-            evidenceSending = false
+        guard generation == evidenceSendGeneration,
+              defaults.string(forKey: Key.evidenceBindingId) == sentBindingId else {
             evidenceLock.unlock()
             return
         }
@@ -516,6 +524,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
 
     private func clearEvidenceBinding() {
         evidenceLock.lock()
+        evidenceSendGeneration += 1
         evidenceSending = false
         for key in [
             Key.evidenceBindingId, Key.evidenceCollectorContract,
@@ -763,14 +772,22 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     /// while a request is still in flight — the process would be suspended and
     /// the sample lost.
     func captureSample(trigger: String, completion: (() -> Void)? = nil) {
+        // A wake also retries previously queued positives, even when the new
+        // history query is empty. Sending does not manufacture fresh activity.
+        flushEvidenceQueue()
         guard let (baseUrl, token) = credentials(),
               let url = URL(string: baseUrl + "/functions/v1/device-sample") else {
             completion?()
             return
         }
 
+        let sampleBindingId = defaults.string(forKey: Key.evidenceBindingId)
         DeviceSampleCollector.shared.collect(trigger: trigger) { [weak self] sample in
             guard let self else {
+                completion?()
+                return
+            }
+            guard sampleBindingId == self.defaults.string(forKey: Key.evidenceBindingId) else {
                 completion?()
                 return
             }
@@ -800,9 +817,24 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             request.httpMethod = "POST"
             request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
             request.httpBody = data
-            self.session.dataTask(with: request) { _, _, _ in
-                completion?()
+            self.session.dataTask(with: request) { [weak self] _, _, _ in
+                guard let self else { completion?(); return }
+                // The diagnostics request is not the evidence request. Do not
+                // acknowledge a background wake while its evidence is still
+                // in flight; pending events remain durable if the budget ends.
+                self.finishBackgroundEvidence(deadline: Date().addingTimeInterval(5), completion: completion)
             }.resume()
+        }
+    }
+
+    func finishBackgroundEvidence(deadline: Date, completion: (() -> Void)?) {
+        evidenceLock.lock()
+        let sending = evidenceSending
+        evidenceLock.unlock()
+        guard sending, Date() < deadline else { completion?(); return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self else { completion?(); return }
+            self.finishBackgroundEvidence(deadline: deadline, completion: completion)
         }
     }
 

@@ -101,9 +101,13 @@ final class DeviceSampleCollector {
     private let motionSerialQueue = DispatchQueue(label: "com.keepcontact.passive.motion")
     private let pedometer = CMPedometer()
     private let activityManager = CMMotionActivityManager()
+    private var historyGeneration = 0
 
     func resetHistoryAnchor() {
-        defaults.set(Date().timeIntervalSince1970, forKey: Key.lastSampleAt)
+        motionSerialQueue.sync {
+            historyGeneration += 1
+            defaults.set(Date().timeIntervalSince1970, forKey: Key.lastSampleAt)
+        }
     }
 
     /// Collects a sample and hands it back. Every reading is individually
@@ -150,6 +154,7 @@ final class DeviceSampleCollector {
         }
 
         let since = lastSampleAt()
+        let generation = motionSerialQueue.sync { historyGeneration }
         sample.motionIntervalStart = since
         let group = DispatchGroup()
 
@@ -192,7 +197,11 @@ final class DeviceSampleCollector {
 
         group.notify(queue: motionSerialQueue) { [weak self] in
             let finished = sample
-            self?.defaults.set(finished.observedAt.timeIntervalSince1970, forKey: Key.lastSampleAt)
+            // An unavailable/locked pedometer is not a successful empty read.
+            // Preserve the unread interval, including across account resets.
+            if let self, generation == self.historyGeneration, finished.stepsSinceLastSample != nil {
+                self.defaults.set(finished.observedAt.timeIntervalSince1970, forKey: Key.lastSampleAt)
+            }
             DispatchQueue.main.async { completion(finished) }
         }
     }
@@ -204,8 +213,7 @@ final class DeviceSampleCollector {
         // A first run has nothing to look back at. Six hours is chosen to be
         // longer than any plausible wake interval without dragging in a whole
         // night of history that belongs to an earlier session.
-        guard stored > 0 else { return Date().addingTimeInterval(-6 * 3600) }
-        return Date(timeIntervalSince1970: stored)
+        return HistoryQueryPolicy.start(cursor: stored, end: Date())
     }
 
     /// A phone resting on a surface produces acceleration magnitudes that barely

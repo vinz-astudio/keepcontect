@@ -42,7 +42,7 @@ describe('collection capability resolver', () => {
     expect(capability('interaction')).toMatchObject({ state: 'granted', requirement: null })
   })
 
-  it('keeps iOS TestFlight native collection honest about unavailable Android-only signals', async () => {
+  it('does not equate an armed iOS observer with verified background delivery', async () => {
     const result = await resolveCollectionCapabilities(deps({
       capacitorPlatform: () => 'ios',
       permissionGranted: async (id) => id === 'notifications',
@@ -60,9 +60,9 @@ describe('collection capability resolver', () => {
     expect(result.distribution).toBe('testflight-or-app-store')
     const capability = (id: string) => result.capabilities.find((item) => item.id === id)
     expect(capability('app-activity')).toMatchObject({ state: 'granted', requirement: null })
-    expect(capability('motion')).toMatchObject({ state: 'unavailable' })
-    expect(capability('charger')).toMatchObject({ state: 'unavailable' })
-    expect(capability('background-collection')).toMatchObject({ state: 'granted' })
+    expect(capability('motion')).toMatchObject({ state: 'limited' })
+    expect(capability('charger')).toMatchObject({ state: 'limited' })
+    expect(capability('background-collection')).toMatchObject({ state: 'limited' })
     expect(capability('native-evidence')).toMatchObject({ state: 'granted' })
     expect(capability('interaction')).toMatchObject({ state: 'granted' })
   })

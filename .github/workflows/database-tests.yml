@@ -33,3 +33,5 @@ jobs:
         run: supabase db reset --local --no-seed
       - name: Run GM coverage pgTAP
         run: supabase test db --local supabase/tests/gm_coverage_aware_silence_kind.sql
+      - name: Run scoped Shortcut evidence pgTAP
+        run: supabase test db --local supabase/tests/shortcut_evidence.sql

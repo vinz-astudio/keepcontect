@@ -54,22 +54,9 @@ platform :ios do
     ].find { |candidate| File.exist?(candidate) }
     UI.user_error!("setup_ci did not leave a keychain behind") if keychain_path.nil?
 
-    # Auto-prune oldest distribution certificate if Apple Developer Portal's
-    # limit (2 or 3 active certs) is reached on headless CI runners.
-    begin
-      all_certs = Spaceship::ConnectAPI::Certificate.all
-      dist_certs = (all_certs || []).select { |c| c.certificate_type.to_s.upcase.include?("DIST") }
-      UI.message("Found #{dist_certs.count} active distribution certificates on Apple Developer Portal")
-      if dist_certs.count >= 2
-        oldest = dist_certs.sort_by { |c| c.expiration_date || "" }.first
-        if oldest
-          UI.important("Pruning oldest distribution cert #{oldest.id} (#{oldest.name}) to stay under Apple 3-cert limit")
-          oldest.delete!
-        end
-      end
-    rescue => e
-      UI.error("Certificate pruning notice: #{e.message}")
-    end
+    # Never revoke an existing distribution identity just to free a slot.
+    # It may sign another app. Certificate quota failures require a separate
+    # decision; a TestFlight upload is not authority to invalidate that identity.
 
     get_certificates(
       api_key: api_key,

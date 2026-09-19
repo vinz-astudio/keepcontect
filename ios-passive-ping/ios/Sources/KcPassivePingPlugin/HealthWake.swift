@@ -29,6 +29,16 @@ final class HealthWake {
 
     private let store = HKHealthStore()
     private var observerQuery: HKObserverQuery?
+    private var backgroundDeliveryEnabled: Bool?
+    private var registeringDelivery = false
+    private var queryInFlight = false
+    private var queryGeneration = 0
+    private var pendingCompletions: [() -> Void] = []
+    private var pendingNeedsSample = false
+    private var lastQuerySucceeded: Bool?
+    private var lastQueryAt: Date?
+    private var lastPositiveAt: Date?
+    private var lastBackgroundWakeAt: Date?
 
     private var stepType: HKQuantityType? {
         HKQuantityType.quantityType(forIdentifier: .stepCount)
@@ -66,8 +76,11 @@ final class HealthWake {
             // Registering regardless is correct: if permission was refused the
             // observer simply never fires, which is exactly the same outcome as
             // not registering.
-            self.resume()
-            completion?(granted)
+            DispatchQueue.main.async {
+                self.resume()
+                self.retryHistory()
+                completion?(granted)
+            }
         }
     }
 
@@ -77,35 +90,81 @@ final class HealthWake {
     /// query itself does not — iOS relaunches the app and then expects to find
     /// an observer to call.
     func resume() {
-        guard Self.isSupported, let stepType, hasAsked, observerQuery == nil else { return }
-
-        let query = HKObserverQuery(sampleType: stepType, predicate: nil) { [weak self] _, completionHandler, error in
-            guard error == nil, let self else {
-                completionHandler()
-                return
-            }
-            self.onWake(completion: completionHandler)
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.resume() }
+            return
         }
-        observerQuery = query
-        store.execute(query)
+        guard Self.isSupported, let stepType, hasAsked else { return }
+
+        if observerQuery == nil {
+            let query = HKObserverQuery(sampleType: stepType, predicate: nil) { [weak self] _, completionHandler, error in
+                guard error == nil, let self else {
+                    completionHandler()
+                    return
+                }
+                DispatchQueue.main.async {
+                    self.lastBackgroundWakeAt = Date()
+                    self.onWake(completion: completionHandler)
+                }
+            }
+            observerQuery = query
+            store.execute(query)
+        }
 
         // `.immediate` is a request, not a promise: the system caps step count
         // to roughly hourly. Asking for the finest granularity and letting iOS
         // coarsen it is better than pre-coarsening it ourselves.
-        store.enableBackgroundDelivery(for: stepType, frequency: .immediate) { _, _ in
-            // A failure here is not actionable at runtime — it means the
-            // entitlement is missing from the build, which the spike's own
-            // absence of wakes will reveal.
+        guard backgroundDeliveryEnabled != true, !registeringDelivery else { return }
+        registeringDelivery = true
+        let generation = queryGeneration
+        store.enableBackgroundDelivery(for: stepType, frequency: .immediate) { [weak self] success, _ in
+            DispatchQueue.main.async {
+                guard let self, generation == self.queryGeneration else { return }
+                self.registeringDelivery = false
+                self.backgroundDeliveryEnabled = success
+                self.retryHistory()
+            }
         }
     }
 
-    private func onWake(completion: @escaping () -> Void) {
+    /// Retry unread history after foreground/unlock. Neither wake nor an empty
+    /// result is activity. A denied/locked query must not consume its interval.
+    func retryHistory() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.retryHistory() }
+            return
+        }
+        guard hasAsked, observerQuery != nil else { return }
+        onWake(captureSample: false, completion: {})
+    }
+
+    private func onWake(captureSample: Bool = true, completion: @escaping () -> Void) {
+        guard observerQuery != nil, PassiveGuard.shared.isEvidenceConfigured else {
+            completion()
+            return
+        }
+        pendingCompletions.append(completion)
+        pendingNeedsSample = pendingNeedsSample || captureSample
+        guard !queryInFlight else { return }
+        queryInFlight = true
+        let generation = queryGeneration
+        let callbacks = pendingCompletions
+        let needsSample = pendingNeedsSample
+        pendingCompletions = []
+        pendingNeedsSample = false
         // The lease goes first and unconditionally. It says "the watcher was
         // awake here", which is true of this wake whether or not the sample
         // below finds anything worth reporting.
         PassiveGuard.shared.reportCoverageLease()
         queryPositiveHistory { observedAt, stepsPositive, floorsPositive, queryStart, queryEnd in
+            guard generation == self.queryGeneration else {
+                self.queryInFlight = false
+                callbacks.forEach { $0() }
+                self.drainPendingQueries()
+                return
+            }
             if let observedAt {
+                self.lastPositiveAt = observedAt
                 PassiveGuard.shared.recordMotionEvidence(
                     observedAt: observedAt,
                     stepsPositive: stepsPositive,
@@ -115,8 +174,33 @@ final class HealthWake {
                     queryEnd: queryEnd
                 )
             }
-            PassiveGuard.shared.captureSample(trigger: "health-wake", completion: completion)
+            let finished = {
+                DispatchQueue.main.async {
+                    self.queryInFlight = false
+                    callbacks.forEach { $0() }
+                    self.drainPendingQueries()
+                }
+            }
+            if needsSample {
+                PassiveGuard.shared.captureSample(trigger: "health-wake", completion: finished)
+            } else {
+                // A foreground history retry is not a Health background wake.
+                // Avoid starting a second CoreMotion sample beside the one the
+                // foreground/unlock path already requested.
+                PassiveGuard.shared.finishBackgroundEvidence(deadline: Date().addingTimeInterval(5), completion: finished)
+            }
         }
+    }
+
+    private func drainPendingQueries() {
+        guard !pendingCompletions.isEmpty else { return }
+        // Wakes arriving during a query must get a new end time, rather than
+        // being acknowledged against a query that predates their samples.
+        let pending = pendingCompletions
+        let needsSample = pendingNeedsSample
+        pendingCompletions = []
+        pendingNeedsSample = false
+        onWake(captureSample: needsSample) { pending.forEach { $0() } }
     }
 
     private func queryPositiveHistory(
@@ -124,15 +208,15 @@ final class HealthWake {
     ) {
         let end = Date()
         let stored = UserDefaults.standard.double(forKey: Self.lastQueryKey)
-        let start = stored > 0
-            ? Date(timeIntervalSince1970: stored)
-            : end.addingTimeInterval(-6 * 3600)
+        let start = HistoryQueryPolicy.start(cursor: stored, end: end)
+        let generation = queryGeneration
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
         let group = DispatchGroup()
         let lock = NSLock()
         var latest: Date?
         var stepsPositive = false
         var floorsPositive = false
+        var allQueriesSucceeded = true
 
         func run(_ type: HKQuantityType?, floors: Bool) {
             guard let type else { return }
@@ -144,9 +228,12 @@ final class HealthWake {
                 sortDescriptors: nil
             ) { _, samples, error in
                 defer { group.leave() }
-                guard error == nil, let samples = samples as? [HKQuantitySample] else { return }
                 lock.lock()
                 defer { lock.unlock() }
+                guard error == nil, let samples = samples as? [HKQuantitySample] else {
+                    allQueriesSucceeded = false
+                    return
+                }
                 for sample in samples where sample.quantity.doubleValue(for: HKUnit.count()) > 0 {
                     if floors { floorsPositive = true } else { stepsPositive = true }
                     if latest == nil || sample.endDate > latest! { latest = sample.endDate }
@@ -158,8 +245,16 @@ final class HealthWake {
         run(stepType, floors: false)
         run(floorType, floors: true)
         group.notify(queue: .main) {
-            UserDefaults.standard.set(end.timeIntervalSince1970, forKey: Self.lastQueryKey)
-            completion(latest, stepsPositive, floorsPositive, start, end)
+            guard generation == self.queryGeneration else {
+                completion(nil, false, false, start, end)
+                return
+            }
+            self.lastQueryAt = end
+            self.lastQuerySucceeded = allQueriesSucceeded
+            if allQueriesSucceeded {
+                UserDefaults.standard.set(end.timeIntervalSince1970, forKey: Self.lastQueryKey)
+            }
+            completion(allQueriesSucceeded ? latest : nil, stepsPositive, floorsPositive, start, end)
         }
     }
 
@@ -168,6 +263,17 @@ final class HealthWake {
     /// logged-out device keeps being relaunched to record observations that
     /// belong to nobody.
     func disable() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.disable() }
+            return
+        }
+        queryGeneration += 1
+        registeringDelivery = false
+        backgroundDeliveryEnabled = nil
+        let pending = pendingCompletions
+        pendingCompletions = []
+        pendingNeedsSample = false
+        pending.forEach { $0() }
         if let query = observerQuery {
             store.stop(query)
             observerQuery = nil
@@ -177,6 +283,16 @@ final class HealthWake {
     }
 
     func resetHistoryAnchor() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.resetHistoryAnchor() }
+            return
+        }
+        queryGeneration += 1
+        registeringDelivery = false
+        lastQuerySucceeded = nil
+        lastQueryAt = nil
+        lastPositiveAt = nil
+        lastBackgroundWakeAt = nil
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.lastQueryKey)
     }
 
@@ -184,14 +300,21 @@ final class HealthWake {
     /// to merely entitled. The coverage lease reports capability, and an
     /// entitlement nobody granted would overstate what this install can see.
     var isObserving: Bool {
-        observerQuery != nil
+        if !Thread.isMainThread { return DispatchQueue.main.sync { self.isObserving } }
+        return observerQuery != nil && backgroundDeliveryEnabled == true
     }
 
     func status() -> [String: Any] {
-        [
+        if !Thread.isMainThread { return DispatchQueue.main.sync { self.status() } }
+        return [
             "supported": Self.isSupported,
             "asked": hasAsked,
-            "observing": observerQuery != nil
+            "observing": observerQuery != nil,
+            "backgroundDeliveryEnabled": backgroundDeliveryEnabled as Any? ?? NSNull(),
+            "lastQuerySucceeded": lastQuerySucceeded as Any? ?? NSNull(),
+            "lastQueryAt": (lastQueryAt?.timeIntervalSince1970).map { $0 * 1000 } as Any? ?? NSNull(),
+            "lastPositiveAt": (lastPositiveAt?.timeIntervalSince1970).map { $0 * 1000 } as Any? ?? NSNull(),
+            "lastBackgroundWakeAt": (lastBackgroundWakeAt?.timeIntervalSince1970).map { $0 * 1000 } as Any? ?? NSNull()
         ]
     }
 }

@@ -1,10 +1,12 @@
 import { Capacitor } from '@capacitor/core'
 import { useCallback, useEffect, useState } from 'react'
-import {
-  getHeartbeatToken,
-  pingUrl,
-  PING_SOURCES,
-} from '@/features/passive/api'
+import { useAuth } from '@/features/auth/AuthProvider'
+import { supabase } from '@/lib/supabase'
+import { SUPABASE_URL } from '@/lib/config'
+import { APP_VERSION } from '@/lib/version'
+import { getClientId } from '@/lib/clientReport'
+import { bindPassiveCollector, revokePassiveCollector } from './evidenceContract'
+import { createAppOpenShortcut } from './shortcutSetup'
 import { getPlatform, isTauri } from '@/lib/platform'
 import { toast } from '@/lib/toast'
 import { useI18n } from '@/lib/i18n'
@@ -14,6 +16,7 @@ import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/featur
 import {
   getGuardMode,
   getGuardStatus,
+  enableHealthWake,
   resolveGuardDemotion,
   isUsageStatsEnabled,
   openUsageStatsSettings,
@@ -33,16 +36,63 @@ export function PassiveSignalCard() {
   const { t, lang } = useI18n()
   const platform = getPlatform()
   const android = androidRuntime()
+  const { user } = useAuth()
 
-  const [token, setToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [shortcutBusy, setShortcutBusy] = useState(false)
+  const [shortcutBindingState, setShortcutBinding] = useState<{ key: string; id: string } | null>(null)
+  const [shortcutLink, setShortcutLink] = useState<{ key: string; url: string } | null>(null)
   const [autostart, setAutostart] = useState(false)
   const [hasAutostartSupport, setHasAutostartSupport] = useState(false)
   const [_, setSensorRefresh] = useState(0)
   // Android:无障碍后台守护实况(设置开关 + 真实绑定/事件时间戳;轮询自动刷新)
   const [guard, setGuard] = useState<GuardStatus | null>(null)
   const [guardMode, setGuardMode] = useState<GuardMode | null>(null)
-  const iosEvidenceReady = guard?.enabled === true && guard.evidenceConfigured === true
+  const iosEvidenceBound = guard?.enabled === true && guard.evidenceConfigured === true
+  const shortcutKey = user ? `kc.shortcut.binding.${user.id}` : null
+  const shortcutBinding = shortcutBindingState?.key === shortcutKey ? shortcutBindingState?.id : null
+  const readyShortcutLink = shortcutLink?.key === shortcutKey ? shortcutLink?.url : null
+
+  useEffect(() => {
+    setShortcutLink(null)
+    try {
+      const id = shortcutKey ? localStorage.getItem(shortcutKey) : null
+      setShortcutBinding(shortcutKey && id ? { key: shortcutKey, id } : null)
+    } catch { setShortcutBinding(null) }
+  }, [shortcutKey])
+
+  const setupShortcut = async () => {
+    if (!user || !shortcutKey || shortcutBusy) return
+    setShortcutBusy(true)
+    setError(null)
+    setShortcutLink(null)
+    try {
+      const url = await createAppOpenShortcut(user.id, {
+        getUserId: async () => (await supabase.auth.getSession()).data.session?.user.id ?? null,
+        bind: () => bindPassiveCollector(`shortcut-${user.id}-${getClientId()}`, 'shortcut', APP_VERSION),
+        revoke: revokePassiveCollector, baseUrl: SUPABASE_URL,
+        remember: (id) => { localStorage.setItem(shortcutKey, id); setShortcutBinding({ key: shortcutKey, id }) },
+      })
+      setShortcutLink({ key: shortcutKey, url })
+    } catch {
+      setError(lang === 'zh' ? '链接未能生成，请保持当前账号登录后重试。' : 'Could not create the link. Stay signed in to this account and retry.')
+    } finally { setShortcutBusy(false) }
+  }
+
+  const disableShortcut = async () => {
+    if (!shortcutBinding || !shortcutKey || shortcutBusy) return
+    setShortcutBusy(true)
+    setError(null)
+    try {
+      if (!await revokePassiveCollector(shortcutBinding)) throw new Error('Revoke failed')
+      localStorage.removeItem(shortcutKey)
+      setShortcutBinding(null)
+      setShortcutLink(null)
+      toast(lang === 'zh' ? '此快捷指令的报活链接已停用' : 'This Shortcut link is disabled.', 'ok')
+    } catch {
+      setError(lang === 'zh' ? '停用失败，请重试。' : 'Could not disable the link. Please retry.')
+    } finally { setShortcutBusy(false) }
+  }
 
   const handleResolveDemotion = async (accepted: boolean) => {
     await resolveGuardDemotion(accepted)
@@ -94,13 +144,6 @@ export function PassiveSignalCard() {
   }
 
   const loadData = useCallback(async () => {
-    try {
-      const tok = await getHeartbeatToken()
-      setToken(tok)
-      if (tok) localStorage.setItem('kc.passiveToken', tok)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    }
     const capPlatform = Capacitor.getPlatform()
     if (capPlatform === 'android' || capPlatform === 'ios') {
       const g = await getGuardStatus()
@@ -225,22 +268,6 @@ export function PassiveSignalCard() {
       title: lang === 'zh' ? 'iOS 苹果快捷指令自动化 (推荐)' : 'iOS Apple Shortcuts Automation (Recommended)',
       isCurrent: platform === 'ios',
       render: () => {
-        const importShortcut = async () => {
-          if (!token) return
-          const url = pingUrl(token, PING_SOURCES.SHORTCUT)
-          try {
-            await navigator.clipboard.writeText(url)
-            alert(
-              lang === 'zh'
-                ? '✅ 报活链接已复制到剪贴板！\n\n即将打开快捷指令导入页面。请在弹出的“报活链接”输入框中【长按粘贴】刚才复制的链接，然后点击“添加快捷指令”即可。'
-                : '✅ Ping URL copied to clipboard!\n\nOpening Shortcuts. Please long-press and [Paste] the copied URL into the "Ping URL" input field, then tap "Add Shortcut".'
-            )
-            window.open('https://www.icloud.com/shortcuts/8f0e9eef33174e9d9d4351f2ae43a11a', '_blank')
-          } catch (err) {
-            console.error('Failed to copy and redirect:', err)
-          }
-        }
-
         const isNativeIos = Capacitor.getPlatform() === 'ios'
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -248,37 +275,70 @@ export function PassiveSignalCard() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px', background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
-                    {lang === 'zh' ? 'iOS 原生解锁被动守护 (PassiveGuard)' : 'iOS Native Unlock Guard'}
+                    {lang === 'zh' ? 'iOS 活动采集' : 'iOS Activity Collection'}
                   </span>
-                  <strong style={{ color: iosEvidenceReady ? 'var(--ok)' : 'var(--danger)', fontSize: '0.82rem' }}>
-                    {iosEvidenceReady
-                      ? (lang === 'zh' ? '运行中 (解锁静默告活已就绪)' : 'Running (Unlock detection active)')
+                  <strong style={{ color: 'var(--accent)', fontSize: '0.82rem' }}>
+                    {iosEvidenceBound
+                      ? (lang === 'zh' ? '已绑定 · 后台采集受系统限制' : 'Bound · Background collection is limited')
                       : (lang === 'zh' ? '未就绪 (等待被动证据绑定)' : 'Not ready (Passive evidence binding required)')}
                   </strong>
                 </div>
                 <p className="muted" style={{ margin: 0, fontSize: '0.78rem', lineHeight: '1.3' }}>
                   {lang === 'zh'
-                    ? '只采集 KC 能观察到的解锁和前台事件，不会把一般手机使用当作可见信号。保存 Routine 后，必须成功绑定被动证据才会显示“已就绪”。'
-                    : 'Collects only KC-observable unlock and foreground events; general phone use is not visible to iOS. It shows ready only after passive evidence binds successfully.'}
+                    ? '系统允许 KC 运行时才能读取活动。走动记录可能延后补报；绑定成功不代表锁屏后持续运行。'
+                    : 'Activity is read when iOS lets KC run. Walking records may arrive later; binding does not guarantee continuous collection while locked.'}
                 </p>
+                <p className="muted" style={{ margin: 0, fontSize: '0.78rem' }}>
+                  {lang === 'zh' ? '健康记录读取：' : 'Health history: '}
+                  {guard?.health?.lastQuerySucceeded === false
+                    ? (lang === 'zh' ? '上次读取失败，解锁或打开 KC 后重试' : 'Last read failed; retry after unlocking or opening KC')
+                    : guard?.health?.lastPositiveAt
+                      ? `${lang === 'zh' ? '最近读到活动 ' : 'Last activity read '}${new Date(guard.health.lastPositiveAt).toLocaleString()}`
+                      : (lang === 'zh' ? '尚未验证读到活动' : 'No activity read verified yet')}
+                </p>
+                <p className="muted" style={{ margin: 0, fontSize: '0.78rem' }}>
+                  {lang === 'zh' ? '后台唤醒登记：' : 'Background wake registration: '}
+                  {guard?.health?.backgroundDeliveryEnabled === true
+                    ? (lang === 'zh' ? '已登记，执行时间由 iOS 决定' : 'Registered; timing is controlled by iOS')
+                    : (lang === 'zh' ? '未确认' : 'Unconfirmed')}
+                </p>
+                <button className="share" onClick={() => void enableHealthWake().then(loadData)}>
+                  {lang === 'zh' ? '设置／重试健康活动读取' : 'Set up / retry Health activity reading'}
+                </button>
               </div>
             )}
 
             <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
               {lang === 'zh'
-                ? '您也可以导入我们预设的 Apple 快捷指令，利用系统事件（如充电、特定 App 打开）触发静默报活：'
-                : 'You can also import our pre-configured Apple Shortcut to trigger silent check-ins via system events (e.g. charging, specific app opened):'}
+                ? 'PWA 无法在锁屏时持续感知走动。可用「打开 App」快捷指令自动报活。已有快捷指令需替换旧链接；旧链接不会计入当前活动判定。'
+                : 'The PWA cannot continuously detect walking while locked. Use an App Opened Shortcut for automatic check-ins. Replace existing legacy links; they do not count toward activity checks.'}
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '4px 0' }}>
               <button 
                 className="share" 
                 style={{ alignSelf: 'flex-start', background: 'var(--accent)', color: 'white', border: 'none', padding: '10px 16px', fontWeight: 'bold' }} 
-                disabled={!token} 
-                onClick={() => void importShortcut()}
+                disabled={!user || shortcutBusy}
+                onClick={() => void setupShortcut()}
               >
-                {lang === 'zh' ? '📥 一键复制并导入快捷指令' : '📥 Copy URL & Import Shortcut'}
+                {lang === 'zh' ? '生成 App 打开报活链接' : 'Create App Opened link'}
               </button>
+              {readyShortcutLink && <button className="share" disabled={shortcutBusy} onClick={() => {
+                // Safari needs clipboard.writeText directly in a fresh user
+                // gesture, not after the asynchronous binding request.
+                void navigator.clipboard.writeText(readyShortcutLink).then(
+                  () => toast(lang === 'zh' ? '链接已复制，请粘贴到快捷指令中' : 'Link copied. Paste it into your Shortcut.', 'ok'),
+                  () => setError(lang === 'zh' ? '复制失败，请允许剪贴板访问后重试。' : 'Copy failed. Allow clipboard access and retry.'),
+                )
+              }}>
+                {lang === 'zh' ? '复制已生成的链接' : 'Copy generated link'}
+              </button>}
+              {shortcutBinding && <button className="share" disabled={shortcutBusy} onClick={() => void disableShortcut()}>
+                {lang === 'zh' ? '停用此快捷指令链接' : 'Disable this Shortcut link'}
+              </button>}
+              <span className="muted" style={{ fontSize: '0.78rem' }}>
+                {lang === 'zh' ? '重新生成会停用此设备此前生成的链接。链接仅用于当前账号的「打开 App」自动化。' : 'Generating again disables the previous link from this device. Use it only for this account’s App Opened automation.'}
+              </span>
             </div>
 
             <div style={{ background: 'var(--accent-soft)', borderLeft: '3px solid var(--accent)', padding: '10px', borderRadius: 'var(--r-sm)', fontSize: '0.82rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -288,8 +348,8 @@ export function PassiveSignalCard() {
               <ol style={{ margin: 0, paddingLeft: '16px', lineHeight: '1.4', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <li>
                   {lang === 'zh'
-                    ? '点击上方按钮导入快捷指令，并将您的个人链接粘贴到设置问题中。'
-                    : 'Tap the button above to import the Shortcut, pasting your link during setup.'}
+                    ? '复制上方链接。打开已有快捷指令，替换其中「获取 URL 内容」的旧网址，使用 GET 方法；也可新建含此动作的快捷指令。'
+                    : 'Copy the link above. Replace the URL in your Shortcut’s Get Contents of URL action and use GET, or create a Shortcut with that action.'}
                 </li>
                 <li>
                   {lang === 'zh'
@@ -298,8 +358,8 @@ export function PassiveSignalCard() {
                 </li>
                 <li>
                   {lang === 'zh'
-                    ? '新建一个您需要的系统触发源（推荐：当“充电器连接时”、或当“屏幕解锁时”）。'
-                    : 'Select a trigger event (Recommended: "When Charger is Connected" or "When Lock Screen is Unlocked").'}
+                    ? '选择「App」→「打开时」，勾选您常用的 App。此链接只适用于 App 打开事件，请勿接到定时或充电自动化。'
+                    : 'Choose App → Is Opened, then select apps you use. This link is only for App Opened events; do not attach it to timers or charging automations.'}
                 </li>
                 <li>
                   {lang === 'zh'
@@ -308,8 +368,8 @@ export function PassiveSignalCard() {
                 </li>
                 <li>
                   {lang === 'zh'
-                    ? '在执行动作中选择运行刚导入的【Keep Contact Ping】快捷指令即可。'
-                    : 'Set the action to run the imported "Keep Contact Ping" Shortcut.'}
+                    ? '让自动化运行上述快捷指令。打开选定的 App 后，回到 KC 检查最近活动时间是否更新。'
+                    : 'Have the automation run that Shortcut. Open a selected app, then check that the latest activity time in KC updates.'}
                 </li>
               </ol>
             </div>

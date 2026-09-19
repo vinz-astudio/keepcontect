@@ -38,33 +38,41 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("token is required")
             return
         }
-        PassiveGuard.shared.configure(
-            supabaseUrl: supabaseUrl,
-            token: token,
-            clientId: call.getString("clientId"),
-            appVersion: call.getString("appVersion"),
-            evidenceBindingId: call.getString("bindingId"),
-            evidenceCredential: call.getString("evidenceCredential"),
-            evidenceCollectorContract: call.getString("evidenceCollectorContract")
-        )
-        call.resolve(["evidenceConfigured": PassiveGuard.shared.isEvidenceConfigured])
+        DispatchQueue.main.async {
+            PassiveGuard.shared.configure(
+                supabaseUrl: supabaseUrl,
+                token: token,
+                clientId: call.getString("clientId"),
+                appVersion: call.getString("appVersion"),
+                evidenceBindingId: call.getString("bindingId"),
+                evidenceCredential: call.getString("evidenceCredential"),
+                evidenceCollectorContract: call.getString("evidenceCollectorContract")
+            )
+            call.resolve(["evidenceConfigured": PassiveGuard.shared.isEvidenceConfigured])
+        }
     }
 
     @objc func clear(_ call: CAPPluginCall) {
-        PassiveGuard.shared.clear()
-        call.resolve()
+        DispatchQueue.main.async {
+            PassiveGuard.shared.clear()
+            call.resolve()
+        }
     }
 
     @objc func pingApp(_ call: CAPPluginCall) {
-        PassiveGuard.shared.recordEvent(reason: "app")
-        PassiveGuard.shared.recordDirectEvidence(observedAt: Date())
-        call.resolve()
+        DispatchQueue.main.async {
+            PassiveGuard.shared.recordEvent(reason: "app")
+            PassiveGuard.shared.recordDirectEvidence(observedAt: Date())
+            call.resolve()
+        }
     }
 
     @objc func getGuardStatus(_ call: CAPPluginCall) {
-        var status = PassiveGuard.shared.status()
-        status["health"] = HealthWake.shared.status()
-        call.resolve(status)
+        DispatchQueue.main.async {
+            var status = PassiveGuard.shared.status()
+            status["health"] = HealthWake.shared.status()
+            call.resolve(status)
+        }
     }
 
     /// Asks for step-count read access and registers the HealthKit wake
@@ -72,8 +80,10 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
     /// authorization is a normal outcome, not an error, and KC keeps working
     /// with the evidence sources it already has.
     @objc func enableHealthWake(_ call: CAPPluginCall) {
-        HealthWake.shared.enable { granted in
-            call.resolve(["granted": granted])
+        DispatchQueue.main.async {
+            HealthWake.shared.enable { granted in
+                call.resolve(["granted": granted])
+            }
         }
     }
 

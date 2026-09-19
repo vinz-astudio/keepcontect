@@ -134,10 +134,11 @@ async function resolveNativeCapability(
     if (definition.id === 'motion' && !deps.isSensorEnabled('motion')) return 'disabled'
     return definition.requirement && await deps.permissionGranted(definition.requirement) ? 'granted' : 'denied'
   }
-  if (definition.id === 'motion' || definition.id === 'charger') return 'unavailable'
+  // iOS has these collectors, but they run only when the OS permits execution.
+  // A bound/armed watcher does not verify continuous background coverage.
+  if (definition.id === 'motion' || definition.id === 'charger') return 'limited'
   if (definition.id === 'background-collection') {
-    const status = await deps.getGuardStatus()
-    return status?.enabled === true ? 'granted' : 'limited'
+    return 'limited'
   }
   if (definition.id === 'app-activity') {
     if (!deps.isSensorEnabled('app_activity')) return 'disabled'

@@ -11,9 +11,14 @@ import {
   startTauriShadowCoverage,
 } from '@/features/passive/shadowCoverage'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/features/auth/AuthProvider'
+import { startPwaPassiveEvidence } from './pwaEvidenceBoot'
 
 export function PassivePingBoot() {
   const tokenRef = useRef<string | null>(null)
+  const { user } = useAuth()
+
+  useEffect(() => startPwaPassiveEvidence(user?.id ?? null), [user?.id])
 
   useEffect(() => {
     let cancelled = false

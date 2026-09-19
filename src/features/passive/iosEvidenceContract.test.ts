@@ -6,6 +6,34 @@ const root = path.resolve('ios-passive-ping/ios/Sources/KcPassivePingPlugin')
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8')
 
 describe('iOS positive-evidence static contract', () => {
+  it('preserves unread Health history and reports actual registration outcomes', () => {
+    const source = read('HealthWake.swift')
+    expect(source).toContain('allQueriesSucceeded')
+    expect(source).toMatch(/if allQueriesSucceeded[\s\S]*?set\(end\.timeIntervalSince1970/)
+    expect(source).toContain('backgroundDeliveryEnabled')
+    expect(source).toContain('queryGeneration')
+    expect(source).toContain('queryInFlight')
+    expect(source).toContain('lastQuerySucceeded')
+  })
+
+  it('re-arms Health after configure and retries history when protected data returns', () => {
+    const guard = read('PassiveGuard.swift')
+    const configure = guard.slice(guard.indexOf('func configure('), guard.indexOf('func clear()'))
+    expect(configure).toContain('HealthWake.shared.resume()')
+    expect(guard).toContain('HealthWake.shared.retryHistory()')
+    expect(read('HealthWake.swift')).toContain('onWake(captureSample: false, completion: {})')
+  })
+
+  it('does not consume failed CoreMotion history or let an old upload finish a new account queue', () => {
+    const sample = read('DeviceSample.swift')
+    expect(sample).toMatch(/generation == self.historyGeneration, finished.stepsSinceLastSample != nil/)
+    const guard = read('PassiveGuard.swift')
+    expect(guard).toContain('generation == evidenceSendGeneration')
+    expect(guard).toContain('sampleBindingId == self.defaults.string(forKey: Key.evidenceBindingId)')
+    expect(guard).toContain('EvidenceUploadPolicy.disposition(')
+    expect(guard).toContain('finishBackgroundEvidence(deadline:')
+  })
+
   it('turns a Health wake into a positive history query, never an unconditional check-in', () => {
     const source = read('HealthWake.swift')
     expect(source).toContain('HKSampleQuery')
