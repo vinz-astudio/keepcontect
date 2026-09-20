@@ -34,6 +34,13 @@ public class PassivePingReceiver extends BroadcastReceiver {
             if (PassivePing.shouldPingForAction(context, action)) {
                 PassivePing.pingApp(context);
             }
+            android.content.SharedPreferences prefs =
+                context.getSharedPreferences("keep_contact_passive", Context.MODE_PRIVATE);
+            String lastSelfId = prefs.getString("last_self_alert_id", null);
+            if (lastSelfId != null) {
+                prefs.edit().remove("last_self_alert_id").apply();
+                NotifyWorker.updateNotificationToSafe(context, lastSelfId);
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { isTauri } from '@/lib/platform'
-import { configureNativePassivePing } from '@/features/passive/native'
+import { syncNativeSensorPreferences } from '@/features/passive/native'
 
 export interface SensorConfig {
   key: string
@@ -12,31 +12,34 @@ export interface SensorConfig {
 }
 
 export function getAvailableSensors(): SensorConfig[] {
+  const ios = Capacitor.getPlatform() === 'ios'
   return [
     {
       key: 'interaction',
       labelZh: 'App 使用互动',
       labelEn: 'App Interaction',
-      descZh: '您在页面上的触摸、点击，或打开本 App 的动作',
-      descEn: 'Taps, clicks on page, or simply opening the app',
+      descZh: '记录您在 KC 页面内的触摸、点击等操作；不代表其他 App 的活动或后台运行。',
+      descEn: 'Records interactions within KC, such as taps and clicks; does not monitor other apps or verify background execution.',
       supported: true
     },
     {
       key: 'system_idle',
       labelZh: '电脑鼠标键盘活跃',
       labelEn: 'Computer Mouse/Keyboard Activity',
-      descZh: '每 2 分钟检测一次，若鼠标或键盘有活动则自动上报（保持后台静默守护）',
-      descEn: 'Checks every 2 minutes. Automatically pings if mouse or keyboard activity is detected',
+      descZh: '桌面程序运行时，定期读取最近的输入活动时间；不采集按键内容。程序退出或系统探测失败时不可用。',
+      descEn: 'Periodically reads recent input activity while the desktop app runs, without keystroke content. Unavailable when the app exits or the system probe fails.',
       supported: isTauri()
     },
     {
       key: 'app_activity',
-      labelZh: '屏幕解锁与 App 使用监测',
-      labelEn: 'Screen Unlock & App Usage',
-      descZh: '离线或使用手机解锁、切换应用时在后台静默上报；只记录"在用手机"，绝不上报具体内容或应用名称',
-      descEn: 'Passively detects screen unlocks and app usage signs in background (records device active time, never private content)',
-      // iOS reports unlocks only — it has no app-usage equivalent — but it is
-      // the same "am I using my phone" evidence, so it shares the toggle.
+      labelZh: ios ? 'iOS 被动活动采集' : '屏幕解锁与 App 使用监测',
+      labelEn: ios ? 'iOS passive activity collection' : 'Screen Unlock & App Usage',
+      descZh: ios
+        ? '控制 iOS 原生采集；仅在系统允许运行时观察解锁、运动历史与充电变化，无法持续监测其他 App。'
+        : '通过系统使用记录回看手机活动；只记录活动时间，不上传内容或应用名称。',
+      descEn: ios
+        ? 'Controls native collection of unlocks, motion history and charging changes when iOS allows execution. Cannot continuously monitor other apps.'
+        : 'Reads device activity from system usage records; never uploads content or app names.',
       supported: Capacitor.getPlatform() === 'android' || Capacitor.getPlatform() === 'ios'
     },
     {
@@ -51,11 +54,11 @@ export function getAvailableSensors(): SensorConfig[] {
       key: 'phone_charger',
       labelZh: '插拔充电器',
       labelEn: 'Charger Connect/Disconnect',
-      descZh: '接通充电器电源或断开充电器连接时，自动触发后台上报',
-      descEn: 'Plugging in or unplugging the charger automatically triggers a background ping',
+      descZh: '在系统允许运行时观察稳定的充电连接变化；不需要额外系统授权。',
+      descEn: 'Observes stable charging changes when the system allows execution; no additional OS permission is required.',
       supported: Capacitor.getPlatform() === 'android'
     }
-  ]
+  ].filter((sensor) => sensor.supported)
 }
 
 const SENSOR_DEFAULTS: Record<string, boolean> = {
@@ -76,18 +79,19 @@ export function isSensorEnabled(key: string): boolean {
 }
 
 export async function setSensorEnabled(key: string, enabled: boolean): Promise<void> {
-  try {
-    localStorage.setItem(`kc.sensor.${key}`, enabled ? 'true' : 'false')
-    
-    // If we're on Android or iOS native app and changing native sensors, re-configure
-    const platform = Capacitor.getPlatform()
-    if (platform === 'android' || platform === 'ios') {
-      const token = localStorage.getItem('kc.passiveToken')
-      if (token) {
-        await configureNativePassivePing(token)
-      }
-    }
-  } catch {
-    /* ignore */
+  if (!getAvailableSensors().some((sensor) => sensor.key === key)) {
+    throw new Error('This collection control is not supported on this device.')
   }
+  const previous = isSensorEnabled(key)
+  localStorage.setItem(`kc.sensor.${key}`, enabled ? 'true' : 'false')
+  try {
+    const platform = Capacitor.getPlatform()
+    if ((platform === 'android' || platform === 'ios') && key !== 'interaction') {
+      await syncNativeSensorPreferences()
+    }
+  } catch (cause) {
+    localStorage.setItem(`kc.sensor.${key}`, previous ? 'true' : 'false')
+    throw cause
+  }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('kc:sensor-preference-changed'))
 }

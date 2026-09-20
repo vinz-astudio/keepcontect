@@ -33,6 +33,8 @@ ios/DerivedData/
 android/build/
 android/app/src/main/assets/public/
 android/app/src/main/assets/capacitor.config.json
+docs/investigations/
+docs/superpowers/
 .claude/
 .codex/
 .remember/

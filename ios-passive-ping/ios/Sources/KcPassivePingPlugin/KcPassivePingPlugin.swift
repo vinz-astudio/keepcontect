@@ -1,6 +1,7 @@
 import Capacitor
 import Foundation
 import UIKit
+import CoreMotion
 
 /// iOS half of the `PassivePing` bridge. The JS name matches the Android
 /// plugin so `src/features/passive/native.ts` talks to both through one
@@ -16,6 +17,7 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getGuardStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestNotificationPermission", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getNotificationPermissionStatus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getCollectionPermissionStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openNotificationSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openAppSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getFcmToken", returnType: CAPPluginReturnPromise),
@@ -127,10 +129,45 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    /// Read-only OS truth. Never request access or infer HealthKit read consent.
+    @objc func getCollectionPermissionStatus(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            func motionState(_ status: CMAuthorizationStatus) -> String {
+                switch status {
+                case .authorized: return "granted"
+                case .denied: return "denied"
+                case .restricted: return "restricted"
+                case .notDetermined: return "prompt"
+                @unknown default: return "unavailable"
+                }
+            }
+            var states: [String] = []
+            if CMPedometer.isStepCountingAvailable() {
+                states.append(motionState(CMPedometer.authorizationStatus()))
+            }
+            if CMMotionActivityManager.isActivityAvailable() {
+                states.append(motionState(CMMotionActivityManager.authorizationStatus()))
+            }
+            let motion = states.contains("restricted") ? "restricted"
+                : states.contains("denied") ? "denied"
+                : states.contains("prompt") ? "prompt"
+                : !states.isEmpty && states.allSatisfy({ $0 == "granted" }) ? "granted"
+                : "unavailable"
+            let background: String
+            switch UIApplication.shared.backgroundRefreshStatus {
+            case .available: background = "granted"
+            case .denied: background = "denied"
+            case .restricted: background = "restricted"
+            @unknown default: background = "unavailable"
+            }
+            call.resolve(["motion": motion, "backgroundRefresh": background])
+        }
+    }
+
     /// Which notification kind opened the app, read once and cleared. Empty
     /// string means the app was opened some other way.
     @objc func consumeLaunchNotificationKind(_ call: CAPPluginCall) {
-        call.resolve(["kind": NotificationTap.shared.consume()])
+        call.resolve(NotificationTap.shared.consume())
     }
 
     @objc func getFcmToken(_ call: CAPPluginCall) {

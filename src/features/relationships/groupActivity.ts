@@ -14,6 +14,7 @@ export type ActivityStatus =
 
 export type GroupVisibility = 'watchers_only' | 'group_wide'
 export type GroupActivityView = 'watch' | 'group'
+export type ActivityDetailLevel = 'simple' | 'guardians_only' | 'all'
 
 export interface GroupMemberStatus {
   user_id: string
@@ -32,6 +33,7 @@ export interface GroupActivity {
   visibility: GroupVisibility
   is_owner: boolean
   i_share: boolean
+  my_activity_detail_level?: ActivityDetailLevel
   view?: GroupActivityView
   members: GroupMemberStatus[]
 }
@@ -60,6 +62,16 @@ export async function getGroupActivity(
 /** 本人开关"公开我的活跃状态"（opt-in） */
 export async function setShareActivity(share: boolean): Promise<void> {
   const { error } = await supabase.rpc('set_share_activity', { _share: share })
+  if (error) throw error
+}
+
+/** 本人设置活跃详情公开范围（仅简单状态 / 仅守护人可见 / 全员公开） */
+export async function setActivityDetailLevel(
+  level: ActivityDetailLevel,
+): Promise<void> {
+  const { error } = await (supabase.rpc as any)('set_activity_detail_level', {
+    _level: level,
+  })
   if (error) throw error
 }
 

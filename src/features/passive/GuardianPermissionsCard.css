@@ -96,3 +96,7 @@
 .guardian-perms__status.is-denied { color: var(--warning); }
 .guardian-perms__status.is-unavailable { color: var(--muted); }
 .guardian-perms__status.is-checking { color: var(--muted); }
+.guardian-perms__status.is-prompt,
+.guardian-perms__status.is-restricted,
+.guardian-perms__status.is-limited { color: var(--warning); }
+.guardian-perms__status.is-disabled { color: var(--muted); }

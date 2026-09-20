@@ -203,6 +203,7 @@ public class PassivePingPlugin extends Plugin {
     @PluginMethod
     public void consumeLaunchNotificationKind(PluginCall call) {
         String kind = "";
+        boolean ackSafe = false;
         android.app.Activity activity = getActivity();
         if (activity != null && activity.getIntent() != null) {
             String extra = activity.getIntent().getStringExtra(NotifyWorker.EXTRA_NOTIF_KIND);
@@ -211,9 +212,14 @@ public class PassivePingPlugin extends Plugin {
                 // Cleared so a later resume cannot replay a prompt already dealt with.
                 activity.getIntent().removeExtra(NotifyWorker.EXTRA_NOTIF_KIND);
             }
+            if (activity.getIntent().getBooleanExtra(NotifyWorker.EXTRA_ACK_SAFE, false)) {
+                ackSafe = true;
+                activity.getIntent().removeExtra(NotifyWorker.EXTRA_ACK_SAFE);
+            }
         }
         JSObject ret = new JSObject();
         ret.put("kind", kind);
+        ret.put("ackSafe", ackSafe);
         call.resolve(ret);
     }
 

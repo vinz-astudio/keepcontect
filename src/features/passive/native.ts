@@ -60,11 +60,12 @@ interface PassivePingPlugin {
   openAutostartSettings(): Promise<void>
   requestNotificationPermission(): Promise<void>
   getNotificationPermissionStatus(): Promise<{ granted: boolean; canRequest: boolean }>
+  getCollectionPermissionStatus(): Promise<{ motion: string; backgroundRefresh: string }>
   openNotificationSettings(): Promise<void>
   /** Opens this app's general OS settings page (iOS guard/privacy fallback). */
   openAppSettings?(): Promise<void>
   getFcmToken(): Promise<{ token: string }>
-  consumeLaunchNotificationKind(): Promise<{ kind: string }>
+  consumeLaunchNotificationKind(): Promise<{ kind: string; ackSafe?: boolean }>
   isAccessibilityEnabled(): Promise<{ enabled: boolean }>
   getGuardStatus(): Promise<GuardStatus>
 
@@ -101,6 +102,7 @@ export async function openInExternalBrowser(url: string): Promise<void> {
 
 export async function configureNativePassivePing(
   token: string | null,
+  options: { strict?: boolean; emitAppPing?: boolean } = {},
 ): Promise<void> {
   if (isTauri()) {
     if (!token) await clearTauriPassiveEvidence()
@@ -111,6 +113,8 @@ export async function configureNativePassivePing(
   try {
     if (!token) {
       const bindingId = safeStorageGet(NATIVE_BINDING_ID_KEY)
+      await PassivePing.clear()
+      clearStoredNativeBinding()
       if (bindingId) {
         try {
           await revokePassiveCollector(bindingId)
@@ -119,23 +123,14 @@ export async function configureNativePassivePing(
           // still erased immediately, so a stale upload cannot cross accounts.
         }
       }
-      clearStoredNativeBinding()
-      await PassivePing.clear()
       return
     }
-    // iOS has no UsageStats/charger/activity equivalents; its guard is the
-    // unlock watcher alone, so it only needs credentials. The extra Android
-    // toggles are omitted rather than sent and ignored.
+    // iOS uses one collector switch for unlock, Health/Motion and charger
+    // observations. The Android per-sensor options have no iOS bridge equivalent.
     if (platform === 'ios') {
-      // The unlock watcher is the whole iOS guard, so the same toggle that
-      // labels it has to be able to switch it off.
+      // Switching this off stops the whole native iOS collector.
       if (!isSensorEnabled('app_activity')) {
-        const oldBindingId = safeStorageGet(NATIVE_BINDING_ID_KEY)
-        if (oldBindingId) {
-          try { await revokePassiveCollector(oldBindingId) } catch { /* fail closed locally */ }
-        }
-        clearStoredNativeBinding()
-        await PassivePing.clear()
+        await configureNativePassivePing(null, options)
         return
       }
       const clientId = getClientId()
@@ -186,7 +181,7 @@ export async function configureNativePassivePing(
           evidenceCollectorContract: 'ios-passive-evidence-v1',
         })
       }
-      await PassivePing.pingApp()
+      if (options.emitAppPing !== false) await PassivePing.pingApp()
       return
     }
 
@@ -213,8 +208,6 @@ export async function configureNativePassivePing(
         safeStorageSet(NATIVE_BINDING_ID_KEY, binding.bindingId)
         safeStorageSet(NATIVE_BINDING_OWNER_KEY, userId)
       } catch {
-        // Legacy accounts keep their existing heartbeat collector. The native
-        // evidence path stays empty/fail-closed until the passive contract is active.
         bindingId = null
       }
     }
@@ -252,10 +245,25 @@ export async function configureNativePassivePing(
         evidenceCollectorContract: 'android-passive-evidence-v1',
       })
     }
-    await PassivePing.pingApp()
-  } catch {
+    if (options.emitAppPing !== false) await PassivePing.pingApp()
+  } catch (cause) {
+    if (options.strict) throw cause
     // Native bridge is best-effort; PWA ping URLs remain the fallback.
   }
+}
+
+/** Explicit settings changes must reach the bridge or report failure. */
+export async function syncNativeSensorPreferences(): Promise<void> {
+  const platform = Capacitor.getPlatform()
+  if (platform !== 'android' && platform !== 'ios') return
+  if (platform === 'ios' && !isSensorEnabled('app_activity')) {
+    // Stopping collection must work without fetching credentials over the network.
+    await configureNativePassivePing(null, { strict: true, emitAppPing: false })
+    return
+  }
+  const token = await getHeartbeatToken()
+  if (!token) throw new Error('无法同步设备采集设置，请登录后重试。 / Sign in to sync collection settings.')
+  await configureNativePassivePing(token, { strict: true, emitAppPing: false })
 }
 
 /**
@@ -535,16 +543,28 @@ export async function getNativeFcmToken(): Promise<string | null> {
  * home screen, sync, flicker, prompt. Returns '' when the app was opened some
  * other way, and on platforms with no native shell.
  */
-export async function consumeLaunchNotificationKind(): Promise<string> {
+export interface LaunchNotificationDetails {
+  kind: string
+  ackSafe: boolean
+}
+
+export async function consumeLaunchNotificationDetails(): Promise<LaunchNotificationDetails> {
   const platform = Capacitor.getPlatform()
-  if (platform !== 'android' && platform !== 'ios') return ''
+  if (platform !== 'android' && platform !== 'ios') return { kind: '', ackSafe: false }
   try {
     const res = await PassivePing.consumeLaunchNotificationKind()
-    return res?.kind ?? ''
+    return {
+      kind: res?.kind ?? '',
+      ackSafe: !!res?.ackSafe,
+    }
   } catch {
-    // An older shell without the method: fall back to the network path.
-    return ''
+    return { kind: '', ackSafe: false }
   }
+}
+
+export async function consumeLaunchNotificationKind(): Promise<string> {
+  const details = await consumeLaunchNotificationDetails()
+  return details.kind
 }
 
 export async function getGuardStatus(): Promise<GuardStatus | null> {
@@ -580,6 +600,34 @@ export async function openNativeAppSettings(): Promise<void> {
   } catch {
     /* Old shell or browser: the permission row remains honestly actionable. */
   }
+}
+
+export type NativePermissionState = 'granted' | 'denied' | 'unavailable' | 'prompt' | 'restricted'
+
+/** Permission-center reads preserve uncertainty instead of turning bridge errors into denials. */
+export async function getNativePermissionState(
+  id: 'notifications' | 'battery' | 'usage' | 'motion' | 'background-refresh',
+): Promise<NativePermissionState> {
+  const platform = Capacitor.getPlatform()
+  const fromBoolean = (value: unknown): NativePermissionState =>
+    value === true ? 'granted' : value === false ? 'denied' : 'unavailable'
+  try {
+    if (id === 'notifications' && isNativePushPlatform()) {
+      const value = await PassivePing.getNotificationPermissionStatus()
+      return value?.canRequest && !value.granted ? 'prompt' : fromBoolean(value?.granted)
+    }
+    if (platform === 'android') {
+      if (id === 'battery') return fromBoolean((await PassivePing.isBatteryExempt())?.exempt)
+      if (id === 'usage') return fromBoolean((await PassivePing.isUsageStatsEnabled())?.enabled)
+      if (id === 'motion') return fromBoolean((await PassivePing.isActivityRecognitionEnabled())?.enabled)
+    }
+    if (platform === 'ios' && (id === 'motion' || id === 'background-refresh')) {
+      const status = await PassivePing.getCollectionPermissionStatus()
+      const value = id === 'motion' ? status?.motion : status?.backgroundRefresh
+      return value === 'granted' || value === 'denied' || value === 'prompt' || value === 'restricted' ? value : 'unavailable'
+    }
+  } catch { /* Old shells and failed reads remain unverified. */ }
+  return 'unavailable'
 }
 
 // —— Legacy Compatibility Helpers (No-ops) ——

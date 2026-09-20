@@ -16,21 +16,38 @@ final class NotificationTap: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationTap()
 
     private static let storageKey = "kc.passive.launchNotifKind"
+    private static let safeAckKey = "kc.passive.launchAckSafe"
     private let defaults = UserDefaults.standard
 
     /// Must run in `didFinishLaunchingWithOptions`: a cold-start tap is
     /// delivered as soon as a delegate exists, and setting one later from a
     /// plugin's `load()` can miss the very launch that carried it.
     func register() {
-        UNUserNotificationCenter.current().delegate = self
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+
+        let isZh = Locale.current.languageCode == "zh"
+        let safeAction = UNNotificationAction(
+            identifier: "ACTION_SAFE",
+            title: isZh ? "一切安好" : "I'm Safe",
+            options: [.foreground]
+        )
+        let category = UNNotificationCategory(
+            identifier: "KC_CARE_CHECKIN",
+            actions: [safeAction],
+            intentIdentifiers: [],
+            options: []
+        )
+        center.setNotificationCategories([category])
     }
 
-    /// Returns the tapped kind and clears it, so a later resume cannot replay a
-    /// prompt the user already dealt with.
-    func consume() -> String {
-        let value = defaults.string(forKey: Self.storageKey) ?? ""
-        if !value.isEmpty { defaults.removeObject(forKey: Self.storageKey) }
-        return value
+    /// Returns the tapped details and clears them, so a later resume cannot replay.
+    func consume() -> [String: Any] {
+        let kind = defaults.string(forKey: Self.storageKey) ?? ""
+        let ackSafe = defaults.bool(forKey: Self.safeAckKey)
+        if !kind.isEmpty { defaults.removeObject(forKey: Self.storageKey) }
+        defaults.removeObject(forKey: Self.safeAckKey)
+        return ["kind": kind, "ackSafe": ackSafe]
     }
 
     func userNotificationCenter(
@@ -42,6 +59,9 @@ final class NotificationTap: NSObject, UNUserNotificationCenterDelegate {
         let kind = (info["notifKind"] as? String) ?? ""
         if !kind.isEmpty {
             defaults.set(kind, forKey: Self.storageKey)
+        }
+        if response.actionIdentifier == "ACTION_SAFE" {
+            defaults.set(true, forKey: Self.safeAckKey)
         }
         completionHandler()
     }

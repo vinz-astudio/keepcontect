@@ -1,197 +1,144 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { useI18n } from '@/lib/i18n'
 import { toast } from '@/lib/toast'
-import {
-  getGuardianPermissions,
-  sortByUrgency,
-  type GuardianPermission,
-  type PermissionState,
-} from './guardianPermissions'
+import { getGuardianPermissions, sortByUrgency, type GuardianPermission, type PermissionState } from './guardianPermissions'
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled, type SensorConfig } from '@/features/signals/sensors'
-import { getGuardStatus, isActivityRecognitionEnabled, isUsageStatsEnabled, openUsageStatsSettings, requestActivityRecognitionPermission } from './native'
-import { resolveCollectionCapabilities, type CollectionCapabilitySnapshot } from './collectionCapabilities'
+import { openUsageStatsSettings, requestActivityRecognitionPermission } from './native'
+import { resolveCollectionCapabilities, type CollectionCapabilitySnapshot, type CollectionCapabilityId } from './collectionCapabilities'
+import { summarizePermissions, sensorPresentationState } from './permissionPresentation'
+import { watchPermissionRefresh } from './permissionRefresh'
 import './GuardianPermissionsCard.css'
 
-/**
- * 一处回答「这台设备被允许做什么」。
- *
- * 之前这些权限散在各自的功能里,用户没有办法一眼看出哪一项没给 —— 而没给的那些
- * 恰恰是静默失效的:功能看起来开着,实际上什么都收不到。所以这里写的是后果
- * (「KC 无法在判断你可能有事时问你」),不是权限名。
- */
+const sensorCapability: Record<string, CollectionCapabilityId> = {
+  interaction: 'interaction', system_idle: 'desktop-input', app_activity: 'app-activity', motion: 'motion', phone_charger: 'charger',
+}
+const permissionLabels: Record<PermissionState, [string, string]> = {
+  checking: ['检查中', 'Checking'], granted: ['系统已允许', 'Allowed by system'],
+  denied: ['系统未允许', 'Not allowed'], prompt: ['待授权', 'Not requested'],
+  unavailable: ['未能确认', 'Unverified'], limited: ['无法核实授权', 'Authorization unverifiable'],
+  restricted: ['系统限制', 'Restricted by system'],
+}
+const sensorLabels = {
+  granted: ['已启用', 'Enabled'], denied: ['缺少系统权限', 'Permission needed'],
+  disabled: ['已关闭', 'Off'], limited: ['已启用 · 受限', 'Enabled · Limited'], unavailable: ['状态未确认', 'Unverified'],
+}
+
 export function GuardianPermissionsCard() {
   const { lang } = useI18n()
   const zh = lang === 'zh'
-  const [permissions] = useState<GuardianPermission[]>(() => getGuardianPermissions())
+  const [permissions] = useState(() => getGuardianPermissions())
   const [states, setStates] = useState<Record<string, PermissionState>>({})
   const [busy, setBusy] = useState<string | null>(null)
-  const [sensorStates, setSensorStates] = useState<Record<string, PermissionState>>({})
+  const [checking, setChecking] = useState(true)
   const [capabilitySnapshot, setCapabilitySnapshot] = useState<CollectionCapabilitySnapshot | null>(null)
   const sensors = useMemo(() => getAvailableSensors(), [])
+  const generation = useRef(0)
 
   const refresh = useCallback(async () => {
-    const next: Record<string, PermissionState> = {}
-    await Promise.all(permissions.map(async (permission) => {
-      try {
-        next[permission.id] = (await permission.check()) ? 'granted' : 'denied'
-      } catch {
-        next[permission.id] = 'unavailable'
-      }
-    }))
-    setStates(next)
-    const sensorNext: Record<string, PermissionState> = {}
-    await Promise.all(sensors.map(async (sensor) => {
-      try {
-        const enabled = isSensorEnabled(sensor.key)
-        const iosGuard = sensor.key === 'app_activity' && Capacitor.getPlatform() === 'ios'
-          ? await getGuardStatus()
-          : null
-        const permission = sensor.key === 'app_activity' && Capacitor.getPlatform() === 'android'
-          ? await isUsageStatsEnabled()
-          : sensor.key === 'app_activity' && Capacitor.getPlatform() === 'ios'
-            ? iosGuard?.enabled === true && iosGuard.evidenceConfigured === true
-          : sensor.key === 'motion' && Capacitor.getPlatform() === 'android'
-            ? await isActivityRecognitionEnabled()
-            : true
-        sensorNext[sensor.key] = enabled && permission ? 'granted' : 'denied'
-      } catch {
-        sensorNext[sensor.key] = 'unavailable'
-      }
-    }))
-    setSensorStates(sensorNext)
-    setCapabilitySnapshot(await resolveCollectionCapabilities())
-  }, [permissions, sensors])
+    const request = ++generation.current
+    setChecking(true)
+    const [entries, snapshot] = await Promise.all([
+      Promise.all(permissions.map(async (permission): Promise<[string, PermissionState]> => {
+        try { return [permission.id, await permission.check()] }
+        catch { return [permission.id, 'unavailable'] }
+      })),
+      resolveCollectionCapabilities().catch(() => null),
+    ])
+    // A slow read from before a settings change must not overwrite the newer result.
+    if (request !== generation.current) return
+    setStates(Object.fromEntries(entries))
+    setCapabilitySnapshot(snapshot)
+    setChecking(false)
+  }, [permissions])
 
   useEffect(() => {
     void refresh()
-    // 用户是去系统设置里改的,回到 App 才知道结果。
-    const onFocus = () => void refresh()
-    window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onFocus)
-    return () => {
-      window.removeEventListener('focus', onFocus)
-      document.removeEventListener('visibilitychange', onFocus)
-    }
+    const stop = watchPermissionRefresh(() => { void refresh() })
+    return () => { generation.current++; stop() }
   }, [refresh])
 
-  const missing = permissions.filter((p) => states[p.id] === 'denied').length
-    + Object.values(sensorStates).filter((state) => state === 'denied').length
+  const summary = checking ? 'checking' : summarizePermissions(
+    permissions.map((permission) => permission.id), states,
+    capabilitySnapshot?.capabilities.map((capability) => capability.state) ?? null,
+  )
+  const summaryText = {
+    checking: ['正在读取这台设备的权限状态。', 'Reading this device’s permission settings.'],
+    unavailable: ['部分状态未能确认，请刷新检查或到系统设置核对。', 'Some settings could not be verified. Refresh or check system settings.'],
+    denied: ['部分系统权限尚未允许，相关能力受限。', 'Some system permissions are not allowed; related capabilities are limited.'],
+    prompt: ['部分权限待授权。', 'Some permissions have not been requested.'],
+    limited: ['当前设备存在无法核实或受系统限制的能力。', 'Some capabilities remain unverified or limited by the system.'],
+    granted: ['已核实可查询的系统权限；这不保证后台运行或通知送达。', 'Queryable system permissions verified; background execution and notification delivery are not guaranteed.'],
+  }[summary][zh ? 0 : 1]
 
   async function fix(permission: GuardianPermission) {
     setBusy(permission.id)
-    try {
-      await permission.fix()
-      await refresh()
-      if (permission.fixIsSettings) {
-        toast(zh ? '在系统设置里开启后回到 KC,这里会自动更新。' : 'Turn it on in system settings, then come back — this updates itself.', 'info')
-      }
-    } catch (cause) {
-      toast(cause instanceof Error ? cause.message : String(cause), 'danger')
-    }
-    setBusy(null)
+    try { await permission.fix(); await refresh() }
+    catch (cause) { toast(cause instanceof Error ? cause.message : String(cause), 'danger') }
+    finally { setBusy(null) }
   }
 
   async function toggleSensor(sensor: SensorConfig, enabled: boolean) {
     setBusy(sensor.key)
     try {
       await setSensorEnabled(sensor.key, enabled)
-      if (enabled && sensor.key === 'app_activity' && Capacitor.getPlatform() === 'android') {
-        await openUsageStatsSettings()
+      if (enabled && Capacitor.getPlatform() === 'android') {
+        if (sensor.key === 'app_activity') await openUsageStatsSettings()
+        if (sensor.key === 'motion') await requestActivityRecognitionPermission()
       }
-      if (enabled && sensor.key === 'motion' && Capacitor.getPlatform() === 'android') {
-        await requestActivityRecognitionPermission()
-      }
-      await refresh()
-    } catch (cause) {
-      toast(cause instanceof Error ? cause.message : String(cause), 'danger')
-    }
-    setBusy(null)
+    } catch (cause) { toast(cause instanceof Error ? cause.message : String(cause), 'danger') }
+    finally { await refresh(); setBusy(null) }
   }
 
   return (
     <>
-      {permissions.length === 0 && (
-        <p className="guardian-perms__none">
-          {zh
-            ? '当前平台没有可授予的系统权限；下面仍会显示这台设备实际支持的采集开关。'
-            : 'This platform has no system permission sheet; the supported collection controls are still shown below.'}
-        </p>
-      )}
-      {capabilitySnapshot && (
-        <>
-          <p className="guardian-perms__surface">
-            {zh ? `当前采集面：${capabilitySnapshot.distribution}` : `Collection surface: ${capabilitySnapshot.distribution}`}
-          </p>
-          {capabilitySnapshot.capabilities.some((capability) => capability.state === 'limited' || capability.state === 'unavailable') && (
-            <p className="guardian-perms__surface guardian-perms__surface--notice">
-              {zh
-                ? '部分能力受当前平台限制；KC 只会把实际能观察到的事件计入活跃证据。'
-                : 'Some capabilities are limited by this platform; KC counts only events it can actually observe.'}
-            </p>
-          )}
-        </>
-      )}
-      <p className={`guardian-perms__summary${missing > 0 ? ' is-missing' : ''}`}>
-        {missing === 0
-          ? (zh ? 'KC 需要的权限都已开启。' : 'KC has everything it needs.')
-          : (zh ? `有 ${missing} 项没有开启,KC 的守护是不完整的。` : `${missing} not granted. KC's guard is incomplete.`)}
-      </p>
+      <p className={`guardian-perms__summary${summary !== 'granted' ? ' is-missing' : ''}`} data-summary={summary} aria-live="polite">{summaryText}</p>
+      <button type="button" className="prototype-button prototype-button--ghost" disabled={checking || busy !== null} onClick={() => void refresh()}>
+        {zh ? '刷新检查' : 'Refresh checks'}
+      </button>
+      {permissions.length === 0 && <p className="guardian-perms__none">
+        {zh ? '当前桌面版本未提供系统权限查询。下方只显示采集设置与探测结果。' : 'This desktop version has no system permission query. Collection settings and probe results are shown below.'}
+      </p>}
       {permissions.length > 0 && <ul className="guardian-perms__list">
         {sortByUrgency(permissions, states).map((permission) => {
-          const state = states[permission.id] ?? 'checking'
-          return (
-            <li key={permission.id} className={`guardian-perms__item is-${state}`}>
-              <div className="guardian-perms__text">
-                <span className="guardian-perms__label">
-                  {zh ? permission.labelZh : permission.labelEn}
-                </span>
-                {state !== 'granted' && (
-                  <span className="guardian-perms__cost">
-                    {zh ? permission.costZh : permission.costEn}
-                  </span>
-                )}
-              </div>
-              {state === 'granted' ? (
-                <span className="guardian-perms__ok">{zh ? '已开启' : 'On'}</span>
-              ) : (
-                <button
-                  type="button"
-                  className="prototype-button prototype-button--ghost"
-                  disabled={busy === permission.id || state === 'checking'}
-                  onClick={() => void fix(permission)}
-                >
-                  {permission.fixIsSettings
-                    ? (zh ? '去设置' : 'Settings')
-                    : (zh ? '开启' : 'Turn on')}
+          const state = checking ? 'checking' : states[permission.id] ?? 'unavailable'
+          return <li key={permission.id} className={`guardian-perms__item is-${state}`}>
+            <div className="guardian-perms__text">
+              <span className="guardian-perms__label">{zh ? permission.labelZh : permission.labelEn}</span>
+              <span className="guardian-perms__cost">{zh ? permission.costZh : permission.costEn}</span>
+            </div>
+            <div className="guardian-perms__sensor-action">
+              <span className={`guardian-perms__status is-${state}`}>{permissionLabels[state][zh ? 0 : 1]}</span>
+              {state !== 'granted' && state !== 'limited' && state !== 'restricted' && (state !== 'unavailable' || Capacitor.isNativePlatform()) && (
+                <button type="button" className="prototype-button prototype-button--ghost" disabled={busy !== null || checking} onClick={() => void fix(permission)}>
+                  {permission.fixIsSettings ? (zh ? '去设置' : 'Settings') : (zh ? '设置权限' : 'Set permission')}
                 </button>
               )}
-            </li>
-          )
+            </div>
+          </li>
         })}
       </ul>}
       <div className="guardian-perms__sensors">
-        <p className="guardian-perms__sensors-heading">{zh ? '采集开关' : 'Collection controls'}</p>
+        <p className="guardian-perms__sensors-heading">{zh ? '采集设置（不是系统授权）' : 'Collection settings (separate from OS permission)'}</p>
         <ul className="guardian-perms__list">
           {sensors.map((sensor) => {
-            const state = sensorStates[sensor.key] ?? 'checking'
             const enabled = isSensorEnabled(sensor.key)
-            return (
-              <li key={sensor.key} className={`guardian-perms__item is-${state}`}>
-                <div className="guardian-perms__text">
-                  <span className="guardian-perms__label">{zh ? sensor.labelZh : sensor.labelEn}</span>
-                  <span className="guardian-perms__cost">{zh ? sensor.descZh : sensor.descEn}</span>
-                </div>
-                <div className="guardian-perms__sensor-action">
-                  <span className={`guardian-perms__status is-${state}`}>
-                    {state === 'checking' ? (zh ? '检查中' : 'Checking') : state === 'granted' ? (zh ? '已授权' : 'Granted') : state === 'unavailable' ? (zh ? '不可用' : 'Unavailable') : (zh ? '未开启' : 'Denied')}
-                  </span>
-                  <button type="button" className="prototype-button prototype-button--ghost" disabled={busy === sensor.key || state === 'checking'} onClick={() => void toggleSensor(sensor, !enabled)}>
-                    {enabled ? (zh ? '关闭' : 'Turn off') : (zh ? '开启' : 'Turn on')}
-                  </button>
-                </div>
-              </li>
-            )
+            const capability = capabilitySnapshot?.capabilities.find((item) => item.id === sensorCapability[sensor.key])
+            const state = sensorPresentationState(enabled, capability?.state)
+            return <li key={sensor.key} className={`guardian-perms__item is-${state}`}>
+              <div className="guardian-perms__text">
+                <span className="guardian-perms__label">{zh ? sensor.labelZh : sensor.labelEn}</span>
+                <span className="guardian-perms__cost">{zh ? sensor.descZh : sensor.descEn}</span>
+              </div>
+              <div className="guardian-perms__sensor-action">
+                <span className={`guardian-perms__status is-${checking ? 'checking' : state}`}>
+                  {checking ? (zh ? '检查中' : 'Checking') : sensorLabels[state][zh ? 0 : 1]}
+                </span>
+                <button type="button" className="prototype-button prototype-button--ghost" disabled={busy !== null || checking} onClick={() => void toggleSensor(sensor, !enabled)}>
+                  {enabled ? (zh ? '关闭' : 'Turn off') : (zh ? '开启' : 'Turn on')}
+                </button>
+              </div>
+            </li>
           })}
         </ul>
       </div>

@@ -12,6 +12,8 @@ function deps(overrides: Partial<CollectionCapabilityDeps> = {}): CollectionCapa
     isSensorEnabled: () => true,
     permissionGranted: async () => false,
     getGuardStatus: async () => null,
+    desktopProbeAvailable: async () => true,
+    isStandalone: () => true,
     ...overrides,
   }
 }
@@ -37,7 +39,7 @@ describe('collection capability resolver', () => {
     expect(capability('app-activity')).toMatchObject({ state: 'denied', requirement: 'usage' })
     expect(capability('motion')).toMatchObject({ state: 'granted', requirement: 'motion' })
     expect(capability('charger')).toMatchObject({ state: 'disabled', requirement: null })
-    expect(capability('background-collection')).toMatchObject({ state: 'granted', requirement: 'battery' })
+    expect(capability('background-collection')).toMatchObject({ state: 'limited', requirement: 'battery' })
     expect(capability('native-evidence')).toMatchObject({ state: 'granted', requirement: null })
     expect(capability('interaction')).toMatchObject({ state: 'granted', requirement: null })
   })
@@ -59,7 +61,7 @@ describe('collection capability resolver', () => {
     expect(result.surface).toBe('ios-native')
     expect(result.distribution).toBe('testflight-or-app-store')
     const capability = (id: string) => result.capabilities.find((item) => item.id === id)
-    expect(capability('app-activity')).toMatchObject({ state: 'granted', requirement: null })
+    expect(capability('app-activity')).toMatchObject({ state: 'limited', requirement: null })
     expect(capability('motion')).toMatchObject({ state: 'limited' })
     expect(capability('charger')).toMatchObject({ state: 'limited' })
     expect(capability('background-collection')).toMatchObject({ state: 'limited' })
@@ -80,5 +82,24 @@ describe('collection capability resolver', () => {
     expect(pwa.capabilities.find((item) => item.id === 'background-collection')).toMatchObject({ state: 'limited' })
     expect(pwa.capabilities.find((item) => item.id === 'native-evidence')).toMatchObject({ state: 'unavailable' })
     expect(pwa.capabilities.find((item) => item.id === 'interaction')).toMatchObject({ state: 'granted' })
+  })
+
+  it('does not assume a desktop probe works just because its local switch is on', async () => {
+    const result = await resolveCollectionCapabilities(deps({
+      isTauri: () => true,
+      desktopProbeAvailable: async () => { throw new Error('old shell') },
+    }))
+    expect(result.capabilities.find((item) => item.id === 'desktop-input')?.state).toBe('unavailable')
+    expect(result.capabilities.find((item) => item.id === 'interaction')?.state).toBe('granted')
+  })
+
+  it('does not promise automatic evidence from an ordinary browser tab', async () => {
+    const result = await resolveCollectionCapabilities(deps({ isStandalone: () => false }))
+    expect(result.capabilities.find((item) => item.id === 'interaction')?.state).toBe('limited')
+  })
+
+  it('preserves unknown native permission reads rather than presenting a denial', async () => {
+    const result = await resolveCollectionCapabilities(deps({ capacitorPlatform: () => 'android', permissionGranted: async () => null }))
+    expect(result.capabilities.find((item) => item.id === 'motion')?.state).toBe('unavailable')
   })
 })

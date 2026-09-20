@@ -218,7 +218,12 @@ async function sendTickle(
           headers: { 'apns-push-type': 'alert', 'apns-priority': '10' },
           // No content-available: the platform displays this one, and waking the
           // app to render a second copy would show the user two notifications.
-          payload: { aps: { sound: 'default' } },
+          payload: {
+            aps: {
+              sound: 'default',
+              category: notificationKind === 'self' ? 'KC_CARE_CHECKIN' : undefined,
+            },
+          },
         },
       }
     : {
@@ -374,6 +379,7 @@ Deno.serve(async () => {
     let fcmSuccessCount = 0
 
     // Prepare Web Push payload
+    const isSelfStage = n.kind === 'self'
     const payload = JSON.stringify({
       kind: n.kind,
       params: paramsWithRecipientMark(
@@ -384,6 +390,7 @@ Deno.serve(async () => {
       body: n.body,
       alertId: n.alert_id,
       badge: badgeByUser.get(n.recipient_id) ?? 0,
+      actions: isSelfStage ? [{ action: 'safe', title: '一切安好' }] : undefined,
     })
 
     // 1. Attempt Web Push

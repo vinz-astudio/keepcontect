@@ -89,6 +89,7 @@ public class NotifyWorker extends Worker {
     private static final String PREFS = "keep_contact_passive";
     /** Read once by PassivePingPlugin.consumeLaunchNotificationKind. */
     static final String EXTRA_NOTIF_KIND = "kcNotifKind";
+    static final String EXTRA_ACK_SAFE = "kcAckSafe";
     private static final String KEY_SINCE = "notify_since";
 
     public NotifyWorker(@NonNull Context context, @NonNull WorkerParameters params) {
@@ -138,6 +139,8 @@ public class NotifyWorker extends Worker {
         // must not depend on a permission the user may never have granted.
         PassivePing.reconcilePowerState(context);
 
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+
         // UsageStats passive ping backfill check
         boolean usageAllowed = PassivePing.isUsageStatsAllowed(context);
         boolean usageGranted = PassivePing.isUsageAccessGranted(context);
@@ -149,6 +152,13 @@ public class NotifyWorker extends Worker {
             if (lastActive > lastPing) {
                 android.util.Log.d(TAG, "NotifyWorker observed new user activity via UsageStats: " + lastActive + ". Triggering ping.");
                 PassivePing.ping(context);
+
+                // If a self care notification was posted, quietly update it to safe
+                String lastSelfId = prefs.getString("last_self_alert_id", null);
+                if (lastSelfId != null) {
+                    prefs.edit().remove("last_self_alert_id").apply();
+                    updateNotificationToSafe(context, lastSelfId);
+                }
             } else {
                 // The silent branch. A worker that runs on time, holds the
                 // permission and still reports nothing is indistinguishable
@@ -168,7 +178,6 @@ public class NotifyWorker extends Worker {
             return Result.success();
         }
 
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String base = prefs.getString("supabase_url", null);
         String token = prefs.getString("token", null);
         if (base == null || token == null) return Result.success();
@@ -277,6 +286,26 @@ public class NotifyWorker extends Worker {
             .setAutoCancel(true)
             .setContentIntent(pending);
 
+        if ("self".equals(kind)) {
+            // Save self alert id so user unlock or UsageStats activity can quietly update it to safe
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putString("last_self_alert_id", id).apply();
+
+            // Add 1-tap safe acknowledge action button
+            Intent safeIntent = context.getPackageManager()
+                .getLaunchIntentForPackage(context.getPackageName());
+            if (safeIntent != null) {
+                safeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                safeIntent.putExtra(EXTRA_NOTIF_KIND, kind);
+                safeIntent.putExtra(EXTRA_ACK_SAFE, true);
+                PendingIntent safePending = PendingIntent.getActivity(
+                    context, (id + "_safe").hashCode(), safeIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                String safeActionTitle = isZh() ? "一切安好" : "I'm Safe";
+                builder.addAction(0, safeActionTitle, safePending);
+            }
+        }
+
         if (isSelfAddressed(kind)) {
             // A plain high-priority notification lands on the lock screen
             // silently and leaves the screen dark — observed 2026-08-01, where
@@ -320,6 +349,40 @@ public class NotifyWorker extends Worker {
         }
     }
 
+    /**
+     * Scenario B: Quietly updates an existing self care notification to "KC 已确认您的安全".
+     * Uses PRIORITY_LOW and onlyAlertOnce(true), leaving the notification swipeable by the user.
+     */
+    static void updateNotificationToSafe(Context context, String id) {
+        ensureChannel(context);
+        Intent launch = context.getPackageManager()
+            .getLaunchIntentForPackage(context.getPackageName());
+        if (launch == null) return;
+        launch.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent pending = PendingIntent.getActivity(
+            context, id.hashCode(), launch,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        String safeBody = isZh()
+            ? "KC 已确认您的安全。已恢复正常守护。"
+            : "KC has confirmed you are safe. Normal protection resumed.";
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(context.getApplicationInfo().icon)
+            .setContentTitle("Keep Contact")
+            .setContentText(safeBody)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(safeBody))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+            .setContentIntent(pending);
+
+        try {
+            NotificationManagerCompat.from(context).notify(id, 0, builder.build());
+        } catch (SecurityException ignored) {
+        }
+    }
+
     private static boolean isZh() {
         return Locale.getDefault().getLanguage().startsWith("zh");
     }
@@ -350,7 +413,7 @@ public class NotifyWorker extends Worker {
 
     private static Map<String, String> zh() {
         Map<String, String> d = new HashMap<>();
-        d.put("self", "检测到异常沉默，请打开 App 完成解锁报平安。");
+        d.put("self", "KC 正在确认您的安全。点开或轻按即完成确认，不会打扰亲友。");
         d.put("group", "{name} 出现异常沉默，请尽快联系确认其安全。");
         d.put("community", "社区警示：{name} 长时间失联且其小组无人响应，请协助推动联系。");
         d.put("terminal", "紧急：{name} 持续无响应。已为你解锁其地址与紧急联系人，请上门探视或协助报警。");
@@ -371,7 +434,7 @@ public class NotifyWorker extends Worker {
 
     private static Map<String, String> en() {
         Map<String, String> d = new HashMap<>();
-        d.put("self", "Unusual silence detected. Open the app and unlock to check in.");
+        d.put("self", "KC is checking on your safety. Tap to confirm you are safe.");
         d.put("group", "{name} has gone unusually silent. Please reach out and make sure they are safe.");
         d.put("community", "Community alert: {name} is unreachable and their group has not responded.");
         d.put("terminal", "URGENT: {name} is unresponsive. Their address and emergency contact are unlocked for you.");

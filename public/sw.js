@@ -3,7 +3,7 @@
 
 const DICT = {
   zh: {
-    self: '检测到异常沉默，请打开 App 完成解锁报平安。',
+    self: 'KC 正在确认您的安全。点开或轻按即完成确认，不会打扰亲友。',
     group: '{name} 出现异常沉默，请尽快联系确认其安全。',
     community: '社区警示：{name} 长时间失联且其小组无人响应，请协助推动联系。',
     terminal: '紧急：{name} 持续无响应。已为你解锁其地址与紧急联系人，请上门探视或协助报警。',
@@ -23,7 +23,7 @@ const DICT = {
     title: 'Keep Contact',
   },
   en: {
-    self: 'Unusual silence detected. Open the app and unlock to check in.',
+    self: 'KC is checking on your safety. Tap to confirm you are safe.',
     group: '{name} has gone unusually silent. Please reach out and make sure they are safe.',
     community: 'Community alert: {name} is unreachable and their group has not responded.',
     terminal: 'URGENT: {name} is unresponsive. Their address and emergency contact are unlocked for you.',
@@ -77,6 +77,10 @@ self.addEventListener('push', (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : '' }
   }
+  const lang = (self.navigator.language || 'en').toLowerCase().startsWith('zh')
+    ? 'zh'
+    : 'en'
+  const isSelf = data.kind === 'self'
   const body = render(data)
   const options = {
     body,
@@ -85,6 +89,11 @@ self.addEventListener('push', (event) => {
     silent: false, // 明确要求系统出声（最终仍受设备通知设置控制）
     vibrate: [200, 100, 200], // Android 震动提示；iOS 忽略，无害
     data: { url: '/', kind: data.kind, alertId: data.alertId },
+  }
+  if (isSelf) {
+    options.actions = [
+      { action: 'safe', title: lang === 'zh' ? '一切安好' : 'I am safe' },
+    ]
   }
   // 同一告警的多条推送合并；renotify 让“更新”仍重新提醒而非静默替换
   // 注意：renotify 必须与 tag 一起出现，否则部分浏览器会抛错
@@ -102,18 +111,25 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  // 点击通知：聚焦已有窗口并叫它立刻查告警弹解锁界面；没有窗口则新开（带标记）
+  const notificationData = event.notification.data || {}
+  const isSafeAction = event.action === 'safe'
+  const isSelf = notificationData.kind === 'self'
+  // 点按“一切安好”动作，或直接点开主动关怀通知（通知文案承诺“点开或轻按即完成确认”）
+  const shouldAckSafe = isSafeAction || isSelf
+
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((list) => {
-        const notificationData = event.notification.data || {}
         const kindQuery = notificationData.kind ? '&notifKind=' + encodeURIComponent(notificationData.kind) : ''
+        const ackQuery = shouldAckSafe ? '&ackSafe=true' : ''
+        const alertIdQuery = notificationData.alertId ? '&alertId=' + encodeURIComponent(notificationData.alertId) : ''
+
         for (const c of list) {
           if ('focus' in c) {
             c.postMessage({
-              type: 'kc-open-alert',
-              source: 'notificationclick',
+              type: shouldAckSafe ? 'kc-ack-safe' : 'kc-open-alert',
+              source: isSafeAction ? 'notificationaction' : 'notificationclick',
               clickedAt: Date.now(),
               notificationKind: notificationData.kind || null,
               alertId: notificationData.alertId || null,
@@ -121,7 +137,7 @@ self.addEventListener('notificationclick', (event) => {
             return c.focus()
           }
         }
-        return self.clients.openWindow('/?from=notif&swts=' + Date.now() + kindQuery)
+        return self.clients.openWindow('/?from=notif&swts=' + Date.now() + kindQuery + ackQuery + alertIdQuery)
       }),
   )
 })

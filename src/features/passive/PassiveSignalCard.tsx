@@ -12,14 +12,11 @@ import { toast } from '@/lib/toast'
 import { useI18n } from '@/lib/i18n'
 import { APK_URL, getApkDownloadFilename } from '@/features/install/apk'
 
-import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
 import {
   getGuardMode,
   getGuardStatus,
   enableHealthWake,
   resolveGuardDemotion,
-  isUsageStatsEnabled,
-  openUsageStatsSettings,
   openAutostartSettings,
   type GuardMode,
   type GuardStatus,
@@ -44,7 +41,6 @@ export function PassiveSignalCard() {
   const [shortcutLink, setShortcutLink] = useState<{ key: string; url: string } | null>(null)
   const [autostart, setAutostart] = useState(false)
   const [hasAutostartSupport, setHasAutostartSupport] = useState(false)
-  const [_, setSensorRefresh] = useState(0)
   // Android:无障碍后台守护实况(设置开关 + 真实绑定/事件时间戳;轮询自动刷新)
   const [guard, setGuard] = useState<GuardStatus | null>(null)
   const [guardMode, setGuardMode] = useState<GuardMode | null>(null)
@@ -224,9 +220,10 @@ export function PassiveSignalCard() {
                   {lang === 'zh' ? '后台守护服务状态' : 'Background Guard Service'}
                 </span>
                 <strong style={{ color: guard?.enabled ? 'var(--ok)' : 'var(--danger)', flexShrink: 0, textAlign: 'right' }}>
-                  {guard?.enabled
-                    ? (lang === 'zh' ? '运行中 (前台通知常驻)' : 'Running (Foreground active)')
-                    : (lang === 'zh' ? '未启动 (需授权上方权限)' : 'Not started (Grant permissions)')}
+                  {!guard ? (lang === 'zh' ? '状态未确认' : 'Unverified')
+                    : guard.enabled ? (lang === 'zh' ? '常驻服务已启动' : 'Persistent service started')
+                    : guardMode?.mode === 'silent' ? (lang === 'zh' ? '静默模式 · 按系统调度' : 'Silent mode · System scheduled')
+                    : (lang === 'zh' ? '常驻服务未运行' : 'Persistent service not running')}
                 </strong>
               </div>
 
@@ -236,7 +233,7 @@ export function PassiveSignalCard() {
                 </span>
                 <strong style={{ color: guard?.evidenceConfigured ? 'var(--ok)' : 'var(--danger)', flexShrink: 0, textAlign: 'right' }}>
                   {guard?.evidenceConfigured
-                    ? (lang === 'zh' ? '已绑定并可采集' : 'Bound and collecting')
+                    ? (lang === 'zh' ? '已绑定 · 运行仍受系统限制' : 'Bound · Execution remains system-limited')
                     : (lang === 'zh' ? '未就绪（仅心跳）' : 'Not ready (heartbeat only)')}
                 </strong>
               </div>
@@ -429,101 +426,12 @@ export function PassiveSignalCard() {
   // 默认收起。展开态一进页面就摊出两段密集说明,而那些内容只有想调细节的人才需要。
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  const syncAppActivityPermission = useCallback(async () => {
-    if (Capacitor.getPlatform() !== 'android') return
-    setSensorRefresh(v => v + 1)
-  }, [])
-
-  useEffect(() => {
-    void syncAppActivityPermission()
-    const onResume = () => void syncAppActivityPermission()
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') onResume()
-    }
-    window.addEventListener('focus', onResume)
-    window.addEventListener('pageshow', onResume)
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      window.removeEventListener('focus', onResume)
-      window.removeEventListener('pageshow', onResume)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
-  }, [syncAppActivityPermission])
-
-  const availableSensors = getAvailableSensors()
-
-  /**
-   * The Android section above already renders these three, each wired to its
-   * own permission prompt and status line. The generic list below then rendered
-   * every supported sensor again, so an Android user got two checkboxes for the
-   * same setting — both writing the same `kc.sensor.*` key, so they even
-   * disagreed visually until the card re-rendered.
-   *
-   * The dedicated controls win because they carry the permission handling; the
-   * generic list keeps whatever the platform section does not cover.
-   */
-  const SECTION_OWNED_SENSORS = ['app_activity', 'motion', 'phone_charger']
-  const isDuplicatedBySection = (key: string) =>
-    android === 'native' && SECTION_OWNED_SENSORS.includes(key)
-
   return (
     <div className="psig__card">
 
       {error && <p className="home__error">{error}</p>}
 
       {/* 守护活跃度已移至「作息」页短期组顶部(ActiveStatusBox) */}
-
-      {/* 这一段的标题由外层区块给,卡片内部不再重复一次。 */}
-      <div className="psig__sensors">
-        <p className="psig__sensors-lead">
-          {lang === 'zh'
-            ? '勾选您希望自动收集的迹象。关闭的选项将不再自动上报报活。'
-            : 'Toggle behaviors you want to monitor. Disabled options will not trigger auto check-in.'}
-        </p>
-        <div className="psig__sensor-list">
-          {availableSensors.filter(s => s.supported && !isDuplicatedBySection(s.key)).map((sensor) => {
-            const isEnabled = isSensorEnabled(sensor.key)
-            return (
-              <label
-                key={sensor.key}
-                className="psig__sensor-row"
-              >
-                <input
-                  type="checkbox"
-                  checked={isEnabled}
-                  onChange={async (e) => {
-                    const checked = e.target.checked
-                    await setSensorEnabled(sensor.key, checked)
-                    setSensorRefresh(v => v + 1)
-
-                    if (sensor.key === 'app_activity' && checked) {
-                      const usageOk = await isUsageStatsEnabled()
-                      if (!usageOk) {
-                        const ok = window.confirm(
-                          lang === 'zh'
-                            ? '启用“屏幕解锁与 App 使用监测”需要系统使用情况权限。点击确认将引导您开启系统授权。'
-                            : 'Enabling Screen Unlock & App Usage requires Usage Access permission. Tap OK to open settings.',
-                        )
-                        if (ok) {
-                          await openUsageStatsSettings()
-                        }
-                      }
-                    }
-                  }}
-                />
-                <div className="psig__sensor-text">
-                  <span className="psig__sensor-label">
-                    {lang === 'zh' ? sensor.labelZh : sensor.labelEn}
-                  </span>
-                  <span className="psig__sensor-desc">
-                    {lang === 'zh' ? sensor.descZh : sensor.descEn}
-                  </span>
-                </div>
-              </label>
-            )
-          })}
-        </div>
-      </div>
 
       {/* 4. Collapsible Accordions sorted by relevance */}
       <div className="psig__accordion">

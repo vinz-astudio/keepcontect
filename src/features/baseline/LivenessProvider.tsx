@@ -10,10 +10,11 @@ import {
 import { useLiveness } from '@/features/baseline/useLiveness'
 import {
   getMyOpenAlert,
-  resolveMyAlert,
+  acknowledgeSafe,
   sendHeartbeat,
   type Alert,
 } from '@/features/alerts/api'
+import { toast } from '@/lib/toast'
 import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import {
   getServerSensitivity,
@@ -35,7 +36,7 @@ import { primeAlarm } from '@/features/baseline/alarm'
 import type { BaselineConfig, Evaluation } from '@/features/baseline/types'
 import { shouldShowSelfCheckForNotificationKind } from '@/features/alerts/notificationRouting'
 import { recordViewportTrace } from '@/lib/viewportDiagnostics'
-import { consumeLaunchNotificationKind } from '@/features/passive/native'
+import { consumeLaunchNotificationDetails } from '@/features/passive/native'
 
 /** 解锁遮罩的非告警模式：演练（验证已设手势）/ 设置（首次或修改手势） */
 export type OverlayMode = 'none' | 'practice' | 'setup'
@@ -101,20 +102,48 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     
     // 冷启动从通知点开：只有 self/concern 通知可先乐观弹自证；group 通知只刷新列表
     const launchParams = new URLSearchParams(window.location.search)
-    if (launchParams.get('from') === 'notif') {
-      const notificationKind = launchParams.get('notifKind')
+    const isAckSafe = launchParams.get('ackSafe') === 'true'
+    const notificationKind = launchParams.get('notifKind')
+    const alertIdParam = launchParams.get('alertId') || undefined
+
+    if (isAckSafe || (launchParams.get('from') === 'notif' && notificationKind === 'self')) {
+      void (async () => {
+        try {
+          await acknowledgeSafe(alertIdParam)
+          await live.checkIn()
+          await live.reload()
+          await refreshAlert()
+          toast(localStorage.getItem('kc.lang') === 'en' ? 'Confirmed safe' : '已确认安全，一切安好', 'ok')
+        } catch {
+          /* ignore */
+        }
+      })()
+      window.history.replaceState(null, '', window.location.pathname)
+    } else if (launchParams.get('from') === 'notif') {
       recordViewportTrace('liveness-from-notification-query', { notificationKind })
       if (shouldShowSelfCheckForNotificationKind(notificationKind)) setAlertHint(true)
       window.history.replaceState(null, '', window.location.pathname) // 清掉参数，避免刷新再触发
     }
 
-    // 原生壳没有上面那个查询参数：系统通知点击只是把 App 拉起来。改由原生记下
-    // "用户点的是哪种通知"，这里读一次就清掉，让解锁界面第一帧就顶出来，而不是
-    // 先落到首页、等网络确认完再闪一下换过去。
-    void consumeLaunchNotificationKind().then((notificationKind) => {
-      if (!notificationKind) return
-      recordViewportTrace('liveness-from-notification-native', { notificationKind })
-      if (shouldShowSelfCheckForNotificationKind(notificationKind)) setAlertHint(true)
+    // 原生壳支持携带通知详情与快速安全确认
+    void consumeLaunchNotificationDetails().then((details) => {
+      if (!details.kind) return
+      recordViewportTrace('liveness-from-notification-native', { notificationKind: details.kind })
+      if (details.ackSafe || details.kind === 'self') {
+        void (async () => {
+          try {
+            await acknowledgeSafe()
+            await live.checkIn()
+            await live.reload()
+            await refreshAlert()
+            toast(localStorage.getItem('kc.lang') === 'en' ? 'Confirmed safe' : '已确认安全，一切安好', 'ok')
+          } catch {
+            /* ignore */
+          }
+        })()
+      } else if (shouldShowSelfCheckForNotificationKind(details.kind)) {
+        setAlertHint(true)
+      }
     })
 
   }, [])
@@ -246,8 +275,25 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     }
     // 从通知点进来：Service Worker 发消息；仅 self/concern 可先弹自证，其余只刷新告警/通知
     const onSwMsg = (e: MessageEvent) => {
-      const data = e.data as { type?: string; source?: string; notificationKind?: string | null } | null
-      if (data?.type === 'kc-open-alert') {
+      const data = e.data as {
+        type?: string
+        source?: string
+        notificationKind?: string | null
+        alertId?: string | null
+      } | null
+      if (data?.type === 'kc-ack-safe' || (data?.type === 'kc-open-alert' && data?.notificationKind === 'self')) {
+        void (async () => {
+          try {
+            await acknowledgeSafe(data.alertId || undefined)
+            await live.checkIn()
+            await live.reload()
+            await refreshAlert()
+            toast(localStorage.getItem('kc.lang') === 'en' ? 'Confirmed safe' : '已确认安全，一切安好', 'ok')
+          } catch {
+            /* ignore */
+          }
+        })()
+      } else if (data?.type === 'kc-open-alert') {
         recordViewportTrace('liveness-service-worker-open-alert', {
           source: data.source ?? 'unknown',
           notificationKind: data.notificationKind ?? null,
@@ -294,7 +340,7 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
       }
       setAlertHint(false)
       await live.checkIn() // 记一次本地活动
-      await resolveMyAlert().catch(() => {}) // 通知服务器解除（若有 open 告警）
+      await acknowledgeSafe(serverAlert?.id).catch(() => {}) // 通知服务器自解除/快速确认
       await live.reload()
       await refreshAlert() // 清掉刚解除的服务器告警
       setMode('none')

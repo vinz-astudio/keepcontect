@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { getGuardianPermissions } from '@/features/passive/guardianPermissions'
 import { getGuardStatus, type GuardStatus } from '@/features/passive/native'
 import { isSensorEnabled } from '@/features/signals/sensors'
-import { isTauri } from '@/lib/platform'
+import { isTauri, isStandalone } from '@/lib/platform'
 
 export type CollectionSurface = 'android-native' | 'ios-native' | 'tauri' | 'pwa'
 export type CollectionDistribution =
@@ -92,19 +92,31 @@ export interface CollectionCapabilityDeps {
   capacitorPlatform: () => string
   isTauri: () => boolean
   isSensorEnabled: (key: string) => boolean
-  permissionGranted: (id: GuardianPermissionId) => Promise<boolean>
+  permissionGranted: (id: GuardianPermissionId) => Promise<boolean | null>
   getGuardStatus: () => Promise<GuardStatus | null>
+  desktopProbeAvailable: () => Promise<boolean | null>
+  isStandalone: () => boolean
 }
 
 const defaultDeps: CollectionCapabilityDeps = {
   capacitorPlatform: () => Capacitor.getPlatform(),
   isTauri,
   isSensorEnabled,
+  isStandalone,
   permissionGranted: async (id) => {
     const permission = getGuardianPermissions().find((candidate) => candidate.id === id)
-    return permission ? permission.check() : false
+    const state = permission ? await permission.check() : 'unavailable'
+    return state === 'granted' ? true : state === 'denied' || state === 'prompt' ? false : null
   },
   getGuardStatus,
+  desktopProbeAvailable: async () => {
+    const internals = (window as unknown as {
+      __TAURI_INTERNALS__?: { invoke?: (name: string) => Promise<{ idleProbeAvailable?: boolean }> }
+    }).__TAURI_INTERNALS__
+    if (!internals?.invoke) return null
+    const result = await internals.invoke('get_alert_shadow_coverage_capability')
+    return typeof result?.idleProbeAvailable === 'boolean' ? result.idleProbeAvailable : null
+  },
 }
 
 export function detectCollectionSurface(
@@ -132,18 +144,20 @@ async function resolveNativeCapability(
     if (definition.id === 'charger') return deps.isSensorEnabled('phone_charger') ? 'granted' : 'disabled'
     if (definition.id === 'app-activity' && !deps.isSensorEnabled('app_activity')) return 'disabled'
     if (definition.id === 'motion' && !deps.isSensorEnabled('motion')) return 'disabled'
-    return definition.requirement && await deps.permissionGranted(definition.requirement) ? 'granted' : 'denied'
+    const allowed = definition.requirement ? await deps.permissionGranted(definition.requirement) : null
+    if (allowed === null) return 'unavailable'
+    if (!allowed) return 'denied'
+    return definition.id === 'background-collection' ? 'limited' : 'granted'
   }
   // iOS has these collectors, but they run only when the OS permits execution.
   // A bound/armed watcher does not verify continuous background coverage.
-  if (definition.id === 'motion' || definition.id === 'charger') return 'limited'
+  if (definition.id === 'motion' || definition.id === 'charger') return deps.isSensorEnabled('app_activity') ? 'limited' : 'disabled'
   if (definition.id === 'background-collection') {
     return 'limited'
   }
   if (definition.id === 'app-activity') {
     if (!deps.isSensorEnabled('app_activity')) return 'disabled'
-    const status = await deps.getGuardStatus()
-    return status?.enabled === true && status.evidenceConfigured === true ? 'granted' : 'limited'
+    return 'limited'
   }
   return 'unavailable'
 }
@@ -158,14 +172,14 @@ async function resolveCapability(
     state = await resolveNativeCapability(surface, definition, deps)
   } else if (surface === 'tauri') {
     state = definition.id === 'desktop-input'
-      ? (deps.isSensorEnabled('system_idle') ? 'granted' : 'disabled')
+      ? (!deps.isSensorEnabled('system_idle') ? 'disabled' : await deps.desktopProbeAvailable() === true ? 'granted' : 'unavailable')
       : definition.id === 'interaction'
         ? (deps.isSensorEnabled('interaction') ? 'granted' : 'disabled')
       : 'unavailable'
   } else {
     state = definition.id === 'native-evidence' ? 'unavailable'
       : definition.id === 'interaction'
-        ? (deps.isSensorEnabled('interaction') ? 'granted' : 'disabled')
+        ? (deps.isSensorEnabled('interaction') ? (deps.isStandalone() ? 'granted' : 'limited') : 'disabled')
         : 'limited'
   }
   return { ...definition, state }
@@ -179,6 +193,9 @@ export async function resolveCollectionCapabilities(
   return {
     surface,
     distribution: definition.distribution,
-    capabilities: await Promise.all(definition.capabilities.map((capability) => resolveCapability(surface, capability, deps))),
+    capabilities: await Promise.all(definition.capabilities.map(async (capability) => {
+      try { return await resolveCapability(surface, capability, deps) }
+      catch { return { ...capability, state: 'unavailable' as const } }
+    })),
   }
 }

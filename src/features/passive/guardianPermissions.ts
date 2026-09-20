@@ -1,123 +1,107 @@
 import { Capacitor } from '@capacitor/core'
 import {
-  getNativeNotificationPermissionStatus,
-  getGuardStatus,
-  isActivityRecognitionEnabled,
-  isBatteryExempt,
-  isUsageStatsEnabled,
-  openNativeNotificationSettings,
-  openUsageStatsSettings,
-  requestActivityRecognitionPermission,
-  requestBatteryExemption,
-  requestNativeNotificationPermission,
-  openNativeAppSettings,
-} from '@/features/passive/native'
-import { setSensorEnabled } from '@/features/signals/sensors'
+  getNativeNotificationPermissionStatus, getNativePermissionState,
+  openNativeNotificationSettings, openNativeAppSettings, openUsageStatsSettings,
+  requestActivityRecognitionPermission, requestBatteryExemption, requestNativeNotificationPermission,
+} from './native'
+import { isTauri } from '@/lib/platform'
+import { enablePush, pushSupported } from '@/features/push/pushApi'
 
-export type PermissionState = 'granted' | 'denied' | 'unavailable' | 'checking'
+export type PermissionState = 'granted' | 'denied' | 'unavailable' | 'checking' | 'prompt' | 'limited' | 'restricted'
 
 export interface GuardianPermission {
   id: string
   labelZh: string
   labelEn: string
-  /** 少了它,KC 具体做不到哪件事。写后果,不写权限名。 */
   costZh: string
   costEn: string
   supported: boolean
-  check: () => Promise<boolean>
-  /** 有的能就地弹系统对话框,有的只能把用户送到设置页。 */
+  check: () => Promise<PermissionState>
   fix: () => Promise<void>
   fixIsSettings: boolean
 }
 
-const android = () => Capacitor.getPlatform() === 'android'
-const nativePhone = () => Capacitor.getPlatform() === 'android' || Capacitor.getPlatform() === 'ios'
-const ios = () => Capacitor.getPlatform() === 'ios'
-
-/**
- * 权限清单按「少了它 KC 做不到什么」排序,不按系统的权限分类排。
- *
- * 通知排第一不是因为它最容易拿到,而是因为少了它,整条告警链的第一步就不成立 ——
- * KC 判断出你可能有事,却没有办法问你。后面所有的采集做得再好也白做。
- */
+/** OS permission checks only. Collector binding and user preferences are separate. */
 export function getGuardianPermissions(): GuardianPermission[] {
+  const platform = Capacitor.getPlatform()
+  const android = platform === 'android'
+  const ios = platform === 'ios'
+  const native = android || ios
+  const web = !native && !isTauri()
   return [
     {
       id: 'notifications',
-      labelZh: '通知',
-      labelEn: 'Notifications',
-      costZh: 'KC 无法在判断您可能有事时问您。它会直接通知您的群组。',
-      costEn: 'KC cannot ask you when it thinks something is wrong. It would go straight to your group.',
-      supported: nativePhone(),
-      check: async () => (await getNativeNotificationPermissionStatus()).granted,
+      labelZh: '通知权限', labelEn: 'Notification permission',
+      costZh: '允许通知不代表一定送达；专注模式、通知渠道和推送连接仍会影响提醒。网页被拒绝后需在浏览器或系统设置中修改。',
+      costEn: 'Permission does not verify delivery. Focus, notification channels and push connectivity still matter. Repair a denied web permission in browser or system settings.',
+      supported: native || web,
+      check: async (): Promise<PermissionState> => {
+        if (native) return getNativePermissionState('notifications')
+        if (!pushSupported()) return 'unavailable'
+        return Notification.permission === 'default' ? 'prompt' : Notification.permission
+      },
       fix: async () => {
+        if (web) { await enablePush(); return }
         const before = await getNativeNotificationPermissionStatus()
-        // 系统只肯弹一次对话框。之前被拒过的账号再问也不会弹,只能送去设置页。
         if (before.canRequest) await requestNativeNotificationPermission()
-        if (!(await getNativeNotificationPermissionStatus()).granted) {
-          await openNativeNotificationSettings()
-        }
+        if (!(await getNativeNotificationPermissionStatus()).granted) await openNativeNotificationSettings()
       },
       fixIsSettings: false,
     },
     {
       id: 'battery',
-      labelZh: '后台运行',
-      labelEn: 'Background running',
-      costZh: '系统会在省电时停掉 KC。它会漏掉您的活动,把您判成失联。',
-      costEn: 'The system will stop KC to save power. It would miss your activity and read you as out of contact.',
-      supported: android(),
-      check: isBatteryExempt,
+      labelZh: '电池优化豁免', labelEn: 'Battery optimization exemption',
+      costZh: '未豁免时，省电模式可能推迟后台采集。豁免也不保证持续后台运行。',
+      costEn: 'Power saving may delay collection without this exemption. An exemption still does not guarantee background execution.',
+      supported: android,
+      check: () => getNativePermissionState('battery'),
       fix: async () => { await requestBatteryExemption() },
       fixIsSettings: false,
     },
     {
       id: 'motion',
-      labelZh: '身体活动',
-      labelEn: 'Physical activity',
-      costZh: 'KC 收不到走动的迹象,只能靠您解锁手机来证明您还在。',
-      costEn: 'KC cannot see that you moved, and has to rely on you unlocking the phone.',
-      supported: android(),
-      check: isActivityRecognitionEnabled,
-      fix: async () => { await requestActivityRecognitionPermission() },
-      fixIsSettings: false,
+      labelZh: ios ? '运动与健身' : '身体活动', labelEn: ios ? 'Motion & Fitness' : 'Physical activity',
+      costZh: '用于读取走动迹象。当前版本无法读取状态时，请到系统设置核对；没有读到数据不能证明权限被拒绝。',
+      costEn: 'Used for movement signals. Check system settings if this version cannot read the status; missing data does not prove permission was denied.',
+      supported: native,
+      check: () => getNativePermissionState('motion'),
+      fix: ios ? openNativeAppSettings : requestActivityRecognitionPermission,
+      fixIsSettings: ios,
     },
     {
       id: 'usage',
-      labelZh: '使用情况访问',
-      labelEn: 'Usage access',
-      costZh: 'KC 看不到您解锁过手机,少了最可靠的一种活动迹象。',
-      costEn: 'KC cannot see that you unlocked the phone, losing the most reliable sign of activity.',
-      supported: android(),
-      check: isUsageStatsEnabled,
+      labelZh: '使用情况访问', labelEn: 'Usage access',
+      costZh: '允许从系统使用记录回看手机活动，不上传具体内容或应用名称。',
+      costEn: 'Allows activity lookback from system usage records; no app names or content are uploaded.',
+      supported: android,
+      check: () => getNativePermissionState('usage'),
       fix: openUsageStatsSettings,
       fixIsSettings: true,
     },
     {
-      id: 'ios_guard',
-      labelZh: 'iOS 后台守护',
-      labelEn: 'iOS background guard',
-      costZh: '未绑定被动证据时，解锁后的静默报活不会运行。',
-      costEn: 'Without the passive-evidence binding, silent unlock check-ins cannot run.',
-      supported: ios(),
-      check: async () => {
-        const status = await getGuardStatus()
-        return status?.enabled === true && status.evidenceConfigured === true
-      },
-      fix: async () => {
-        await setSensorEnabled('app_activity', true)
-        await openNativeAppSettings()
-      },
+      id: 'background-refresh',
+      labelZh: '后台 App 刷新', labelEn: 'Background App Refresh',
+      costZh: '读取 iOS 当前设置。低电量模式会关闭此能力；系统限制状态无法在 App 内解除。开启也不保证持续运行。',
+      costEn: 'Reads the current iOS setting. Low Power Mode disables refresh; system restrictions cannot be removed here. Enabling it does not guarantee continuous execution.',
+      supported: ios,
+      check: () => getNativePermissionState('background-refresh'),
+      fix: openNativeAppSettings,
+      fixIsSettings: true,
+    },
+    {
+      id: 'health-read',
+      labelZh: '健康数据读取', labelEn: 'Health data read access',
+      costZh: 'Apple 不向 App 公开读取授权结果。请在「健康」App 的数据访问权限中核对 KC；已请求、已注册或查询成功都不等于已授权。',
+      costEn: 'Apple does not disclose read authorization. Check KC in Health data access settings; a completed request, registration or query does not prove consent.',
+      supported: ios,
+      check: async (): Promise<PermissionState> => 'limited',
+      fix: openNativeAppSettings,
       fixIsSettings: true,
     },
   ].filter((permission) => permission.supported)
 }
 
-/** 缺的比给的重要,所以没给的排前面。 */
-export function sortByUrgency(
-  permissions: GuardianPermission[],
-  states: Record<string, PermissionState>,
-): GuardianPermission[] {
-  const rank = (id: string) => (states[id] === 'granted' ? 1 : 0)
+export function sortByUrgency(permissions: GuardianPermission[], states: Record<string, PermissionState>): GuardianPermission[] {
+  const rank = (id: string) => states[id] === 'granted' ? 1 : 0
   return [...permissions].sort((a, b) => rank(a.id) - rank(b.id))
 }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const nativeHarness = vi.hoisted(() => ({
   platform: 'ios',
+  activityEnabled: true,
   binding: {
     bind: vi.fn(),
     revoke: vi.fn(),
@@ -15,6 +16,10 @@ const nativeHarness = vi.hoisted(() => ({
     pingApp: vi.fn().mockResolvedValue(undefined),
     getGuardStatus: vi.fn(),
     getNotificationPermissionStatus: vi.fn(),
+    isBatteryExempt: vi.fn(),
+    isUsageStatsEnabled: vi.fn(),
+    isActivityRecognitionEnabled: vi.fn(),
+    getCollectionPermissionStatus: vi.fn(),
     openNotificationSettings: vi.fn().mockResolvedValue(undefined),
     enableHealthWake: vi.fn().mockResolvedValue({ granted: true }),
   },
@@ -25,7 +30,7 @@ vi.mock('@capacitor/core', () => ({
   registerPlugin: () => nativeHarness.plugin,
 }))
 
-vi.mock('@/features/signals/sensors', () => ({ isSensorEnabled: () => true }))
+vi.mock('@/features/signals/sensors', () => ({ isSensorEnabled: (key: string) => key !== 'app_activity' || nativeHarness.activityEnabled }))
 vi.mock('@/lib/clientReport', () => ({ getClientId: () => 'native-test-client' }))
 vi.mock('@/lib/config', () => ({ SUPABASE_URL: 'https://example.invalid' }))
 vi.mock('@/lib/version', () => ({ APP_VERSION: '0.6.0-test' }))
@@ -51,6 +56,7 @@ const native = await import('./native')
 describe('native passive setup truth', () => {
   beforeEach(() => {
     nativeHarness.platform = 'ios'
+    nativeHarness.activityEnabled = true
     vi.clearAllMocks()
     nativeHarness.plugin.configure.mockResolvedValue(undefined)
     nativeHarness.plugin.pingApp.mockResolvedValue(undefined)
@@ -118,7 +124,7 @@ describe('native passive setup truth', () => {
     }))
   })
 
-  it('revokes the current binding before native logout clearing', async () => {
+  it('clears native collection and revokes the current binding on logout', async () => {
     nativeHarness.platform = 'android'
     await native.configureNativePassivePing('legacy-token')
     await native.configureNativePassivePing(null)
@@ -175,5 +181,60 @@ describe('native passive setup truth', () => {
       enabled: true,
       evidenceConfigured: false,
     })
+  })
+
+  it('applies native settings with the authenticated token without fabricating an app event', async () => {
+    nativeHarness.platform = 'android'
+    await native.syncNativeSensorPreferences()
+    expect(nativeHarness.token.get).toHaveBeenCalledOnce()
+    expect(nativeHarness.plugin.configure).toHaveBeenCalledWith(expect.objectContaining({ token: 'session-token' }))
+    expect(nativeHarness.plugin.pingApp).not.toHaveBeenCalled()
+  })
+
+  it('stops iOS collection without needing an online token lookup', async () => {
+    nativeHarness.activityEnabled = false
+    nativeHarness.token.get.mockRejectedValue(new Error('offline'))
+    await native.syncNativeSensorPreferences()
+    expect(nativeHarness.plugin.clear).toHaveBeenCalledOnce()
+    expect(nativeHarness.token.get).not.toHaveBeenCalled()
+  })
+
+  it('clears a bound iOS collector before waiting for remote revocation', async () => {
+    await native.configureNativePassivePing('session-token')
+    nativeHarness.activityEnabled = false
+    let finish!: (value: boolean) => void
+    nativeHarness.binding.revoke.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const stopping = native.syncNativeSensorPreferences()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(nativeHarness.plugin.clear).toHaveBeenCalledOnce()
+    expect(storage.has('kc.passiveEvidence.bindingId')).toBe(false)
+    finish(true)
+    await stopping
+  })
+
+  it('propagates native bridge failure for an explicit settings update', async () => {
+    nativeHarness.plugin.configure.mockRejectedValueOnce(new Error('bridge failed'))
+    await expect(native.syncNativeSensorPreferences()).rejects.toThrow('bridge failed')
+  })
+
+  it('distinguishes revoked Android permissions from a failed OS read', async () => {
+    nativeHarness.platform = 'android'
+    nativeHarness.plugin.isUsageStatsEnabled.mockResolvedValueOnce({ enabled: false })
+    expect(await native.getNativePermissionState('usage')).toBe('denied')
+    nativeHarness.plugin.isUsageStatsEnabled.mockRejectedValueOnce(new Error('missing bridge'))
+    expect(await native.getNativePermissionState('usage')).toBe('unavailable')
+    nativeHarness.plugin.isBatteryExempt.mockResolvedValue({ exempt: true })
+    expect(await native.getNativePermissionState('battery')).toBe('granted')
+  })
+
+  it('reads iOS motion and background refresh without inferring them from guard binding', async () => {
+    nativeHarness.plugin.getCollectionPermissionStatus.mockResolvedValue({ motion: 'denied', backgroundRefresh: 'granted' })
+    expect(await native.getNativePermissionState('motion')).toBe('denied')
+    expect(await native.getNativePermissionState('background-refresh')).toBe('granted')
+    nativeHarness.plugin.getCollectionPermissionStatus.mockResolvedValue({ motion: 'granted', backgroundRefresh: 'restricted' })
+    expect(await native.getNativePermissionState('background-refresh')).toBe('restricted')
+    nativeHarness.plugin.getCollectionPermissionStatus.mockRejectedValue(new Error('old shell'))
+    expect(await native.getNativePermissionState('motion')).toBe('unavailable')
   })
 })

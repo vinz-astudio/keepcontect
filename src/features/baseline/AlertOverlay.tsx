@@ -79,14 +79,17 @@ export function AlertOverlay() {
     }
   }, [forceSetup])
 
-  // 已确认的真告警且 App 在前台：应用内主动发声 + 震动（不依赖系统通知设置）
+  const isSelfStage = serverAlert?.stage === 'self'
+  const isAlarmingAlert = realAlert && !isSelfStage
+
+  // 已确认的真告警且 App 在前台：应用内主动发声 + 震动（仅在 group+ 告警时报警；self 关怀阶段绝不发刺耳警报）
   useEffect(() => {
-    if (realAlert) {
+    if (isAlarmingAlert) {
       startAlarm()
       return () => stopAlarm()
     }
     stopAlarm()
-  }, [realAlert])
+  }, [isAlarmingAlert])
 
   if (!show) return null
 
@@ -97,11 +100,15 @@ export function AlertOverlay() {
   const showSosAction = shouldShowSosAction({ isPatternSetup: forceSetup })
 
   const title = showAsAlert
-    ? serverAlert?.cause === 'concern'
+    ? isSelfStage
       ? lang === 'zh'
-        ? '有人在关心您'
-        : 'Someone is checking on you'
-      : t('overlay.title')
+        ? 'KC 正在确认您的安全'
+        : 'KC Safety Confirmation'
+      : serverAlert?.cause === 'concern'
+        ? lang === 'zh'
+          ? '有人在关心您'
+          : 'Someone is checking on you'
+        : t('overlay.title')
     : mode === 'setup'
       ? t('overlay.setup.title')
       : t('overlay.practice.title')
@@ -109,13 +116,17 @@ export function AlertOverlay() {
   const setupText = getPatternSetupText(setupStep, lang)
 
   const sub = showAsAlert
-    ? serverAlert?.cause === 'concern'
+    ? isSelfStage
       ? lang === 'zh'
-        ? '画出手势，让关心您的人知道您安好。'
-        : 'Draw your pattern so they know you are OK.'
-      : needSetup
-        ? t('overlay.sub.setup')
-        : t('overlay.sub.verify')
+        ? '只要确认您安好即可。轻按或画出手势完成确认，不会打扰亲友。'
+        : 'Just confirming you are safe. Tap or draw pattern to confirm without notifying anyone.'
+      : serverAlert?.cause === 'concern'
+        ? lang === 'zh'
+          ? '画出手势，让关心您的人知道您安好。'
+          : 'Draw your pattern so they know you are OK.'
+        : needSetup
+          ? t('overlay.sub.setup')
+          : t('overlay.sub.verify')
     : mode === 'setup'
       ? getPatternSetupIntro(hadOld, lang)
       : needSetup
@@ -268,6 +279,30 @@ export function AlertOverlay() {
           </div>
         )}
         {notice && forceSetup && <p className="overlay__notice">{notice}</p>}
+
+        {isSelfStage && !forceSetup && (
+          <div style={{ marginBottom: 16, width: '100%', maxWidth: 280, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="prototype-button home-prototype__primary"
+              style={{ width: '100%', minHeight: 48, fontSize: '1.05rem', fontWeight: 600, borderRadius: 8 }}
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true)
+                try {
+                  await confirmSafe()
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            >
+              {busy ? (lang === 'zh' ? '正在确认…' : 'Confirming…') : (lang === 'zh' ? '一切安好' : 'I am safe')}
+            </button>
+            <span className="muted" style={{ marginTop: 8, fontSize: '0.78rem' }}>
+              {lang === 'zh' ? '或画出手势完成解锁' : 'Or draw pattern to unlock'}
+            </span>
+          </div>
+        )}
 
         {usePasscode && !forceSetup ? (
           <div className="overlay__passcode">

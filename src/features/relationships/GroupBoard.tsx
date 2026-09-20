@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   getGroupActivity,
   setShareActivity,
+  setActivityDetailLevel,
   type ActivityStatus,
   type GroupActivity,
   type GroupActivityView,
@@ -179,6 +180,35 @@ export function GroupBoard({
         />
         {t('board.share')}
       </label>
+      {data.i_share && (
+        <div className="board__detail-privacy" style={{ margin: '6px 0 10px', fontSize: '0.82rem' }}>
+          <span className="muted" style={{ marginRight: 8 }}>
+            {lang === 'zh' ? '公开详情范围:' : 'Detail level:'}
+          </span>
+          <select
+            value={data.my_activity_detail_level ?? 'simple'}
+            disabled={busy}
+            style={{ fontSize: '0.82rem', padding: '3px 8px', borderRadius: 6, border: '1px solid rgba(128,128,128,0.3)', background: 'transparent', color: 'inherit' }}
+            onChange={(e) =>
+              void run(() =>
+                setActivityDetailLevel(
+                  e.target.value as 'simple' | 'guardians_only' | 'all',
+                ),
+              )
+            }
+          >
+            <option value="simple" style={{ background: '#1c1c1e', color: '#fff' }}>
+              {lang === 'zh' ? '仅简单状态（不展示具体小时）' : 'Simple status (no hours)'}
+            </option>
+            <option value="guardians_only" style={{ background: '#1c1c1e', color: '#fff' }}>
+              {lang === 'zh' ? '仅守护人可见具体小时与记录' : 'Guardians only'}
+            </option>
+            <option value="all" style={{ background: '#1c1c1e', color: '#fff' }}>
+              {lang === 'zh' ? '向全组成员公开具体小时' : 'All group members'}
+            </option>
+          </select>
+        </div>
+      )}
       <p className="muted board__hint">
         {t(mode === 'watch' ? 'board.hint.watchView' : 'board.hint.groupView')}
       </p>

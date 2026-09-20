@@ -19,6 +19,23 @@ export async function resolveMyAlert(): Promise<void> {
   emitAlertChange()
 }
 
+export async function acknowledgeSafe(alertId?: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.rpc('acknowledge_safe' as never, {
+      _alert_id: alertId || null,
+    } as never)
+    if (error) {
+      await resolveMyAlert()
+      return true
+    }
+    emitAlertChange()
+    return !!data
+  } catch {
+    await resolveMyAlert().catch(() => {})
+    return true
+  }
+}
+
 export async function raiseSos(): Promise<string> {
   const { data, error } = await supabase.rpc('raise_sos')
   if (error) throw error
