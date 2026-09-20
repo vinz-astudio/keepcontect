@@ -21,19 +21,20 @@ export interface GuardianPermission {
   fixIsSettings: boolean
 }
 
-/** OS permission checks only. Collector binding and user preferences are separate. */
+/** OS permission checks only. Live OS state query. */
 export function getGuardianPermissions(): GuardianPermission[] {
   const platform = Capacitor.getPlatform()
   const android = platform === 'android'
   const ios = platform === 'ios'
   const native = android || ios
-  const web = !native && !isTauri()
+  const desktop = isTauri()
+  const web = !native && !desktop
   return [
     {
       id: 'notifications',
-      labelZh: '通知权限', labelEn: 'Notification permission',
-      costZh: '允许通知不代表一定送达；专注模式、通知渠道和推送连接仍会影响提醒。网页被拒绝后需在浏览器或系统设置中修改。',
-      costEn: 'Permission does not verify delivery. Focus, notification channels and push connectivity still matter. Repair a denied web permission in browser or system settings.',
+      labelZh: '通知权限', labelEn: 'Notifications',
+      costZh: '用于发送关怀通知与紧急安全提醒。',
+      costEn: 'Used for care notifications and emergency alerts.',
       supported: native || web,
       check: async (): Promise<PermissionState> => {
         if (native) return getNativePermissionState('notifications')
@@ -51,8 +52,8 @@ export function getGuardianPermissions(): GuardianPermission[] {
     {
       id: 'battery',
       labelZh: '电池优化豁免', labelEn: 'Battery optimization exemption',
-      costZh: '未豁免时，省电模式可能推迟后台采集。豁免也不保证持续后台运行。',
-      costEn: 'Power saving may delay collection without this exemption. An exemption still does not guarantee background execution.',
+      costZh: '避免系统在后台清理或休眠应用。',
+      costEn: 'Prevents the system from sleeping the app in the background.',
       supported: android,
       check: () => getNativePermissionState('battery'),
       fix: async () => { await requestBatteryExemption() },
@@ -61,8 +62,8 @@ export function getGuardianPermissions(): GuardianPermission[] {
     {
       id: 'motion',
       labelZh: ios ? '运动与健身' : '身体活动', labelEn: ios ? 'Motion & Fitness' : 'Physical activity',
-      costZh: '用于读取走动迹象。当前版本无法读取状态时，请到系统设置核对；没有读到数据不能证明权限被拒绝。',
-      costEn: 'Used for movement signals. Check system settings if this version cannot read the status; missing data does not prove permission was denied.',
+      costZh: ios ? '用于读取步数与走动迹象以确认安全。' : '用于检测日常活动与走动迹象。',
+      costEn: ios ? 'Detects steps and movement to confirm safety.' : 'Detects physical activity and movement.',
       supported: native,
       check: () => getNativePermissionState('motion'),
       fix: ios ? openNativeAppSettings : requestActivityRecognitionPermission,
@@ -71,8 +72,8 @@ export function getGuardianPermissions(): GuardianPermission[] {
     {
       id: 'usage',
       labelZh: '使用情况访问', labelEn: 'Usage access',
-      costZh: '允许从系统使用记录回看手机活动，不上传具体内容或应用名称。',
-      costEn: 'Allows activity lookback from system usage records; no app names or content are uploaded.',
+      costZh: '通过系统记录感知设备活跃，不上传任何隐私内容。',
+      costEn: 'Detects device activity from system records; no content is uploaded.',
       supported: android,
       check: () => getNativePermissionState('usage'),
       fix: openUsageStatsSettings,
@@ -81,22 +82,47 @@ export function getGuardianPermissions(): GuardianPermission[] {
     {
       id: 'background-refresh',
       labelZh: '后台 App 刷新', labelEn: 'Background App Refresh',
-      costZh: '读取 iOS 当前设置。低电量模式会关闭此能力；系统限制状态无法在 App 内解除。开启也不保证持续运行。',
-      costEn: 'Reads the current iOS setting. Low Power Mode disables refresh; system restrictions cannot be removed here. Enabling it does not guarantee continuous execution.',
+      costZh: '允许系统在后台同步状态与更新活跃记录。',
+      costEn: 'Allows the system to sync status in the background.',
       supported: ios,
       check: () => getNativePermissionState('background-refresh'),
       fix: openNativeAppSettings,
       fixIsSettings: true,
     },
     {
-      id: 'health-read',
-      labelZh: '健康数据读取', labelEn: 'Health data read access',
-      costZh: 'Apple 不向 App 公开读取授权结果。请在「健康」App 的数据访问权限中核对 KC；已请求、已注册或查询成功都不等于已授权。',
-      costEn: 'Apple does not disclose read authorization. Check KC in Health data access settings; a completed request, registration or query does not prove consent.',
-      supported: ios,
-      check: async (): Promise<PermissionState> => 'limited',
-      fix: openNativeAppSettings,
-      fixIsSettings: true,
+      id: 'autostart',
+      labelZh: '开机自启', labelEn: 'Launch at startup',
+      costZh: '电脑开机时自动在后台启动守护。',
+      costEn: 'Starts automatically in background when computer boots.',
+      supported: desktop,
+      check: async (): Promise<PermissionState> => {
+        try {
+          const internals = (window as unknown as {
+            __TAURI_INTERNALS__?: { invoke?: (cmd: string) => Promise<boolean> }
+          }).__TAURI_INTERNALS__
+          if (internals && typeof internals.invoke === 'function') {
+            const enabled = await internals.invoke('plugin:autostart|is_enabled')
+            return enabled ? 'granted' : 'prompt'
+          }
+        } catch {}
+        return 'unavailable'
+      },
+      fix: async () => {
+        try {
+          const internals = (window as unknown as {
+            __TAURI_INTERNALS__?: { invoke?: (cmd: string) => Promise<unknown> }
+          }).__TAURI_INTERNALS__
+          if (internals && typeof internals.invoke === 'function') {
+            const enabled = (await internals.invoke('plugin:autostart|is_enabled')) as boolean
+            if (enabled) {
+              await internals.invoke('plugin:autostart|disable')
+            } else {
+              await internals.invoke('plugin:autostart|enable')
+            }
+          }
+        } catch {}
+      },
+      fixIsSettings: false,
     },
   ].filter((permission) => permission.supported)
 }
@@ -104,4 +130,20 @@ export function getGuardianPermissions(): GuardianPermission[] {
 export function sortByUrgency(permissions: GuardianPermission[], states: Record<string, PermissionState>): GuardianPermission[] {
   const rank = (id: string) => states[id] === 'granted' ? 1 : 0
   return [...permissions].sort((a, b) => rank(a.id) - rank(b.id))
+}
+
+export function summarizeDevicePermissions(
+  permissions: GuardianPermission[],
+  states: Record<string, PermissionState>,
+  checking: boolean,
+): PermissionState {
+  if (checking) return 'checking'
+  if (permissions.length === 0) return 'granted'
+  const values = permissions.map((p) => states[p.id] ?? 'checking')
+  if (values.includes('checking')) return 'checking'
+  if (values.includes('unavailable')) return 'unavailable'
+  if (values.includes('restricted')) return 'restricted'
+  if (values.some((v) => v === 'denied' || v === 'prompt')) return 'denied'
+  if (values.every((v) => v === 'granted')) return 'granted'
+  return 'denied'
 }

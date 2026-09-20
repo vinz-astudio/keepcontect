@@ -9,7 +9,6 @@ import { listMyTasks } from '@/features/tasks/api'
 import { PasscodeSetup } from '@/features/pattern/PasscodeSetup'
 import { availableUnlockMethods } from '@/features/pattern/patternStore'
 import { GuardianPermissionsCard } from '@/features/passive/GuardianPermissionsCard'
-import { PassiveSignalCard } from '@/features/passive/PassiveSignalCard'
 import { ProtectionHealthCard } from '@/features/baseline/ProtectionHealthCard'
 import { PassivePingBoot } from '@/features/passive/PassivePingBoot'
 import { OnboardingWizard } from '@/features/passive/OnboardingWizard'
@@ -703,7 +702,7 @@ export function HomeScreen() {
       subtitle={lang === 'zh' ? '账户、设备与紧急资料都在这里。' : 'Your account, devices, and emergency information.'}
       account={<AccountCard onScan={() => setIsScanning(true)} signOut={signOut} />}
       safetyCheckin={<SafetyCheckinCard />}
-      guardianPermissions={<><GuardianPermissionsCard /><PassiveSignalCard /></>}
+      guardianPermissions={<GuardianPermissionsCard />}
       emergency={<EmergencyInfoCard section="all" />}
       emergencyGps={<EmergencyGpsCard />}
       preferencesUpdates={<PreferencesCard isGm={isGm} />}

@@ -32,9 +32,9 @@ describe('device permission center', () => {
 
   it.each([
     ['android', false, ['notifications', 'battery', 'motion', 'usage']],
-    ['ios', false, ['notifications', 'motion', 'background-refresh', 'health-read']],
+    ['ios', false, ['notifications', 'motion', 'background-refresh']],
     ['web', false, ['notifications']],
-    ['web', true, []],
+    ['web', true, ['autostart']],
   ])('uses the permission list for %s (desktop=%s)', (platform, tauri, ids) => {
     harness.platform = platform; harness.tauri = tauri
     expect(getGuardianPermissions().map((permission) => permission.id)).toEqual(ids)
@@ -43,7 +43,7 @@ describe('device permission center', () => {
   it('does not initially claim all permissions are granted', () => {
     const html = renderToStaticMarkup(createElement(GuardianPermissionsCard))
     expect(html).toContain('data-summary="checking"')
-    expect(html).not.toContain('权限都已开启')
+    expect(html).not.toContain('系统权限已全部就绪')
     expect(html).not.toContain('电脑鼠标键盘活跃')
     expect(html).not.toContain('运动状态活跃监测')
     expect(html).toContain('通知权限')
@@ -54,8 +54,9 @@ describe('device permission center', () => {
     const html = renderToStaticMarkup(createElement(GuardianPermissionsCard))
     expect(html).not.toContain('iOS 后台守护')
     expect(html).not.toContain('使用情况访问')
-    expect(html).toContain('iOS 被动活动采集')
-    expect(html).toContain('健康数据读取')
+    expect(html).toContain('运动与健身')
+    expect(html).toContain('后台 App 刷新')
+    expect(html).not.toContain('健康数据读取')
   })
 
   it('rereads web notification permission after revocation and keeps unsupported unknown', async () => {
@@ -69,9 +70,9 @@ describe('device permission center', () => {
     expect(await notification.check()).toBe('unavailable')
   })
 
-  it('never infers Health read consent from setup or a bound observer', async () => {
+  it('does not include unqueryable health-read in iOS permissions', async () => {
     harness.platform = 'ios'
-    expect(await getGuardianPermissions().find((item) => item.id === 'health-read')?.check()).toBe('limited')
+    expect(getGuardianPermissions().find((item) => item.id === 'health-read')).toBeUndefined()
     expect(await getGuardianPermissions().find((item) => item.id === 'motion')?.check()).toBe('unavailable')
   })
 

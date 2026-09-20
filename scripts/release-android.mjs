@@ -112,4 +112,4 @@ try {
 }
 
 console.log(`\n✓ 已发布 ${tag}`)
-console.log('  记得提交版本号变更: git commit -am "chore(android): release ' + tag + '"')
+console.log('  记得提交版本号变更: git add release-artifacts && git commit -am "chore(android): release ' + tag + '"')

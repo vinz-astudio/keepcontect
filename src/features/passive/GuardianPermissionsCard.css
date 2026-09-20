@@ -1,11 +1,27 @@
+.guardian-perms__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .guardian-perms__summary {
-  margin: 0 0 12px;
+  margin: 0;
   color: var(--success);
   font-size: 0.9rem;
   font-weight: 600;
 }
 
-.guardian-perms__summary.is-missing { color: var(--warning); }
+.guardian-perms__summary.is-missing {
+  color: var(--warning);
+}
+
+.guardian-perms__refresh {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  flex-shrink: 0;
+}
 
 .guardian-perms__none {
   margin: 0;
@@ -47,56 +63,42 @@
 }
 
 .guardian-perms__cost {
-  color: var(--warning);
-  font-size: 0.78rem;
-  line-height: 1.45;
-}
-
-.guardian-perms__ok {
-  color: var(--success);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.guardian-perms__surface {
-  margin: 0 0 10px;
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
 }
 
-.guardian-perms__surface--notice {
-  color: var(--warning);
+.guardian-perms__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.guardian-perms__sensors {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.guardian-perms__sensors-heading {
-  margin: 0 0 4px;
-  color: var(--ink);
-  font-size: 0.86rem;
-  font-weight: 600;
-}
-
-.guardian-perms__sensor-action {
-  display: grid;
-  justify-items: end;
-  gap: 5px;
+.guardian-perms__fix-btn {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  white-space: nowrap;
 }
 
 .guardian-perms__status {
   font-size: 0.76rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .guardian-perms__status.is-granted { color: var(--success); }
-.guardian-perms__status.is-denied { color: var(--warning); }
-.guardian-perms__status.is-unavailable { color: var(--muted); }
-.guardian-perms__status.is-checking { color: var(--muted); }
+.guardian-perms__status.is-denied,
 .guardian-perms__status.is-prompt,
 .guardian-perms__status.is-restricted,
 .guardian-perms__status.is-limited { color: var(--warning); }
+.guardian-perms__status.is-unavailable,
+.guardian-perms__status.is-checking,
 .guardian-perms__status.is-disabled { color: var(--muted); }
+
+.guardian-perms__footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+}
