@@ -24,12 +24,13 @@ export async function acknowledgeSafe(alertId?: string): Promise<boolean> {
     const { data, error } = await supabase.rpc('acknowledge_safe' as never, {
       _alert_id: alertId || null,
     } as never)
-    if (error) {
+    const res = data as { ok?: boolean; cleared_alert?: boolean } | null
+    if (error || !res?.cleared_alert) {
       await resolveMyAlert()
       return true
     }
     emitAlertChange()
-    return !!data
+    return true
   } catch {
     await resolveMyAlert().catch(() => {})
     return true

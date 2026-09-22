@@ -11,6 +11,7 @@ import { useLiveness } from '@/features/baseline/useLiveness'
 import {
   getMyOpenAlert,
   acknowledgeSafe,
+  resolveMyAlert,
   sendHeartbeat,
   type Alert,
 } from '@/features/alerts/api'
@@ -340,7 +341,11 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
       }
       setAlertHint(false)
       await live.checkIn() // 记一次本地活动
-      await acknowledgeSafe(serverAlert?.id).catch(() => {}) // 通知服务器自解除/快速确认
+      try {
+        await acknowledgeSafe(serverAlert?.id)
+      } finally {
+        await resolveMyAlert().catch(() => {})
+      }
       await live.reload()
       await refreshAlert() // 清掉刚解除的服务器告警
       setMode('none')
