@@ -91,7 +91,8 @@ dependencies = [
 ]
 
 [[package]]
-$10.7.7"
+name = "arrayvec"
+version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f02882884d3e1bc524fb12c79f107f6ad0e1cfd498c536ffb494301740995dfe"
 
