@@ -45,6 +45,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.6.6",
+    "@electric-sql/pglite": "0.5.8",
     "@tauri-apps/cli": "^2.11.3",
     "@types/node": "^22.19.20",
     "@types/react": "^19.1.0",

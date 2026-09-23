@@ -4,6 +4,7 @@ import {
   getMyGuardianCode,
   listGuardianships,
   revokeGuardianship,
+  setGuardianPatternRequirement,
   type GuardianLink,
 } from '@/features/guardians/api'
 import { buildInviteUrl, shareInvite } from '@/features/invites/inviteLink'
@@ -22,7 +23,7 @@ import { QRModal } from '@/features/relationships/QRModal'
 import { toast } from '@/lib/toast'
 
 export function GuardiansCard() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { user } = useAuth()
   const displayName =
     (user?.user_metadata?.display_name as string | undefined) ??
@@ -191,7 +192,11 @@ export function GuardiansCard() {
               <ul className="list">
                 {guardians.map((l) => (
                   <li key={l.id} className="list__item">
-                    <span>{l.otherName ?? l.otherUserId.slice(0, 8)}</span>
+                    <span>{l.otherName ?? l.otherUserId.slice(0, 8)}
+                      {l.requirePattern && <small style={{ display: 'block' }}>
+                        {lang === 'zh' ? '此守护者要求您用手势确认安全' : 'This guardian requires your pattern to confirm safety'}
+                      </small>}
+                    </span>
                     <button
                       className="leave"
                       disabled={busy}
@@ -237,6 +242,17 @@ export function GuardiansCard() {
                           </button>
                         </div>
                       </div>
+
+                      {l.status === 'active' && <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 0' }}>
+                        <input type="checkbox" checked={l.requirePattern} disabled={busy}
+                          onChange={(event) => void run(() => setGuardianPatternRequirement(l.id, event.target.checked))} />
+                        <span>
+                          {lang === 'zh' ? '特殊守护：要求手势确认' : 'Extra protection: require pattern confirmation'}
+                          <small style={{ display: 'block' }}>
+                            {lang === 'zh' ? '开启后，活动或普通按钮不能解除对方的告警。默认关闭。' : 'When enabled, activity and a simple button cannot clear their alerts. Off by default.'}
+                          </small>
+                        </span>
+                      </label>}
 
                       {/* 我给这位设过的任务 + 对方接受状态(知情) + 编辑/取消 */}
                       {wardTasks.length > 0 && (

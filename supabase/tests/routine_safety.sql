@@ -251,8 +251,8 @@ SELECT results_eq(
 SET local role service_role;
 SELECT results_eq(
     $$ SELECT status FROM public.alerts WHERE user_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' ORDER BY opened_at DESC LIMIT 1 $$,
-    $$ VALUES ('open'::text) $$,
-    'Passive live activity must not answer or resolve a safety alert'
+    $$ VALUES ('resolved'::text) $$,
+    'ADR-0045: qualified own live activity resolves an ordinary safety alert'
 );
 
 -- 20. Ingestion bounds: record_behavior_pings with >100 elements throws (limit exceeded)

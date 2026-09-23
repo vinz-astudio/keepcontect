@@ -6,6 +6,7 @@ export interface GuardianLink {
   otherName: string | null
   direction: 'i_guard' | 'guards_me'
   status: string
+  requirePattern: boolean
 }
 
 async function requireUid(): Promise<string> {
@@ -43,6 +44,12 @@ export async function listGuardianships(): Promise<GuardianLink[]> {
   if (error) throw error
   const rows = data ?? []
   if (rows.length === 0) return []
+  const { data: policies, error: policyError } = await supabase.rpc('my_guardian_pattern_requirements' as never)
+  if (policyError) throw policyError
+  const patternByLink = new Map(
+    ((policies ?? []) as { guardianship_id: string; require_pattern: boolean }[])
+      .map((p) => [p.guardianship_id, p.require_pattern]),
+  )
 
   const otherIds = rows.map((r) =>
     r.guardian_id === uid ? r.ward_id : r.guardian_id,
@@ -65,8 +72,21 @@ export async function listGuardianships(): Promise<GuardianLink[]> {
       otherName: nameById.get(otherUserId) ?? null,
       direction: iGuard ? 'i_guard' : 'guards_me',
       status: r.status,
+      requirePattern: patternByLink.get(r.id) === true,
     }
   })
+}
+
+export async function setGuardianPatternRequirement(id: string, required: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_guardian_pattern_requirement' as never,
+    { _guardianship_id: id, _required: required } as never)
+  if (error) {
+    if (error.message?.includes('ward_pattern_not_set')) {
+      throw new Error(localStorage.getItem('kc.lang') === 'en'
+        ? 'Ask this person to set a pattern in Me first.' : '请先让对方在“我”页面设置手势。')
+    }
+    throw error
+  }
 }
 
 export async function revokeGuardianship(id: string): Promise<void> {

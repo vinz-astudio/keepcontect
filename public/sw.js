@@ -3,7 +3,7 @@
 
 const DICT = {
   zh: {
-    self: 'KC 正在确认您的安全。点开或轻按即完成确认，不会打扰亲友。',
+    self: 'KC 正在确认您的安全。请点“一切安好”，或打开应用按提示确认。',
     group: '{name} 出现异常沉默，请尽快联系确认其安全。',
     community: '社区警示：{name} 长时间失联且其小组无人响应，请协助推动联系。',
     terminal: '紧急：{name} 持续无响应。已为你解锁其地址与紧急联系人，请上门探视或协助报警。',
@@ -23,7 +23,7 @@ const DICT = {
     title: 'Keep Contact',
   },
   en: {
-    self: 'KC is checking on your safety. Tap to confirm you are safe.',
+    self: 'KC is checking on your safety. Tap “I am safe” or open the app to confirm.',
     group: '{name} has gone unusually silent. Please reach out and make sure they are safe.',
     community: 'Community alert: {name} is unreachable and their group has not responded.',
     terminal: 'URGENT: {name} is unresponsive. Their address and emergency contact are unlocked for you.',
@@ -113,9 +113,8 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const notificationData = event.notification.data || {}
   const isSafeAction = event.action === 'safe'
-  const isSelf = notificationData.kind === 'self'
-  // 点按“一切安好”动作，或直接点开主动关怀通知（通知文案承诺“点开或轻按即完成确认”）
-  const shouldAckSafe = isSafeAction || isSelf
+  // Opening a notification shows the current server policy; only the button answers.
+  const shouldAckSafe = isSafeAction
 
   event.waitUntil(
     self.clients

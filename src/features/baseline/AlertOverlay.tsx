@@ -16,6 +16,7 @@ import { setServerPatternHash } from '@/features/baseline/settingsApi'
 import { toast } from '@/lib/toast'
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
 import { getPlatform } from '@/lib/platform'
+import { getConfirmationMethod } from '@/features/alerts/confirmationPolicy'
 import {
   getPatternSavedMessage,
   getPatternSetupActiveIndex,
@@ -54,6 +55,8 @@ export function AlertOverlay() {
   const realAlert = serverNeedsConfirm
   // 从通知点进来时先乐观顶出解锁界面（alertHint），待 getMyOpenAlert 确认
   const showAsAlert = realAlert || alertHint
+  const confirmationMethod = getConfirmationMethod(serverAlert)
+  const showPattern = !showAsAlert || confirmationMethod === 'pattern'
 
   // 弹遮罩：告警(含乐观)，或 用户主动进入的演练/设置
   const show = showAsAlert || mode !== 'none'
@@ -94,9 +97,9 @@ export function AlertOverlay() {
   if (!show) return null
 
   // 告警路径:还没设过手势的用户在告警时现场设置(危机场景不加验证摩擦)
-  const needSetup = !forceSetup && !hasPattern(uid)
+  const needSetup = !forceSetup && !showAsAlert && !hasPattern(uid)
   // 告警不能"跳过"；演练/设置可以退出
-  const exitable = !showAsAlert && mode !== 'none' && !(forceSetup && !hadOld)
+  const exitable = !showAsAlert && mode !== 'none'
   const showSosAction = shouldShowSosAction({ isPatternSetup: forceSetup })
 
   const title = showAsAlert
@@ -116,17 +119,11 @@ export function AlertOverlay() {
   const setupText = getPatternSetupText(setupStep, lang)
 
   const sub = showAsAlert
-    ? isSelfStage
-      ? lang === 'zh'
-        ? '只要确认您安好即可。轻按或画出手势完成确认，不会打扰亲友。'
-        : 'Just confirming you are safe. Tap or draw pattern to confirm without notifying anyone.'
-      : serverAlert?.cause === 'concern'
-        ? lang === 'zh'
-          ? '画出手势，让关心您的人知道您安好。'
-          : 'Draw your pattern so they know you are OK.'
-        : needSetup
-          ? t('overlay.sub.setup')
-          : t('overlay.sub.verify')
+    ? confirmationMethod === 'pattern'
+      ? (lang === 'zh' ? '您的守护者开启了手势确认。请画出已设置的手势。' : 'Your guardian requires your pattern. Draw your existing pattern to confirm.')
+      : confirmationMethod === 'pending'
+        ? (lang === 'zh' ? '正在检查最新状态…' : 'Checking your latest status…')
+        : (lang === 'zh' ? '轻按“一切安好”即可。检测到您的新活动也会自动解除告警。' : 'Tap “I am safe” to confirm. New activity also clears this alert automatically.')
     : mode === 'setup'
       ? getPatternSetupIntro(hadOld, lang)
       : needSetup
@@ -169,7 +166,9 @@ export function AlertOverlay() {
         }
         return
       }
-      if (needSetup) {
+      if (showAsAlert) {
+        await confirmSafe(seq)
+      } else if (needSetup) {
         const localHash = await setPattern(uid, seq)
         if (localHash) {
           await setServerPatternHash(localHash)
@@ -180,6 +179,8 @@ export function AlertOverlay() {
       } else {
         setError(t('overlay.error'))
       }
+    } catch {
+      setError(lang === 'zh' ? '安全确认失败，请重试。' : 'Could not confirm safety. Please retry.')
     } finally {
       setLockVersion((version) => version + 1)
       setBusy(false)
@@ -196,6 +197,8 @@ export function AlertOverlay() {
       } else {
         setError(t('overlay.error'))
       }
+    } catch {
+      setError(lang === 'zh' ? '安全确认失败，请重试。' : 'Could not confirm safety. Please retry.')
     } finally {
       setPasscodeInput('')
       setBusy(false)
@@ -280,17 +283,19 @@ export function AlertOverlay() {
         )}
         {notice && forceSetup && <p className="overlay__notice">{notice}</p>}
 
-        {isSelfStage && !forceSetup && (
+        {showAsAlert && !showPattern && (
           <div style={{ marginBottom: 16, width: '100%', maxWidth: 280, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <button
               type="button"
               className="prototype-button home-prototype__primary"
               style={{ width: '100%', minHeight: 48, fontSize: '1.05rem', fontWeight: 600, borderRadius: 8 }}
-              disabled={busy}
+              disabled={busy || confirmationMethod === 'pending'}
               onClick={async () => {
                 setBusy(true)
                 try {
                   await confirmSafe()
+                } catch {
+                  setError(lang === 'zh' ? '安全确认失败，请重试。' : 'Could not confirm safety. Please retry.')
                 } finally {
                   setBusy(false)
                 }
@@ -298,13 +303,10 @@ export function AlertOverlay() {
             >
               {busy ? (lang === 'zh' ? '正在确认…' : 'Confirming…') : (lang === 'zh' ? '一切安好' : 'I am safe')}
             </button>
-            <span className="muted" style={{ marginTop: 8, fontSize: '0.78rem' }}>
-              {lang === 'zh' ? '或画出手势完成解锁' : 'Or draw pattern to unlock'}
-            </span>
           </div>
         )}
 
-        {usePasscode && !forceSetup ? (
+        {showPattern && (usePasscode && !forceSetup && !showAsAlert ? (
           <div className="overlay__passcode">
             <input
               type="password"
@@ -332,8 +334,8 @@ export function AlertOverlay() {
                   : t('overlay.hint.verify')
             }
           />
-        )}
-        {passcodeAvailable && !forceSetup && !needSetup && (
+        ))}
+        {passcodeAvailable && !showAsAlert && !forceSetup && !needSetup && (
           <button
             type="button"
             className="overlay__switch"
@@ -369,7 +371,7 @@ export function AlertOverlay() {
               : t('overlay.practice.exit')}
           </button>
         ) : showAsAlert ? (
-          <p className="overlay__foot">{t('overlay.foot')}</p>
+          <p className="overlay__foot">{showPattern ? t('overlay.foot') : (lang === 'zh' ? '请确认您目前的状态。' : 'Please confirm how you are doing.')}</p>
         ) : null}
       </div>
     </div>

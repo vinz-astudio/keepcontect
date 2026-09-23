@@ -43,7 +43,7 @@ SELECT lives_ok($$ SELECT private.process_passive_checkin_subject(
 SELECT is((SELECT count(*)::integer FROM public.passive_checkin_windows WHERE user_id='73000000-0000-4000-8000-000000000001'),4,'server creates half-open windows through the current ordinal');
 SELECT is((SELECT count(*)::integer FROM public.passive_checkin_windows WHERE user_id='73000000-0000-4000-8000-000000000001' AND outcome='missed'),3,'absence finalizes every due window as missed');
 SELECT is((SELECT count(*)::integer FROM public.alerts WHERE user_id='73000000-0000-4000-8000-000000000001' AND status='open'),1,'exactly N misses opens one alert');
-SELECT ok((SELECT stage='self' AND cause='silence' AND requires_explicit_unlock FROM public.alerts WHERE user_id='73000000-0000-4000-8000-000000000001' AND status='open'),'passive alert enters the existing funnel at self and requires an answer');
+SELECT ok((SELECT stage='self' AND cause='silence' AND NOT requires_explicit_unlock FROM public.alerts WHERE user_id='73000000-0000-4000-8000-000000000001' AND status='open'),'passive alert enters the existing funnel at self without a default pattern requirement');
 SELECT is((SELECT count(*)::integer FROM private.passive_alert_causal_windows c JOIN public.alerts a ON a.id=c.alert_id WHERE a.user_id='73000000-0000-4000-8000-000000000001'),2,'snapshot contains exactly N windows');
 SELECT set_eq(
   $$ SELECT w.ordinal::integer FROM private.passive_alert_causal_windows c JOIN public.passive_checkin_windows w ON w.id=c.window_id JOIN public.alerts a ON a.id=c.alert_id WHERE a.user_id='73000000-0000-4000-8000-000000000001' $$,

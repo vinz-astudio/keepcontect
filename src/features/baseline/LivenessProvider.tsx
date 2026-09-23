@@ -11,7 +11,6 @@ import { useLiveness } from '@/features/baseline/useLiveness'
 import {
   getMyOpenAlert,
   acknowledgeSafe,
-  resolveMyAlert,
   sendHeartbeat,
   type Alert,
 } from '@/features/alerts/api'
@@ -61,7 +60,7 @@ interface LivenessContextValue {
   checkIn: () => Promise<void>
   reload: () => Promise<void>
   /** 本人 pattern 解锁成功：记一次活动 + 通知服务器自解除（演练/设置时仅关闭遮罩） */
-  confirmSafe: () => Promise<void>
+  confirmSafe: (pattern?: number[]) => Promise<void>
 }
 
 const Ctx = createContext<LivenessContextValue | undefined>(undefined)
@@ -72,7 +71,7 @@ const ALERT_POLL_MS = 30_000
 
 export function LivenessProvider({ children }: { children: ReactNode }) {
   const live = useLiveness()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const uid = user?.id ?? null
   const lastStatusRef = useRef<string | null>(null)
   const [serverAlert, setServerAlert] = useState<Alert | null>(null)
@@ -97,7 +96,7 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
   // 首次进入且本机还没设过手势：自动同步服务器，若无则弹出"设置手势"引导
   const promptedRef = useRef(false)
   useEffect(() => {
-    if (promptedRef.current) return
+    if (authLoading || !uid || promptedRef.current) return
     promptedRef.current = true
     primeAlarm() // 解锁应用内告警声（iOS 需首个手势）
     
@@ -107,7 +106,7 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     const notificationKind = launchParams.get('notifKind')
     const alertIdParam = launchParams.get('alertId') || undefined
 
-    if (isAckSafe || (launchParams.get('from') === 'notif' && notificationKind === 'self')) {
+    if (isAckSafe) {
       void (async () => {
         try {
           await acknowledgeSafe(alertIdParam)
@@ -116,7 +115,8 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
           await refreshAlert()
           toast(localStorage.getItem('kc.lang') === 'en' ? 'Confirmed safe' : '已确认安全，一切安好', 'ok')
         } catch {
-          /* ignore */
+          setAlertHint(true)
+          toast(localStorage.getItem('kc.lang') === 'en' ? 'Could not confirm safety. Please retry.' : '安全确认失败，请重试。', 'danger')
         }
       })()
       window.history.replaceState(null, '', window.location.pathname)
@@ -130,7 +130,7 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     void consumeLaunchNotificationDetails().then((details) => {
       if (!details.kind) return
       recordViewportTrace('liveness-from-notification-native', { notificationKind: details.kind })
-      if (details.ackSafe || details.kind === 'self') {
+      if (details.ackSafe) {
         void (async () => {
           try {
             await acknowledgeSafe()
@@ -139,7 +139,8 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
             await refreshAlert()
             toast(localStorage.getItem('kc.lang') === 'en' ? 'Confirmed safe' : '已确认安全，一切安好', 'ok')
           } catch {
-            /* ignore */
+            setAlertHint(true)
+            toast(localStorage.getItem('kc.lang') === 'en' ? 'Could not confirm safety. Please retry.' : '安全确认失败，请重试。', 'danger')
           }
         })()
       } else if (shouldShowSelfCheckForNotificationKind(details.kind)) {
@@ -147,7 +148,7 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
       }
     })
 
-  }, [])
+  }, [authLoading, uid])
 
   // 手势哈希按账户同步/迁移（KCA-04）：只在拿到 uid 后运行；
   // 遗留的无主全局键永不被跨账户采用，只会被清除。
@@ -165,15 +166,12 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
         if (decision.hashToStore) {
           localStorage.setItem(patternKey(uid), decision.hashToStore)
         }
-        if (decision.needsSetup) {
-          setMode('setup')
-        } else if (scopedHash && !serverHash) {
+        if (scopedHash && !serverHash) {
           // 本地已登记但服务器缺失：上传本账户自己的哈希（绝不含遗留键）
           await setServerPatternHash(scopedHash)
         }
       } catch (err) {
         console.error('Failed to sync pattern with server:', err)
-        if (!hasPattern(uid)) setMode('setup')
       }
     }
     void syncPattern()
@@ -282,7 +280,7 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
         notificationKind?: string | null
         alertId?: string | null
       } | null
-      if (data?.type === 'kc-ack-safe' || (data?.type === 'kc-open-alert' && data?.notificationKind === 'self')) {
+      if (data?.type === 'kc-ack-safe') {
         void (async () => {
           try {
             await acknowledgeSafe(data.alertId || undefined)
@@ -291,7 +289,8 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
             await refreshAlert()
             toast(localStorage.getItem('kc.lang') === 'en' ? 'Confirmed safe' : '已确认安全，一切安好', 'ok')
           } catch {
-            /* ignore */
+            setAlertHint(true)
+            toast(localStorage.getItem('kc.lang') === 'en' ? 'Could not confirm safety. Please retry.' : '安全确认失败，请重试。', 'danger')
           }
         })()
       } else if (data?.type === 'kc-open-alert') {
@@ -334,18 +333,14 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     startPractice: () => setMode(uid && hasPattern(uid) ? 'practice' : 'setup'),
     startSetup: () => setMode('setup'),
     closeOverlay: () => setMode('none'),
-    confirmSafe: async () => {
+    confirmSafe: async (pattern) => {
       if (!realAlert && !alertHint) {
         setMode('none') // 演练/设置：仅关闭遮罩，不动真告警
         return
       }
+      await acknowledgeSafe(serverAlert?.id, pattern)
+      await live.checkIn()
       setAlertHint(false)
-      await live.checkIn() // 记一次本地活动
-      try {
-        await acknowledgeSafe(serverAlert?.id)
-      } finally {
-        await resolveMyAlert().catch(() => {})
-      }
       await live.reload()
       await refreshAlert() // 清掉刚解除的服务器告警
       setMode('none')

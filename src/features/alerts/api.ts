@@ -19,22 +19,19 @@ export async function resolveMyAlert(): Promise<void> {
   emitAlertChange()
 }
 
-export async function acknowledgeSafe(alertId?: string): Promise<boolean> {
-  try {
-    const { data, error } = await supabase.rpc('acknowledge_safe' as never, {
-      _alert_id: alertId || null,
-    } as never)
-    const res = data as { ok?: boolean; cleared_alert?: boolean } | null
-    if (error || !res?.cleared_alert) {
-      await resolveMyAlert()
-      return true
-    }
-    emitAlertChange()
-    return true
-  } catch {
-    await resolveMyAlert().catch(() => {})
-    return true
+export async function acknowledgeSafe(alertId?: string, pattern?: number[]): Promise<boolean> {
+  const { data, error } = await supabase.rpc(
+    (pattern ? 'acknowledge_safe_with_pattern' : 'acknowledge_safe') as never,
+    { _alert_id: alertId || null, ...(pattern ? { _pattern: pattern } : {}) } as never,
+  )
+  if (error) throw error
+  const res = data as { ok?: boolean; cleared_alert?: boolean; already_resolved?: boolean } | null
+  if (res?.ok !== true || (res.cleared_alert !== true && res.already_resolved !== true)) {
+    throw new Error('confirmation rejected')
   }
+  // Never fall back to an unscoped RPC: it could bypass policy or clear a newer alert.
+  emitAlertChange()
+  return true
 }
 
 export async function raiseSos(): Promise<string> {

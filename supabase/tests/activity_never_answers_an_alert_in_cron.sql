@@ -1,5 +1,5 @@
--- process_escalations must not close an open alert because the subject was
--- active. Sleep grace remains the one clearance it is allowed to apply.
+-- ADR-0045 supersedes this file's historical name: qualified own activity
+-- closes ordinary alerts. A device heartbeat alone is still not an answer.
 BEGIN;
 
 SELECT plan(7);
@@ -44,10 +44,9 @@ INSERT INTO public.alerts (id, user_id, cause, status, stage, opened_at, stage_e
   ('40810000-0000-4000-8000-0000000000a3', '40810000-0000-4000-8000-000000000003',
    'silence', 'open', 'self', now() - interval '40 minutes', now() - interval '40 minutes', now() + interval '1 hour');
 
--- A qualifying v2 ping after the alert opened: activity, and under the rule
--- written on 2026-06-10 this closed the alert on the next cron tick.
-INSERT INTO public.behavior_pings (user_id, kind, at, received_at, ingest_version) VALUES
-  ('40810000-0000-4000-8000-000000000001', 'app', now() - interval '1 minute', now() - interval '1 minute', 2);
+-- Provenance and both timestamps are required for qualified activity.
+INSERT INTO public.behavior_pings (user_id, kind, source, at, received_at, ingest_version) VALUES
+  ('40810000-0000-4000-8000-000000000001', 'app', 'installed_pwa', now() - interval '1 minute', now() - interval '1 minute', 2);
 
 -- Put the sleeper inside a configured sleep window covering "now".
 INSERT INTO public.user_settings (user_id, sleep_start_local, sleep_end_local, timezone)
@@ -66,8 +65,8 @@ SELECT public.process_escalations();
 
 SELECT is(
   (SELECT status FROM public.alerts WHERE id = '40810000-0000-4000-8000-0000000000a1'),
-  'open',
-  'a fresh qualifying ping does not close an open silence alert - activity is not an answer'
+  'resolved',
+  'a fresh qualifying own ping closes an ordinary silence alert'
 );
 
 SELECT is(
@@ -86,8 +85,8 @@ SELECT is(
     )
       AND kind = 'auto_resolved'
   ),
-  0,
-  'neither activity case emits an auto_resolved event'
+  1,
+  'only the qualified activity case emits an auto_resolved event'
 );
 
 SELECT is(
@@ -100,8 +99,8 @@ SELECT is(
     )
       AND kind = 'auto_resolved'
   ),
-  0,
-  'and no auto_resolved notification is broadcast to watchers for them'
+  1,
+  'the subject receives recovery confirmation without broadcasting to uninvolved watchers'
 );
 
 SELECT is(
