@@ -16,12 +16,15 @@ describe('iOS positive-evidence static contract', () => {
     expect(source).toContain('lastQuerySucceeded')
   })
 
-  it('re-arms Health after configure and retries history when protected data returns', () => {
+  it('re-arms Health and retries history after configure, unlock, and silent push wakes', () => {
     const guard = read('PassiveGuard.swift')
     const configure = guard.slice(guard.indexOf('func configure('), guard.indexOf('func clear()'))
     expect(configure).toContain('HealthWake.shared.resume()')
     expect(guard).toContain('HealthWake.shared.retryHistory()')
-    expect(read('HealthWake.swift')).toContain('onWake(captureSample: false, completion: {})')
+    expect(read('HealthWake.swift')).toContain('onWake(captureSample: false, reportCoverageLease: reportCoverageLease)')
+    const pushWake = guard.slice(guard.indexOf('func handleWake'), guard.indexOf('// MARK: - CLLocationManagerDelegate'))
+    expect(pushWake).toContain('HealthWake.shared.retryHistory(reportCoverageLease: false)')
+    expect(pushWake.indexOf('HealthWake.shared.retryHistory')).toBeLessThan(pushWake.indexOf('captureSample(trigger: "push-wake")'))
   })
 
   it('does not consume failed CoreMotion history or let an old upload finish a new account queue', () => {
