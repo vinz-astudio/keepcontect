@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Capacitor } from '@capacitor/core'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { EmergencyInfoCard } from '@/features/profile/EmergencyInfoCard'
 import { GuardiansCard } from '@/features/guardians/GuardiansCard'
@@ -470,11 +469,6 @@ export function HomeScreen() {
     void amIGm().then((gm) => { setIsGm(gm); setGmResolved(true) })
     void refresh()
     void refreshWatchMeta()
-    if (!Capacitor.isNativePlatform() && 'geolocation' in navigator) {
-      navigator.permissions?.query({ name: 'geolocation' as PermissionName }).then((permission) => {
-        if (permission.state === 'prompt') navigator.geolocation.getCurrentPosition(() => undefined, () => undefined, { timeout: 2000 })
-      }).catch(() => undefined)
-    }
   }, [refresh, refreshWatchMeta])
 
   useEffect(() => {
