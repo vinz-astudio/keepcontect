@@ -294,8 +294,10 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         // just as readable through a locked screen. Answering "still locked"
         // and collecting nothing would throw away the interval evidence at
         // exactly the moments it is most needed.
-        captureSample(trigger: "push-wake") {
-            completion(unlocked)
+        HealthWake.shared.retryHistory(reportCoverageLease: false) {
+            self.captureSample(trigger: "push-wake") {
+                completion(unlocked)
+            }
         }
     }
 

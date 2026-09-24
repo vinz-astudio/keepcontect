@@ -20,12 +20,21 @@ import HealthKit
 final class HealthWake {
     static let shared = HealthWake()
 
+    private struct PositiveHistorySample {
+        let id: UUID
+        let observedAt: Date
+        let stepsPositive: Bool
+        let floorsPositive: Bool
+    }
+
     /// Whether the user has been through the authorization sheet on this
     /// install. HealthKit deliberately refuses to report *read* authorization
     /// status — that would leak whether the user has any step data — so the
     /// only honest thing to track is whether we have asked.
     private static let askedKey = "kc.health.asked"
     private static let lastQueryKey = "kc.health.lastPositiveQueryEnd"
+    private static let resetFloorKey = "kc.health.historyResetFloor"
+    private static let seenPositiveSamplesKey = "kc.health.seenPositiveSamples"
 
     private let store = HKHealthStore()
     private var observerQuery: HKObserverQuery?
@@ -35,6 +44,7 @@ final class HealthWake {
     private var queryGeneration = 0
     private var pendingCompletions: [() -> Void] = []
     private var pendingNeedsSample = false
+    private var pendingNeedsCoverageLease = false
     private var lastQuerySucceeded: Bool?
     private var lastQueryAt: Date?
     private var lastPositiveAt: Date?
@@ -129,51 +139,80 @@ final class HealthWake {
 
     /// Retry unread history after foreground/unlock. Neither wake nor an empty
     /// result is activity. A denied/locked query must not consume its interval.
-    func retryHistory() {
+    func retryHistory(reportCoverageLease: Bool = true, completion: (() -> Void)? = nil) {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async { self.retryHistory() }
+            DispatchQueue.main.async {
+                self.retryHistory(reportCoverageLease: reportCoverageLease, completion: completion)
+            }
             return
         }
-        guard hasAsked, observerQuery != nil else { return }
-        onWake(captureSample: false, completion: {})
+        guard hasAsked, observerQuery != nil else {
+            completion?()
+            return
+        }
+        onWake(captureSample: false, reportCoverageLease: reportCoverageLease) {
+            completion?()
+        }
     }
 
-    private func onWake(captureSample: Bool = true, completion: @escaping () -> Void) {
+    private func onWake(
+        captureSample: Bool = true,
+        reportCoverageLease: Bool = true,
+        completion: @escaping () -> Void
+    ) {
         guard observerQuery != nil, PassiveGuard.shared.isEvidenceConfigured else {
             completion()
             return
         }
         pendingCompletions.append(completion)
         pendingNeedsSample = pendingNeedsSample || captureSample
+        pendingNeedsCoverageLease = pendingNeedsCoverageLease || reportCoverageLease
         guard !queryInFlight else { return }
         queryInFlight = true
         let generation = queryGeneration
         let callbacks = pendingCompletions
         let needsSample = pendingNeedsSample
+        let needsCoverageLease = pendingNeedsCoverageLease
         pendingCompletions = []
         pendingNeedsSample = false
+        pendingNeedsCoverageLease = false
         // The lease goes first and unconditionally. It says "the watcher was
         // awake here", which is true of this wake whether or not the sample
         // below finds anything worth reporting.
-        PassiveGuard.shared.reportCoverageLease()
-        queryPositiveHistory { observedAt, stepsPositive, floorsPositive, queryStart, queryEnd in
+        if needsCoverageLease { PassiveGuard.shared.reportCoverageLease() }
+        queryPositiveHistory { samples, queryStart, queryEnd in
             guard generation == self.queryGeneration else {
                 self.queryInFlight = false
                 callbacks.forEach { $0() }
                 self.drainPendingQueries()
                 return
             }
-            if let observedAt {
-                self.lastPositiveAt = observedAt
+            if let latest = samples.max(by: { $0.observedAt < $1.observedAt }) {
+                if self.lastPositiveAt == nil || latest.observedAt > self.lastPositiveAt! {
+                    self.lastPositiveAt = latest.observedAt
+                }
+            }
+            let cutoff = queryEnd.addingTimeInterval(-7 * 24 * 3600).timeIntervalSince1970
+            let storedSeen = UserDefaults.standard.dictionary(forKey: Self.seenPositiveSamplesKey) as? [String: TimeInterval] ?? [:]
+            var seen: [String: TimeInterval] = [:]
+            for (sampleID, timestamp) in storedSeen where timestamp >= cutoff {
+                seen[sampleID] = timestamp
+            }
+            let unseen = samples.filter { seen[$0.id.uuidString] == nil }
+            if let sample = unseen.max(by: { $0.observedAt < $1.observedAt }) {
                 PassiveGuard.shared.recordMotionEvidence(
-                    observedAt: observedAt,
-                    stepsPositive: stepsPositive,
-                    floorsPositive: floorsPositive,
+                    observedAt: sample.observedAt,
+                    stepsPositive: sample.stepsPositive,
+                    floorsPositive: sample.floorsPositive,
                     automotive: false,
                     queryStart: queryStart,
                     queryEnd: queryEnd
                 )
             }
+            for sample in samples {
+                seen[sample.id.uuidString] = sample.observedAt.timeIntervalSince1970
+            }
+            UserDefaults.standard.set(seen, forKey: Self.seenPositiveSamplesKey)
             let finished = {
                 DispatchQueue.main.async {
                     self.queryInFlight = false
@@ -198,24 +237,29 @@ final class HealthWake {
         // being acknowledged against a query that predates their samples.
         let pending = pendingCompletions
         let needsSample = pendingNeedsSample
+        let needsCoverageLease = pendingNeedsCoverageLease
         pendingCompletions = []
         pendingNeedsSample = false
-        onWake(captureSample: needsSample) { pending.forEach { $0() } }
+        pendingNeedsCoverageLease = false
+        onWake(captureSample: needsSample, reportCoverageLease: needsCoverageLease) {
+            pending.forEach { $0() }
+        }
     }
 
     private func queryPositiveHistory(
-        completion: @escaping (Date?, Bool, Bool, Date, Date) -> Void
+        completion: @escaping ([PositiveHistorySample], Date, Date) -> Void
     ) {
         let end = Date()
         let stored = UserDefaults.standard.double(forKey: Self.lastQueryKey)
-        let start = HistoryQueryPolicy.start(cursor: stored, end: end)
+        let resetTimestamp = UserDefaults.standard.double(forKey: Self.resetFloorKey)
+        let notBefore = resetTimestamp > 0 ? Date(timeIntervalSince1970: resetTimestamp) : nil
+        let start = HistoryQueryPolicy.start(cursor: stored, end: end, notBefore: notBefore, overlap: HistoryQueryPolicy.recoveryOverlap)
         let generation = queryGeneration
-        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let predicateOptions: HKQueryOptions = notBefore == nil ? [] : [.strictStartDate]
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: predicateOptions)
         let group = DispatchGroup()
         let lock = NSLock()
-        var latest: Date?
-        var stepsPositive = false
-        var floorsPositive = false
+        var positives: [PositiveHistorySample] = []
         var allQueriesSucceeded = true
 
         func run(_ type: HKQuantityType?, floors: Bool) {
@@ -234,9 +278,13 @@ final class HealthWake {
                     allQueriesSucceeded = false
                     return
                 }
-                for sample in samples where sample.quantity.doubleValue(for: HKUnit.count()) > 0 {
-                    if floors { floorsPositive = true } else { stepsPositive = true }
-                    if latest == nil || sample.endDate > latest! { latest = sample.endDate }
+                for sample in samples where sample.endDate <= end && sample.quantity.doubleValue(for: HKUnit.count()) > 0 {
+                    positives.append(PositiveHistorySample(
+                        id: sample.uuid,
+                        observedAt: sample.endDate,
+                        stepsPositive: !floors,
+                        floorsPositive: floors
+                    ))
                 }
             }
             store.execute(query)
@@ -246,7 +294,7 @@ final class HealthWake {
         run(floorType, floors: true)
         group.notify(queue: .main) {
             guard generation == self.queryGeneration else {
-                completion(nil, false, false, start, end)
+                completion([], start, end)
                 return
             }
             self.lastQueryAt = end
@@ -254,7 +302,10 @@ final class HealthWake {
             if allQueriesSucceeded {
                 UserDefaults.standard.set(end.timeIntervalSince1970, forKey: Self.lastQueryKey)
             }
-            completion(allQueriesSucceeded ? latest : nil, stepsPositive, floorsPositive, start, end)
+            // A failed floors read must not discard successfully read steps (or
+            // vice versa). Keep the cursor for retrying the failed interval;
+            // sample IDs prevent uploading the successful results again.
+            completion(positives, start, end)
         }
     }
 
@@ -273,6 +324,7 @@ final class HealthWake {
         let pending = pendingCompletions
         pendingCompletions = []
         pendingNeedsSample = false
+        pendingNeedsCoverageLease = false
         pending.forEach { $0() }
         if let query = observerQuery {
             store.stop(query)
@@ -293,7 +345,10 @@ final class HealthWake {
         lastQueryAt = nil
         lastPositiveAt = nil
         lastBackgroundWakeAt = nil
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.lastQueryKey)
+        let resetAt = Date()
+        UserDefaults.standard.set(resetAt.timeIntervalSince1970, forKey: Self.lastQueryKey)
+        UserDefaults.standard.set(resetAt.timeIntervalSince1970, forKey: Self.resetFloorKey)
+        UserDefaults.standard.removeObject(forKey: Self.seenPositiveSamplesKey)
     }
 
     /// Whether a relaunch-capable wake is actually armed right now, as opposed
