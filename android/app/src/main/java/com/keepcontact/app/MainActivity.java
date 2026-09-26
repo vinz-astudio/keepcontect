@@ -2,6 +2,7 @@ package com.keepcontact.app;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.content.Intent;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -21,6 +22,14 @@ public class MainActivity extends BridgeActivity {
         // channel, which shows no heads-up banner and makes no sound — the two
         // things that make it reach someone whose phone is face-down.
         NotifyWorker.ensureChannel(this);
+        NotificationActionQueue.capture(this, getIntent());
         super.onCreate(savedInstanceState);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        setIntent(intent);
+        NotificationActionQueue.capture(this, intent);
+        super.onNewIntent(intent);
     }
 }

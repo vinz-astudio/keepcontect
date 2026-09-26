@@ -80,4 +80,47 @@ public class PassiveEvidenceContractTest {
         assertEquals(0, switched.queuedCount);
         assertTrue(PassiveEvidenceContract.clearBinding(switched).bindingId == null);
     }
+    @Test
+    public void evidenceUploadRetainsTransientAndUnrecognizedResponses() {
+        assertEquals(EvidenceUploadPolicy.Outcome.RETRY, EvidenceUploadPolicy.classify(429, "rate_limited"));
+        assertEquals(EvidenceUploadPolicy.Outcome.RETRY, EvidenceUploadPolicy.classify(503, "unavailable"));
+        assertEquals(EvidenceUploadPolicy.Outcome.RETRY, EvidenceUploadPolicy.classify(200, ""));
+        assertEquals(EvidenceUploadPolicy.Outcome.RETRY, EvidenceUploadPolicy.classify(401, "gateway_auth"));
+        assertEquals(EvidenceUploadPolicy.Outcome.COMPLETE, EvidenceUploadPolicy.classify(200, "duplicate"));
+        assertEquals(EvidenceUploadPolicy.Outcome.COMPLETE, EvidenceUploadPolicy.classify(200, "inserted"));
+        assertEquals(EvidenceUploadPolicy.Outcome.REJECT, EvidenceUploadPolicy.classify(422, "outside_epoch"));
+        assertEquals(EvidenceUploadPolicy.Outcome.REVOKE, EvidenceUploadPolicy.classify(409, "revoked"));
+        assertEquals(EvidenceUploadPolicy.Outcome.RETRY, EvidenceUploadPolicy.classify(409, "proxy_conflict"));
+    }
+
+    @Test
+    public void queriedEvidenceKeepsItsBindingGenerationAndOriginalTimestamp() {
+        PassiveEvidenceContract.Evidence original = PassiveEvidenceContract.directUse(500L, 100L, 700L);
+        PassiveEvidenceContract.Evidence scoped = original.forGeneration("login-a");
+        assertEquals("login-a", scoped.sourceGeneration);
+        assertEquals(500L, scoped.observedAtMs);
+        assertEquals(original.eventId, scoped.eventId);
+        assertEquals(700L, scoped.queryEndedAtMs);
+        assertTrue(scoped.belongsToGeneration("login-a"));
+        assertFalse(scoped.belongsToGeneration("login-b"));
+    }
+
+    @Test
+    public void notificationActionsRequireExactIdentityAndExplicitIntent() {
+        String notification = "a04b5bc5-1d33-4e14-8acb-07c037a24791";
+        String alert = "a04b5bc5-1d33-4e14-8acb-07c037a24792";
+        String owner = "a04b5bc5-1d33-4e14-8acb-07c037a24793";
+        NotificationActionQueue.Action action = NotificationActionQueue.Action.create(
+            notification, alert, owner, "self", "acknowledge_safe", 2);
+        assertNotNull(action);
+        assertEquals(notification + ":acknowledge_safe", action.eventId);
+        assertNull(NotificationActionQueue.Action.create(notification, null, owner, "self", "acknowledge_safe", 2));
+        assertNull(NotificationActionQueue.Action.create(notification, alert, owner, "group", "acknowledge_safe", 2));
+        assertNull(NotificationActionQueue.Action.create(notification, alert, owner, "self", "acknowledge_safe", 1));
+        assertNull(NotificationActionQueue.Action.create("bad", alert, owner, "self", "acknowledge_safe", 2));
+        assertNotNull(NotificationActionQueue.Action.create(notification, null, owner, "test", "open", 2));
+        assertFalse(NotificationActionQueue.matchesSession(owner, "new", owner, "old"));
+        assertFalse(NotificationActionQueue.matchesSession("different", "same", owner, "same"));
+        assertTrue(NotificationActionQueue.matchesSession(owner, "same", owner, "same"));
+    }
 }

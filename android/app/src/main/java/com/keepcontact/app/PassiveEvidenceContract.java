@@ -53,6 +53,7 @@ final class PassiveEvidenceContract {
         final long queryStartedAtMs;
         final long queryEndedAtMs;
         final boolean querySucceeded;
+        final String sourceGeneration;
 
         Evidence(
             String eventId,
@@ -64,6 +65,13 @@ final class PassiveEvidenceContract {
             long queryEndedAtMs,
             boolean querySucceeded
         ) {
+            this(eventId, observedAtMs, evidenceClass, correlationId, qualificationFacts,
+                queryStartedAtMs, queryEndedAtMs, querySucceeded, null);
+        }
+
+        private Evidence(String eventId, long observedAtMs, String evidenceClass, String correlationId,
+            String qualificationFacts, long queryStartedAtMs, long queryEndedAtMs, boolean querySucceeded,
+            String sourceGeneration) {
             this.eventId = eventId;
             this.observedAtMs = observedAtMs;
             this.evidenceClass = evidenceClass;
@@ -72,6 +80,16 @@ final class PassiveEvidenceContract {
             this.queryStartedAtMs = queryStartedAtMs;
             this.queryEndedAtMs = queryEndedAtMs;
             this.querySucceeded = querySucceeded;
+            this.sourceGeneration = sourceGeneration;
+        }
+
+        Evidence forGeneration(String generation) {
+            return new Evidence(eventId, observedAtMs, evidenceClass, correlationId, qualificationFacts,
+                queryStartedAtMs, queryEndedAtMs, querySucceeded, generation);
+        }
+
+        boolean belongsToGeneration(String generation) {
+            return sourceGeneration == null || sourceGeneration.equals(generation);
         }
 
         String toJson(String bindingId, String credential, long sequence) {

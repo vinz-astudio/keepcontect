@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core'
 import { resilientFetch } from '@/lib/resilientFetch'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/config'
 import type { Database } from '@/lib/database.types'
+import { localSignOutTransport, clearLocalAuthSession } from './localSignOut'
 
 // OAuth 失败回跳的错误参数必须在 createClient 之前捕获——
 // detectSessionInUrl 会在 client 创建时立即消费并清理 URL。
@@ -94,9 +95,10 @@ const authOptions = {
   storage: hybridStorage,
 }
 
+const localLogout = localSignOutTransport(resilientFetch)
 const globalOptions = {
   // iOS 主屏 PWA 的 fetch 可能全局失败(TypeError)，自动降级 XHR
-  fetch: resilientFetch,
+  fetch: localLogout.fetch,
 }
 
 // 两端的存储需求是相反的，必须分叉，一个全局选择必然顾此失彼。
@@ -119,3 +121,7 @@ export const supabase = Capacitor.isNativePlatform()
       global: globalOptions,
       auth: authOptions,
     })
+
+export async function signOutLocally():Promise<void> {
+  await clearLocalAuthSession(supabase.auth,localLogout)
+}

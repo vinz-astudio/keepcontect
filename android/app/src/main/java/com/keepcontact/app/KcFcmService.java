@@ -18,6 +18,8 @@ import com.google.firebase.messaging.RemoteMessage;
 public class KcFcmService extends FirebaseMessagingService {
     @Override
     public void onMessageReceived(RemoteMessage message) {
+        EvidenceUploadWorker.schedule(getApplicationContext());
+        if (PushBindingStore.owner(getApplicationContext()).isEmpty()) return;
         WorkManager.getInstance(getApplicationContext())
             .enqueue(new OneTimeWorkRequest.Builder(NotifyWorker.class).build());
     }

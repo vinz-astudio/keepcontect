@@ -4,11 +4,14 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { supabase, signOutLocally } from '@/lib/supabase'
+import { startPushRevocationRetry, stopNativePushForLogout } from '@/features/push/nativePushBinding'
+import { configureNativePassivePing } from '@/features/passive/native'
 import { purgeLocalSafetyState } from '@/features/pattern/patternStore'
 import { bootstrapSession } from './authBootstrap'
 
@@ -50,6 +53,8 @@ function readHasStoredAuth(): boolean {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const signingOut = useRef(false)
+  useEffect(startPushRevocationRetry, [])
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [bootstrapError, setBootstrapError] = useState<Error | null>(null)
@@ -78,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const runBootstrap = async () => {
       const getSessionFn = () => supabase.auth.getSession()
       const result = await bootstrapSession(getSessionFn, 5000)
-      if (!mounted) return
+      if (!mounted || signingOut.current) return
 
       if (result.timedOut) {
         setBootstrapTimedOut(true)
@@ -104,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
-      if (mounted) {
+      if (mounted && !signingOut.current) {
         setSession(next)
         if (next) {
           setBootstrapError(null)
@@ -115,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const refetch = () => {
       void supabase.auth.getSession().then(({ data }) => {
-        if (mounted) {
+        if (mounted && !signingOut.current) {
           setSession(data.session)
         }
       })
@@ -164,13 +169,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // KCA-04：先清本机安全状态（手势哈希/openAlert），保证即使网络登出挂起
         // 也不会把上一个账户的凭据留给下一个登录者。
         purgeLocalSafetyState()
+        signingOut.current = true
+        // Persist revoke-only work and invalidate callbacks before unmounting the
+        // signed-in view. Neither local signout nor collector clear awaits RPCs.
+        const pushCleanup = stopNativePushForLogout()
+        setSession(null)
         try {
-          const { configureNativePassivePing } = await import('@/features/passive/native')
-          await configureNativePassivePing(null)
-        } catch {
-          /* ignore */
-        }
-        await supabase.auth.signOut()
+          await Promise.all([
+            signOutLocally(),
+            pushCleanup,
+            configureNativePassivePing(null).catch(() => {}),
+          ])
+        } finally { signingOut.current = false }
       },
       bootstrapError,
       bootstrapTimedOut,

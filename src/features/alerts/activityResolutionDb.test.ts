@@ -10,9 +10,9 @@ const link = 'b0000000-0000-4000-8000-000000000001'
 const alert = 'c0000000-0000-4000-8000-000000000001'
 let db: PGlite
 
-function baselineFunction(name: string) {
+function baselineFunction(name: string, schema = 'private') {
   const sql = read('supabase/migrations/20260808160000_baseline_from_production.sql')
-  const start = sql.indexOf(`CREATE OR REPLACE FUNCTION "private"."${name}"`)
+  const start = sql.indexOf(`CREATE OR REPLACE FUNCTION "${schema}"."${name}"`)
   return sql.slice(start, sql.indexOf('$$;', start) + 3)
 }
 
@@ -42,6 +42,7 @@ describe('activity auto-resolution in PostgreSQL', () => {
     await db.exec(read('supabase/tests/fixtures/activity_resolution.sql'))
     await db.exec(baselineFunction('apply_liveness_side_effects'))
     await db.exec(baselineFunction('insert_behavior_ping'))
+    await db.exec(baselineFunction('record_behavior_pings','public'))
     const engine = read('supabase/migrations/20260814193000_passive_window_engine.sql')
     const start = engine.indexOf('CREATE OR REPLACE FUNCTION public.process_escalations()')
     await db.exec(engine.slice(start,engine.indexOf('$$;',start)+3))
@@ -52,6 +53,7 @@ describe('activity auto-resolution in PostgreSQL', () => {
       for each row execute function private.restart_passive_epoch_after_resolution()`)
     const migration = read('supabase/migrations/20260923054905_activity_auto_resolution_guardian_pattern.sql')
     await db.exec(migration)
+    await db.exec(read('supabase/migrations/20260925021935_native_mechanism_integrity.sql'))
   }, 30000)
   afterAll(async () => { await db?.close() })
   beforeEach(async () => {
@@ -110,7 +112,7 @@ describe('activity auto-resolution in PostgreSQL', () => {
     expect((await state()).status).toBe('open')
     expect((await state()).requires_explicit_unlock).toBe(true)
     await expect(db.query('select public.acknowledge_safe($1)',[alert])).rejects.toThrow('pattern_required')
-    await expect(db.exec('select public.resolve_my_alert()')).rejects.toThrow('pattern_required')
+    await expect(db.exec('select public.resolve_my_alert()')).rejects.toThrow('alert_id_required')
     await expect(db.query('select public.acknowledge_safe_with_pattern($1,$2)',[alert,[0,1,2,3]])).rejects.toThrow('invalid_pattern')
     await db.query('select public.acknowledge_safe_with_pattern($1,$2)',[alert,[0,1,2,5]])
     expect((await state()).status).toBe('resolved')
@@ -178,6 +180,40 @@ describe('activity auto-resolution in PostgreSQL', () => {
     await db.query("insert into alerts(id,user_id,cause,stage) values($1,$2,'silence','self')",[newer,ward])
     await db.query('select public.acknowledge_safe($1)',[alert])
     expect((await db.query<{status:string}>('select status from alerts where id=$1',[newer])).rows[0].status).toBe('open')
+  })
+
+  it('rejects every unscoped legacy confirmation entry point', async () => {
+    await openAlert('sos')
+    await expect(db.exec('select public.acknowledge_safe()')).rejects.toThrow('alert_id_required')
+    await expect(db.exec('select public.resolve_my_alert()')).rejects.toThrow('alert_id_required')
+    await expect(db.exec('select public.acknowledge_safe_with_pattern(null,array[0,1,2,5])')).rejects.toThrow('alert_id_required')
+    expect((await state()).status).toBe('open')
+  })
+
+  it('cannot upload A activity under a later B session, singly or in a queued batch',async()=>{
+    await asUser(stranger)
+    await expect(db.query("select record_owned_behavior_ping($1,gen_random_uuid(),now(),'tauri','interaction')",[ward])).rejects.toThrow('activity_owner_changed')
+    await expect(db.query("select * from record_owned_behavior_pings($1,'[]')",[ward])).rejects.toThrow('activity_owner_changed')
+    expect((await db.query('select * from behavior_pings')).rows).toHaveLength(0)
+    await asUser(ward)
+    await db.query("select record_owned_behavior_ping($1,gen_random_uuid(),now(),'tauri','interaction')",[ward])
+    expect((await db.query<{user_id:string}>('select user_id from behavior_pings')).rows).toEqual([{user_id:ward}])
+  })
+
+  it('binds notification confirmation to its original subject and alert, including retries', async () => {
+    await openAlert()
+    const notification = 'f0000000-0000-4000-8000-000000000001'
+    const newer = 'c0000000-0000-4000-8000-000000000002'
+    await db.query("insert into notifications(id,recipient_id,alert_id,kind) values($1,$2,$3,'self')", [notification,ward,alert])
+    await asUser(stranger)
+    await expect(db.query('select public.acknowledge_notification_safe($1,$2)',[notification,alert])).rejects.toThrow('notification_not_owned')
+    await asUser(ward)
+    await db.query('select public.acknowledge_notification_safe($1,$2)',[notification,alert])
+    await db.query("insert into alerts(id,user_id,cause,stage) values($1,$2,'sos','self')",[newer,ward])
+    await expect(db.query('select public.acknowledge_notification_safe($1,$2)',[notification,newer])).rejects.toThrow('notification_alert_mismatch')
+    await db.query('select public.acknowledge_notification_safe($1,$2)',[notification,alert])
+    expect((await db.query<{status:string}>('select status from alerts where id=$1',[newer])).rows[0].status).toBe('open')
+    expect((await db.query("select * from alert_events where kind='resolved'")).rows).toHaveLength(1)
   })
 
   it.each(['activity','button'])('starts a fresh passive window after %s instead of re-alerting for old misses', async method => {

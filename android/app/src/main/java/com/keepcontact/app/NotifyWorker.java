@@ -86,7 +86,6 @@ public class NotifyWorker extends Worker {
     private static boolean isSelfAddressed(String kind) {
         return "concern".equals(kind) || "self".equals(kind);
     }
-    private static final String PREFS = "keep_contact_passive";
     /** Read once by PassivePingPlugin.consumeLaunchNotificationKind. */
     static final String EXTRA_NOTIF_KIND = "kcNotifKind";
     static final String EXTRA_ACK_SAFE = "kcAckSafe";
@@ -99,11 +98,6 @@ public class NotifyWorker extends Worker {
     /** Enqueue the periodic poll (idempotent). Initializes the cursor to "now" on
      *  first schedule so old history never floods the user as fresh alerts. */
     static void schedule(Context context) {
-        SharedPreferences prefs =
-            context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        if (prefs.getString(KEY_SINCE, null) == null) {
-            prefs.edit().putString(KEY_SINCE, isoNow()).apply();
-        }
         PeriodicWorkRequest request = new PeriodicWorkRequest.Builder(
                 NotifyWorker.class, 15, TimeUnit.MINUTES)
             .setConstraints(new Constraints.Builder()
@@ -122,7 +116,11 @@ public class NotifyWorker extends Worker {
     @Override
     public Result doWork() {
         Context context = getApplicationContext();
-        if (!PassivePing.isConfigured(context)) return Result.success();
+        EvidenceUploadWorker.schedule(context);
+        String recipient = PushBindingStore.owner(context);
+        String generation = PushBindingStore.generation(context);
+        boolean passiveConfigured = PassivePing.isConfigured(context);
+        if (!passiveConfigured && recipient.isEmpty()) return Result.success();
 
         // Was this run roughly on time? The job is scheduled every fifteen
         // minutes, so anything past double that means the device froze KC rather
@@ -130,16 +128,14 @@ public class NotifyWorker extends Worker {
         // identical to a person who has stopped moving. Three of those in a row
         // and KC gives up on being invisible and shows the ongoing notification,
         // which is the one thing these ROMs will not kill.
-        PassivePing.recordWakeupPunctuality(context, isRunOnTime(context));
+        if (passiveConfigured) PassivePing.recordWakeupPunctuality(context, isRunOnTime(context));
 
         // Charging is a liveness signal on every platform, background included
         // (human decision 2026-08-16). Android cannot deliver the broadcast to a
         // dead process, so the change is found here instead. Deliberately
         // outside the Usage Access gate: charging carries its own consent and
         // must not depend on a permission the user may never have granted.
-        PassivePing.reconcilePowerState(context);
-
-        SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (passiveConfigured) PassivePing.reconcilePowerState(context);
 
         // UsageStats passive ping backfill check
         boolean usageAllowed = PassivePing.isUsageStatsAllowed(context);
@@ -170,14 +166,17 @@ public class NotifyWorker extends Worker {
 
         AlertShadowCoverageReporter.reportIfOperational(context);
 
-        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+        if (recipient.isEmpty() || !NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             return Result.success();
         }
 
-        String base = prefs.getString("supabase_url", null);
-        String token = prefs.getString("token", null);
+        SharedPreferences pushPrefs = PushBindingStore.prefs(context);
+        JSONObject secrets = PushBindingStore.activeSecrets(context);
+        if (secrets == null) return Result.success();
+        String base = secrets.optString("url", null);
+        String token = secrets.optString("token", null);
         if (base == null || token == null) return Result.success();
-        String since = prefs.getString(KEY_SINCE, isoNow());
+        String since = pushPrefs.getString(KEY_SINCE, isoNow());
 
         HttpURLConnection conn = null;
         try {
@@ -193,7 +192,7 @@ public class NotifyWorker extends Worker {
             conn.setReadTimeout(8000);
             conn.setRequestMethod("GET");
             int code = conn.getResponseCode();
-            if (code >= 500) return Result.retry();
+            if (code == 429 || code >= 500) return Result.retry();
             if (code >= 400) return Result.success(); // auth problem: retrying won't help
 
             StringBuilder sb = new StringBuilder();
@@ -216,11 +215,18 @@ public class NotifyWorker extends Worker {
                 String kind = n.optString("kind", "");
                 JSONObject params = n.optJSONObject("params");
                 String body = renderBody(kind, params, n.optString("body", ""));
-                postNotification(context, id, body, kind);
+                String owner = n.optString("recipient_id", "");
+                if (recipient.equals(owner)) {
+                    postNotification(context, id, n.optString("alert_id", null), owner, generation, body, kind);
+                }
                 String createdAt = n.optString("created_at", "");
                 if (createdAt.compareTo(latest) > 0) latest = createdAt;
             }
-            prefs.edit().putString(KEY_SINCE, latest).apply();
+            synchronized (PushBindingStore.class) {
+                if (PushBindingStore.matches(context, recipient, generation)) {
+                    pushPrefs.edit().putString(KEY_SINCE, latest).commit();
+                }
+            }
             return Result.success();
         } catch (Exception e) {
             android.util.Log.d(TAG, "notify poll failed", e);
@@ -260,7 +266,10 @@ public class NotifyWorker extends Worker {
         manager.createNotificationChannel(channel);
     }
 
-    private static void postNotification(Context context, String id, String body, String kind) {
+    private static void postNotification(Context context, String id, String alertId, String recipient,
+        String generation, String body, String kind) {
+        synchronized (PushBindingStore.class) {
+        if (!PushBindingStore.matches(context, recipient, generation)) return;
         Intent launch = context.getPackageManager()
             .getLaunchIntentForPackage(context.getPackageName());
         if (launch == null) return;
@@ -268,7 +277,7 @@ public class NotifyWorker extends Worker {
         // Mirrors the ?notifKind= query the service worker puts on the PWA's URL:
         // it lets the web layer raise the unlock prompt on the first frame rather
         // than after the network confirms an open alert.
-        launch.putExtra(EXTRA_NOTIF_KIND, kind);
+        NotificationActionQueue.attach(launch, id, alertId, recipient, kind, "open", generation, PushBindingStore.bindingId(context));
         PendingIntent pending = PendingIntent.getActivity(
             context, id.hashCode(), launch,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -282,14 +291,13 @@ public class NotifyWorker extends Worker {
             .setAutoCancel(true)
             .setContentIntent(pending);
 
-        if ("self".equals(kind)) {
+        if ("self".equals(kind) && NotificationActionQueue.isUuid(alertId)) {
             // Add 1-tap safe acknowledge action button
             Intent safeIntent = context.getPackageManager()
                 .getLaunchIntentForPackage(context.getPackageName());
             if (safeIntent != null) {
                 safeIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                safeIntent.putExtra(EXTRA_NOTIF_KIND, kind);
-                safeIntent.putExtra(EXTRA_ACK_SAFE, true);
+                NotificationActionQueue.attach(safeIntent, id, alertId, recipient, kind, "acknowledge_safe", generation, PushBindingStore.bindingId(context));
                 PendingIntent safePending = PendingIntent.getActivity(
                     context, (id + "_safe").hashCode(), safeIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -338,6 +346,7 @@ public class NotifyWorker extends Worker {
             NotificationManagerCompat.from(context).notify(id, 0, builder.build());
         } catch (SecurityException ignored) {
             // POST_NOTIFICATIONS revoked between the check and here.
+        }
         }
     }
 

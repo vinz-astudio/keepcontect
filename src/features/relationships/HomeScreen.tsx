@@ -10,6 +10,7 @@ import { availableUnlockMethods } from '@/features/pattern/patternStore'
 import { GuardianPermissionsCard } from '@/features/passive/GuardianPermissionsCard'
 import { ProtectionHealthCard } from '@/features/baseline/ProtectionHealthCard'
 import { PassivePingBoot } from '@/features/passive/PassivePingBoot'
+import { TauriCollectorNotice } from '@/features/passive/TauriCollectorNotice'
 import { OnboardingWizard } from '@/features/passive/OnboardingWizard'
 import { checkAndMigrateOnboarding, saveOnboardingCompleted } from '@/features/passive/onboardingState'
 import { LivenessProvider, useLivenessContext } from '@/features/baseline/LivenessProvider'
@@ -724,6 +725,7 @@ export function HomeScreen() {
             sosBusy={sosBusy}
             contentKey={gmOpen ? 'gm' : activeTab}
           >
+            <TauriCollectorNotice />
             {screen}
           </AppShell>
         )}

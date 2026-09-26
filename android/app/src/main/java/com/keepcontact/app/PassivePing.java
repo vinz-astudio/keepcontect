@@ -42,6 +42,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 final class PassivePing {
     private static final String TAG = "KeepContactPassive";
@@ -63,6 +64,8 @@ final class PassivePing {
     private static final String KEY_EVIDENCE_CREDENTIAL_IV = "evidence_credential_iv";
     private static final String KEY_EVIDENCE_NEXT_SEQUENCE = "evidence_next_sequence";
     private static final String KEY_EVIDENCE_QUEUE = "evidence_queue";
+    private static final String KEY_EVIDENCE_GENERATION = "evidence_generation";
+    private static final Object EVIDENCE_DRAIN_LOCK = new Object();
     private static final String KEY_LAST_USAGE_EVIDENCE_AT = "last_usage_evidence_at";
     private static final String KEY_LAST_USAGE_QUERY_END = "last_usage_query_end";
     private static final String KEY_POWER_STABLE_STATE = "power_stable_state";
@@ -112,7 +115,7 @@ final class PassivePing {
         updateBackgroundServices(context);
     }
 
-    static void clear(Context context) {
+    static synchronized void clear(Context context) {
         // Stop any active foreground service & activity transition listeners first
         stopForegroundService(context);
         try {
@@ -337,7 +340,7 @@ final class PassivePing {
         }
     }
 
-    static PassiveEvidenceContract.Evidence queryLatestUsageEvidence(Context context) {
+    static synchronized PassiveEvidenceContract.Evidence queryLatestUsageEvidence(Context context) {
         if (!isEvidenceConfigured(context)
             || !isUsageStatsAllowed(context)
             || !isUsageAccessGranted(context)) return null;
@@ -362,16 +365,21 @@ final class PassivePing {
                     latest = event.getTimeStamp();
                 }
             }
-            prefs.edit().putLong(KEY_LAST_USAGE_QUERY_END, now).apply();
-            if (latest <= prefs.getLong(KEY_LAST_USAGE_EVIDENCE_AT, 0L)) return null;
-            return PassiveEvidenceContract.directUse(latest, queryStart, now);
+            if (latest <= prefs.getLong(KEY_LAST_USAGE_EVIDENCE_AT, 0L)) {
+                prefs.edit().putLong(KEY_LAST_USAGE_QUERY_END, now).commit();
+                return null;
+            }
+            // Positive query cursor advances only in the same durable write as
+            // enqueue. A process death before enqueue must query it again.
+            return PassiveEvidenceContract.directUse(latest, queryStart, now)
+                .forGeneration(prefs.getString(KEY_EVIDENCE_GENERATION, ""));
         } catch (Exception e) {
             Log.d(TAG, "Usage evidence query unavailable", e);
             return null;
         }
     }
 
-    static void recordPedestrianTransition(Context context, int activityType, long elapsedRealtimeNanos) {
+    static synchronized void recordPedestrianTransition(Context context, int activityType, long elapsedRealtimeNanos) {
         if (!isEvidenceConfigured(context)
             || !isActivityRecognitionAllowed(context)
             || !PassiveEvidenceContract.qualifiesPedestrianTransition(activityType)) return;
@@ -380,7 +388,7 @@ final class PassivePing {
         enqueueEvidence(context, PassiveEvidenceContract.pedestrianMotion(observedAt));
     }
 
-    static void recordPowerBroadcast(Context context, String action) {
+    static synchronized void recordPowerBroadcast(Context context, String action) {
         if (!isEvidenceConfigured(context)
             || !prefs(context).getBoolean(KEY_ALLOW_CHARGING, false)) return;
         final boolean charging;
@@ -659,37 +667,55 @@ final class PassivePing {
     }
 
     static void enqueueEvidence(Context context, PassiveEvidenceContract.Evidence evidence) {
-        if (evidence == null || !isEvidenceConfigured(context)) return;
         Context appContext = context.getApplicationContext();
+        if (evidence == null) {
+            EvidenceUploadWorker.schedule(appContext);
+            return;
+        }
         synchronized (PassivePing.class) {
+            if (!isEvidenceConfigured(context)) return;
             SharedPreferences prefs = prefs(appContext);
             String bindingId = prefs.getString(KEY_EVIDENCE_BINDING_ID, null);
             if (bindingId == null) return;
+            if (!evidence.belongsToGeneration(prefs.getString(KEY_EVIDENCE_GENERATION, ""))) return;
+            if (evidence.querySucceeded && "direct_device_use".equals(evidence.evidenceClass)
+                && evidence.observedAtMs <= prefs.getLong(KEY_LAST_USAGE_EVIDENCE_AT, 0L)) return;
             long sequence = prefs.getLong(KEY_EVIDENCE_NEXT_SEQUENCE, 0L);
             JSONArray queue = readEvidenceQueue(prefs);
             queue.put(evidence.toQueuedJson(bindingId, sequence));
-            prefs.edit()
+            SharedPreferences.Editor editor = prefs.edit()
                 .putLong(KEY_EVIDENCE_NEXT_SEQUENCE, sequence + 1L)
-                .putString(KEY_EVIDENCE_QUEUE, queue.toString())
-                .apply();
+                .putString(KEY_EVIDENCE_QUEUE, queue.toString());
             if (evidence.querySucceeded && "direct_device_use".equals(evidence.evidenceClass)) {
-                prefs.edit().putLong(KEY_LAST_USAGE_EVIDENCE_AT, evidence.observedAtMs).apply();
+                editor.putLong(KEY_LAST_USAGE_EVIDENCE_AT, evidence.observedAtMs);
+                editor.putLong(KEY_LAST_USAGE_QUERY_END, evidence.queryEndedAtMs);
             }
+            // Queue, sequence and cursor survive process death as one write.
+            editor.commit();
         }
-        EXECUTOR.execute(() -> drainEvidenceQueue(appContext));
+        EvidenceUploadWorker.schedule(appContext);
     }
 
-    private static void drainEvidenceQueue(Context context) {
-        while (true) {
-            String queued;
+    static boolean drainEvidenceQueue(Context context) {
+        synchronized (EVIDENCE_DRAIN_LOCK) {
+            return drainEvidenceQueueSerial(context);
+        }
+    }
+
+    private static boolean drainEvidenceQueueSerial(Context context) {
+        // Stay comfortably inside WorkManager's execution window even if every
+        // request spends both eight-second network timeouts.
+        for (int uploaded = 0; uploaded < 20; uploaded++) {
+            String queued, credential, base, generation;
             synchronized (PassivePing.class) {
                 JSONArray queue = readEvidenceQueue(prefs(context));
-                if (queue.length() == 0) return;
+                if (queue.length() == 0) return true;
                 queued = queue.optString(0, null);
+                generation = prefs(context).getString(KEY_EVIDENCE_GENERATION, "");
+                credential = decryptEvidenceCredential(context);
+                base = prefs(context).getString(KEY_SUPABASE_URL, null);
             }
-            String credential = decryptEvidenceCredential(context);
-            String base = prefs(context).getString(KEY_SUPABASE_URL, null);
-            if (queued == null || credential == null || base == null) return;
+            if (queued == null || credential == null || base == null) return false;
 
             HttpURLConnection conn = null;
             try {
@@ -706,33 +732,43 @@ final class PassivePing {
                 }
                 int code = conn.getResponseCode();
                 InputStream stream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                StringBuilder response = new StringBuilder();
                 if (stream != null) {
-                    try (BufferedReader ignored = new BufferedReader(new InputStreamReader(stream))) {
-                        while (ignored.readLine() != null) { /* drain */ }
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) response.append(line);
                     }
                 }
-                if (code >= 500) return;
-                if (code == 409) {
-                    clearEvidenceBinding(context);
-                    return;
+                String status = new JSONObject(response.toString()).optString("status", "");
+                EvidenceUploadPolicy.Outcome outcome = EvidenceUploadPolicy.classify(code, status);
+                synchronized (PassivePing.class) {
+                    // An old response cannot delete/revoke another login's evidence.
+                    if (!generation.equals(prefs(context).getString(KEY_EVIDENCE_GENERATION, ""))) return false;
+                    if (outcome == EvidenceUploadPolicy.Outcome.RETRY) return false;
+                    if (outcome == EvidenceUploadPolicy.Outcome.REVOKE) {
+                        clearEvidenceBinding(context);
+                        return true;
+                    }
+                    if (!removeFirstQueuedEvidence(context, queued)) return false;
                 }
-                removeFirstQueuedEvidence(context);
             } catch (Exception e) {
                 Log.d(TAG, "passive evidence upload deferred");
-                return;
+                return false;
             } finally {
                 if (conn != null) conn.disconnect();
             }
         }
+        return false;
     }
 
-    private static void removeFirstQueuedEvidence(Context context) {
+    private static boolean removeFirstQueuedEvidence(Context context, String expected) {
         synchronized (PassivePing.class) {
             SharedPreferences prefs = prefs(context);
             JSONArray current = readEvidenceQueue(prefs);
+            if (!expected.equals(current.optString(0, null))) return false;
             JSONArray remaining = new JSONArray();
             for (int i = 1; i < current.length(); i++) remaining.put(current.opt(i));
-            prefs.edit().putString(KEY_EVIDENCE_QUEUE, remaining.toString()).apply();
+            return prefs.edit().putString(KEY_EVIDENCE_QUEUE, remaining.toString()).commit();
         }
     }
 
@@ -744,7 +780,7 @@ final class PassivePing {
         }
     }
 
-    private static void configureEvidenceBinding(
+    private static synchronized void configureEvidenceBinding(
         Context context,
         String bindingId,
         String credential,
@@ -765,6 +801,7 @@ final class PassivePing {
             .apply();
         if (credential != null && credential.length() >= 32) {
             encryptEvidenceCredential(context, credential);
+            prefs.edit().putString(KEY_EVIDENCE_GENERATION, UUID.randomUUID().toString()).commit();
         }
         if (previous == null || !previous.equals(bindingId)) {
             prefs.edit()
@@ -772,11 +809,12 @@ final class PassivePing {
                 .putString(KEY_EVIDENCE_QUEUE, "[]")
                 .apply();
         }
-        if (isEvidenceConfigured(context)) EXECUTOR.execute(() -> drainEvidenceQueue(context));
+        if (isEvidenceConfigured(context)) EvidenceUploadWorker.schedule(context);
     }
 
-    private static void clearEvidenceBinding(Context context) {
+    private static synchronized void clearEvidenceBinding(Context context) {
         prefs(context).edit()
+            .putString(KEY_EVIDENCE_GENERATION, UUID.randomUUID().toString())
             .remove(KEY_EVIDENCE_BINDING_ID)
             .remove(KEY_EVIDENCE_CONTRACT)
             .remove(KEY_EVIDENCE_CREDENTIAL_CIPHER)
@@ -872,7 +910,7 @@ final class PassivePing {
         }
     }
 
-    private static void confirmPowerTransition(Context context, boolean expected) {
+    private static synchronized void confirmPowerTransition(Context context, boolean expected) {
         SharedPreferences prefs = prefs(context);
         String pending = prefs.getString(KEY_POWER_PENDING_STATE, null);
         long since = prefs.getLong(KEY_POWER_PENDING_SINCE, 0L);
@@ -932,6 +970,7 @@ final class PassivePing {
         if (!isEvidenceConfigured(context)
             || !prefs(context).getBoolean(KEY_ALLOW_CHARGING, false)) return;
         SharedPreferences prefs = prefs(context);
+        String generation = prefs.getString(KEY_EVIDENCE_GENERATION, "");
         Boolean current = currentChargingState(context);
         if (current == null) return;
         String priorText = prefs.getString(KEY_POWER_STABLE_STATE, null);
@@ -952,6 +991,9 @@ final class PassivePing {
         Boolean confirmed = currentChargingState(context);
         if (confirmed == null || confirmed.booleanValue() != current.booleanValue()) return;
 
+        synchronized (PassivePing.class) {
+        if (!generation.equals(prefs.getString(KEY_EVIDENCE_GENERATION, ""))) return;
+
         // Hand the confirmed change to the same routine the live receiver uses,
         // so correlation grouping, baseline update and evidence shape stay in
         // one place. The stabilisation start is backdated by exactly the
@@ -963,6 +1005,7 @@ final class PassivePing {
                 System.currentTimeMillis() - PassiveEvidenceContract.POWER_STABLE_MS)
             .apply();
         confirmPowerTransition(context, current);
+        }
         Log.d(TAG, "power state reconciled in background: charging=" + current);
         ping(context);
     }

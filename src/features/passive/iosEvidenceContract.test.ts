@@ -29,7 +29,9 @@ describe('iOS positive-evidence static contract', () => {
 
   it('does not consume failed CoreMotion history or let an old upload finish a new account queue', () => {
     const sample = read('DeviceSample.swift')
-    expect(sample).toMatch(/generation == self.historyGeneration, finished.stepsSinceLastSample != nil/)
+    expect(sample).toContain('func commitHistory(')
+    expect(sample).toContain('sample.motionQuerySucceeded')
+    expect(sample).toContain('sample.historyGeneration == historyGeneration')
     const guard = read('PassiveGuard.swift')
     expect(guard).toContain('generation == evidenceSendGeneration')
     expect(guard).toContain('sampleBindingId == self.defaults.string(forKey: Key.evidenceBindingId)')

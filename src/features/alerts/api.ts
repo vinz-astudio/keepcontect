@@ -20,6 +20,7 @@ export async function resolveMyAlert(): Promise<void> {
 }
 
 export async function acknowledgeSafe(alertId?: string, pattern?: number[]): Promise<boolean> {
+  if (!alertId) throw new Error('alert_id_required')
   const { data, error } = await supabase.rpc(
     (pattern ? 'acknowledge_safe_with_pattern' : 'acknowledge_safe') as never,
     { _alert_id: alertId || null, ...(pattern ? { _pattern: pattern } : {}) } as never,
@@ -32,6 +33,18 @@ export async function acknowledgeSafe(alertId?: string, pattern?: number[]): Pro
   // Never fall back to an unscoped RPC: it could bypass policy or clear a newer alert.
   emitAlertChange()
   return true
+}
+
+/** A notification may only confirm the alert and recipient it was created for. */
+export async function acknowledgeNotificationSafe(notificationId: string, alertId: string): Promise<void> {
+  if (!notificationId || !alertId) throw new Error('alert_id_required')
+  const { data, error } = await supabase.rpc('acknowledge_notification_safe' as never, {
+    _notification_id: notificationId, _alert_id: alertId,
+  } as never)
+  if (error) throw error
+  const result = data as { ok?: boolean; cleared_alert?: boolean; already_resolved?: boolean } | null
+  if (!result?.ok || (!result.cleared_alert && !result.already_resolved)) throw new Error('confirmation rejected')
+  emitAlertChange()
 }
 
 export async function raiseSos(): Promise<string> {

@@ -8,6 +8,11 @@ fn elapsed_tick_ms(current: u32, last_input: u32) -> u64 {
     current.wrapping_sub(last_input) as u64
 }
 
+#[cfg(any(target_os = "macos", test))]
+fn macos_input_identity(boot: &str, absolute_ms: u64, continuous_ms: u64, idle_ms: u64) -> String {
+    format!("macos:{}:{}:{}", boot, absolute_ms as i128 - idle_ms as i128, continuous_ms as i128 - idle_ms as i128)
+}
+
 #[cfg(target_os = "windows")]
 mod sys_idle {
     use std::mem;
@@ -28,7 +33,7 @@ mod sys_idle {
         fn GetTickCount() -> u32;
     }
 
-    pub fn get_idle_time_ms() -> Option<u64> {
+    pub fn get_input_state() -> Option<(u64, Option<String>)> {
         let mut lii = LastInputInfo {
             cb_size: mem::size_of::<LastInputInfo>() as u32,
             dw_time: 0,
@@ -36,29 +41,76 @@ mod sys_idle {
         unsafe {
             if GetLastInputInfo(&mut lii) != 0 {
                 let current_tick = GetTickCount();
-                Some(super::elapsed_tick_ms(current_tick, lii.dw_time))
+                Some((super::elapsed_tick_ms(current_tick, lii.dw_time), Some(format!("windows:{}", lii.dw_time))))
             } else {
                 None
             }
         }
     }
+
+    pub fn get_idle_time_ms() -> Option<u64> {
+        get_input_state().map(|state| state.0)
+    }
 }
 
 #[cfg(target_os = "macos")]
 mod sys_idle {
+    use std::{ffi::c_void, sync::OnceLock};
+
+    #[repr(C)]
+    struct TimebaseInfo { numer: u32, denom: u32 }
+
     #[link(name = "CoreGraphics", kind = "framework")]
     extern "C" {
         fn CGEventSourceSecondsSinceLastEventType(source_state: i32, event_type: u32) -> f64;
     }
 
+    extern "C" {
+        fn mach_absolute_time() -> u64;
+        fn mach_continuous_time() -> u64;
+        fn mach_timebase_info(info: *mut TimebaseInfo) -> i32;
+        fn sysctlbyname(name: *const i8, old: *mut c_void, old_len: *mut usize, new: *mut c_void, new_len: usize) -> i32;
+    }
+
+    fn boot_session() -> Option<&'static str> {
+        static BOOT: OnceLock<Option<String>> = OnceLock::new();
+        BOOT.get_or_init(|| unsafe {
+            let name = b"kern.bootsessionuuid\0";
+            let mut length: usize = 0;
+            if sysctlbyname(name.as_ptr().cast(), std::ptr::null_mut(), &mut length, std::ptr::null_mut(), 0) != 0
+                || length == 0 || length > 128 { return None; }
+            let mut bytes = vec![0u8; length];
+            if sysctlbyname(name.as_ptr().cast(), bytes.as_mut_ptr().cast(), &mut length, std::ptr::null_mut(), 0) != 0 { return None; }
+            bytes.truncate(length);
+            let boot = String::from_utf8(bytes).ok()?.trim_end_matches('\0').to_owned();
+            if boot.is_empty() || !boot.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-') { return None; }
+            Some(boot)
+        }).as_deref()
+    }
+
     pub fn get_idle_time_ms() -> Option<u64> {
         unsafe {
             let seconds = CGEventSourceSecondsSinceLastEventType(0, 0xFFFFFFFF);
-            if seconds >= 0.0 {
+            if seconds.is_finite() && seconds >= 0.0 {
                 Some((seconds * 1000.0) as u64)
             } else {
                 None
             }
+        }
+    }
+
+    pub fn get_input_state() -> Option<(u64, Option<String>)> {
+        let boot = boot_session()?;
+        let mut timebase = TimebaseInfo { numer: 0, denom: 0 };
+        unsafe {
+            if mach_timebase_info(&mut timebase) != 0 || timebase.denom == 0 { return None; }
+            let to_ms = |ticks: u64| -> Option<u64> {
+                (ticks as u128 * timebase.numer as u128 / timebase.denom as u128 / 1_000_000).try_into().ok()
+            };
+            let absolute = to_ms(mach_absolute_time())?;
+            let continuous = to_ms(mach_continuous_time())?;
+            let idle = get_idle_time_ms()?;
+            Some((idle, Some(super::macos_input_identity(boot, absolute, continuous, idle))))
         }
     }
 }
@@ -66,6 +118,10 @@ mod sys_idle {
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
 mod sys_idle {
     pub fn get_idle_time_ms() -> Option<u64> {
+        None
+    }
+
+    pub fn get_input_state() -> Option<(u64, Option<String>)> {
         None
     }
 }
@@ -84,6 +140,8 @@ struct TauriInputEvidenceSample {
     sample_time_ms: u64,
     idle_duration_ms: u64,
     last_input_at_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_identity: Option<String>,
 }
 
 fn reconstruct_input_sample(
@@ -99,6 +157,7 @@ fn reconstruct_input_sample(
         sample_time_ms,
         idle_duration_ms,
         last_input_at_ms,
+        input_identity: None,
     })
 }
 
@@ -110,7 +169,10 @@ fn get_tauri_input_evidence_sample() -> Option<TauriInputEvidenceSample> {
         .as_millis()
         .try_into()
         .ok()?;
-    reconstruct_input_sample(sample_time_ms, sys_idle::get_idle_time_ms())
+    let (idle, identity) = sys_idle::get_input_state()?;
+    let mut sample = reconstruct_input_sample(sample_time_ms, Some(idle))?;
+    sample.input_identity = identity;
+    Some(sample)
 }
 
 #[derive(serde::Serialize)]
@@ -145,7 +207,7 @@ fn get_alert_shadow_coverage_capability(
     app: tauri::AppHandle,
 ) -> TauriCoverageCapability {
     let version = app.package_info().version.to_string();
-    build_shadow_coverage_capability(sys_idle::get_idle_time_ms().is_some(), &version)
+    build_shadow_coverage_capability(sys_idle::get_input_state().is_some(), &version)
 }
 
 #[tauri::command]
@@ -347,6 +409,23 @@ mod shadow_coverage_tests {
 #[cfg(test)]
 mod passive_input_evidence_tests {
     use super::*;
+
+    #[test]
+    fn macos_input_identity_tracks_monotonic_input_not_sample_time() {
+        assert_eq!(
+            macos_input_identity("boot-a", 180_000, 220_000, 60_000),
+            macos_input_identity("boot-a", 3_780_000, 3_820_000, 3_660_000),
+        );
+        assert_ne!(
+            macos_input_identity("boot-a", 180_000, 220_000, 60_000),
+            macos_input_identity("boot-b", 180_000, 220_000, 60_000),
+        );
+    }
+
+    #[test]
+    fn macos_input_identity_preserves_signed_offsets_for_sleep_accounting() {
+        assert_eq!(macos_input_identity("boot-a", 10, 110, 60), "macos:boot-a:-50:50");
+    }
 
     #[test]
     fn reconstructs_last_input_from_the_same_sample_clock() {

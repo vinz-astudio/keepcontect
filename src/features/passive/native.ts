@@ -1,4 +1,5 @@
-import { Capacitor, registerPlugin } from '@capacitor/core'
+import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core'
+import type { NotificationAction } from '@/features/alerts/notificationActions'
 import { SUPABASE_URL } from '@/lib/config'
 import { isSensorEnabled } from '@/features/signals/sensors'
 import { getClientId } from '@/lib/clientReport'
@@ -41,6 +42,11 @@ export interface GuardStatus {
 }
 
 interface PassivePingPlugin {
+  configurePushNotifications(options: NativePushOptions): Promise<{generation: string | number}>
+  clearPushNotifications(): Promise<void>
+  getPendingNotificationActions(): Promise<{actions: NotificationAction[]}>
+  completeNotificationAction(options: {eventId: string; generation: string | number}): Promise<void>
+  addListener(event: 'notificationActionPending', listener: () => void): Promise<PluginListenerHandle>
   configure(options: {
     supabaseUrl: string
     token: string
@@ -90,6 +96,21 @@ interface PassivePingPlugin {
 
 const PassivePing = registerPlugin<PassivePingPlugin>('PassivePing')
 
+export interface NativePushOptions {
+  recipientUserId: string
+  pushBindingId: string
+  revokeSecret: string
+  supabaseUrl: string
+  anonKey: string
+  token?: string
+  legacyToken?: string
+}
+export const configureNativePushNotifications = (options: NativePushOptions) => PassivePing.configurePushNotifications(options)
+export const clearNativePushNotifications = () => PassivePing.clearPushNotifications()
+export const getPendingNativeNotificationActions = async () => (await PassivePing.getPendingNotificationActions()).actions ?? []
+export const completeNativeNotificationAction = (action: NotificationAction) => PassivePing.completeNotificationAction({eventId: action.eventId, generation: action.generation})
+export const onNativeNotificationAction = (listener: () => void) => PassivePing.addListener('notificationActionPending', listener)
+
 /**
  * Opens a URL in the browser the user actually uses, not in an in-app tab.
  *
@@ -100,155 +121,66 @@ export async function openInExternalBrowser(url: string): Promise<void> {
   await PassivePing.openExternalUrl({ url })
 }
 
+let nativeConfigurationEpoch = 0
+
 export async function configureNativePassivePing(
   token: string | null,
-  options: { strict?: boolean; emitAppPing?: boolean } = {},
+  options: { strict?: boolean; emitAppPing?: boolean; expectedOwnerId?: string } = {},
 ): Promise<void> {
-  if (isTauri()) {
-    if (!token) await clearTauriPassiveEvidence()
-    return
-  }
-  const platform = Capacitor.getPlatform()
+  const epoch = ++nativeConfigurationEpoch
+  const stale = Symbol('stale native configuration')
+  const ensureCurrent = () => { if (epoch !== nativeConfigurationEpoch) throw stale }
+  const checked = async <T,>(pending: Promise<T>): Promise<T> => { const value=await pending; ensureCurrent(); return value }
+  if (isTauri()) { if (!token) await clearTauriPassiveEvidence(); return }
+  const platform=Capacitor.getPlatform()
   if (platform !== 'android' && platform !== 'ios') return
   try {
-    if (!token) {
-      const bindingId = safeStorageGet(NATIVE_BINDING_ID_KEY)
-      await PassivePing.clear()
+    if (!token || (platform === 'ios' && !isSensorEnabled('app_activity'))) {
+      const bindingId=safeStorageGet(NATIVE_BINDING_ID_KEY)
       clearStoredNativeBinding()
-      if (bindingId) {
-        try {
-          await revokePassiveCollector(bindingId)
-        } catch {
-          // Revocation is best-effort here; the native credential and queue are
-          // still erased immediately, so a stale upload cannot cross accounts.
-        }
-      }
+      await checked(PassivePing.clear())
+      if (bindingId) void revokePassiveCollector(bindingId).catch(()=>{})
       return
     }
-    // iOS uses one collector switch for unlock, Health/Motion and charger
-    // observations. The Android per-sensor options have no iOS bridge equivalent.
-    if (platform === 'ios') {
-      // Switching this off stops the whole native iOS collector.
-      if (!isSensorEnabled('app_activity')) {
-        await configureNativePassivePing(null, options)
-        return
-      }
-      const clientId = getClientId()
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id ?? null
-      let bindingId = safeStorageGet(NATIVE_BINDING_ID_KEY)
-      let evidenceCredential: string | undefined
-      const storedOwner = safeStorageGet(NATIVE_BINDING_OWNER_KEY)
-      if (!userId || (storedOwner && storedOwner !== userId)) {
-        clearStoredNativeBinding()
-        bindingId = null
-        await PassivePing.clear()
-      }
-      if (userId && !bindingId) {
-        try {
-          const binding = await bindPassiveCollector(clientId, 'ios_native', APP_VERSION)
-          bindingId = binding.bindingId
-          evidenceCredential = binding.credential
-          safeStorageSet(NATIVE_BINDING_ID_KEY, binding.bindingId)
-          safeStorageSet(NATIVE_BINDING_OWNER_KEY, userId)
-        } catch {
-          bindingId = null
-        }
-      }
-      const configureOptions = {
-        supabaseUrl: SUPABASE_URL,
-        token,
-        clientId,
-        appVersion: APP_VERSION,
-        collectorContract: 'ios-passive-v1' as const,
-        ...(bindingId ? {
-          bindingId,
-          evidenceCollectorContract: 'ios-passive-evidence-v1' as const,
-        } : {}),
-        ...(evidenceCredential ? { evidenceCredential } : {}),
-      }
-      const configured = await PassivePing.configure(configureOptions)
-      if (bindingId && !evidenceCredential && configured && configured.evidenceConfigured === false && userId) {
-        try { await revokePassiveCollector(bindingId) } catch { /* rotate missing credential */ }
-        clearStoredNativeBinding()
-        const replacement = await bindPassiveCollector(clientId, 'ios_native', APP_VERSION)
-        safeStorageSet(NATIVE_BINDING_ID_KEY, replacement.bindingId)
-        safeStorageSet(NATIVE_BINDING_OWNER_KEY, userId)
-        await PassivePing.configure({
-          ...configureOptions,
-          bindingId: replacement.bindingId,
-          evidenceCredential: replacement.credential,
-          evidenceCollectorContract: 'ios-passive-evidence-v1',
-        })
-      }
-      if (options.emitAppPing !== false) await PassivePing.pingApp()
-      return
+    const {data:userData,error}=await checked(supabase.auth.getUser())
+    if(error) throw error
+    const userId=userData.user?.id
+    if (!userId || (options.expectedOwnerId && options.expectedOwnerId !== userId)) return
+    const clientId=getClientId()
+    let bindingId=safeStorageGet(NATIVE_BINDING_ID_KEY)
+    let evidenceCredential:string|undefined
+    const storedOwner=safeStorageGet(NATIVE_BINDING_OWNER_KEY)
+    if (storedOwner && storedOwner !== userId) {
+      clearStoredNativeBinding();bindingId=null
+      await checked(PassivePing.clear())
     }
-
-    const allowCharging = isSensorEnabled('phone_charger')
-    const allowUsageStats = isSensorEnabled('app_activity')
-    const allowActivityRecognition = isSensorEnabled('motion')
-    const clientId = getClientId()
-    const { data: userData } = await supabase.auth.getUser()
-    const userId = userData.user?.id ?? null
-    let bindingId = safeStorageGet(NATIVE_BINDING_ID_KEY)
-    let evidenceCredential: string | undefined
-    const storedOwner = safeStorageGet(NATIVE_BINDING_OWNER_KEY)
-
-    if (!userId || (storedOwner && storedOwner !== userId)) {
-      clearStoredNativeBinding()
-      bindingId = null
-      await PassivePing.clear()
-    }
-    if (userId && !bindingId) {
+    if (!bindingId) {
       try {
-        const binding = await bindPassiveCollector(clientId, 'android_native', APP_VERSION)
-        bindingId = binding.bindingId
-        evidenceCredential = binding.credential
-        safeStorageSet(NATIVE_BINDING_ID_KEY, binding.bindingId)
-        safeStorageSet(NATIVE_BINDING_OWNER_KEY, userId)
-      } catch {
-        bindingId = null
-      }
+        const binding=await checked(bindPassiveCollector(clientId,platform === 'ios'?'ios_native':'android_native',APP_VERSION))
+        bindingId=binding.bindingId;evidenceCredential=binding.credential
+        safeStorageSet(NATIVE_BINDING_ID_KEY,bindingId);safeStorageSet(NATIVE_BINDING_OWNER_KEY,userId)
+      } catch(cause) {ensureCurrent(); if(options.strict) throw cause}
     }
-
-    const configureOptions = {
-      supabaseUrl: SUPABASE_URL,
-      token,
-      allowCharging,
-      allowUsageStats,
-      allowActivityRecognition,
-      clientId,
-      appVersion: APP_VERSION,
-      collectorContract: 'android-passive-v1' as const,
-      ...(bindingId ? {
-        bindingId,
-        evidenceCollectorContract: 'android-passive-evidence-v1' as const,
-      } : {}),
-      ...(evidenceCredential ? { evidenceCredential } : {}),
+    ensureCurrent()
+    const configureOptions={
+      supabaseUrl:SUPABASE_URL,token,clientId,appVersion:APP_VERSION,
+      ...(platform === 'android'?{allowCharging:isSensorEnabled('phone_charger'),allowUsageStats:isSensorEnabled('app_activity'),allowActivityRecognition:isSensorEnabled('motion')}:{}),
+      collectorContract:platform === 'ios'?'ios-passive-v1' as const:'android-passive-v1' as const,
+      ...(bindingId?{bindingId,evidenceCollectorContract:platform === 'ios'?'ios-passive-evidence-v1' as const:'android-passive-evidence-v1' as const}:{}),
+      ...(evidenceCredential?{evidenceCredential}:{}),
     }
-    const configured = await PassivePing.configure(configureOptions)
-    if (bindingId && !evidenceCredential && configured && configured.evidenceConfigured === false && userId) {
-      try {
-        await revokePassiveCollector(bindingId)
-      } catch {
-        // A revoked/missing binding is exactly the state this repair handles.
-      }
+    const configured=await checked(PassivePing.configure(configureOptions))
+    if(bindingId && !evidenceCredential && configured && configured.evidenceConfigured === false){
+      await checked(revokePassiveCollector(bindingId).catch(()=>false))
       clearStoredNativeBinding()
-      const replacement = await bindPassiveCollector(clientId, 'android_native', APP_VERSION)
-      safeStorageSet(NATIVE_BINDING_ID_KEY, replacement.bindingId)
-      safeStorageSet(NATIVE_BINDING_OWNER_KEY, userId)
-      await PassivePing.configure({
-        ...configureOptions,
-        bindingId: replacement.bindingId,
-        evidenceCredential: replacement.credential,
-        evidenceCollectorContract: 'android-passive-evidence-v1',
-      })
+      const replacement=await checked(bindPassiveCollector(clientId,platform === 'ios'?'ios_native':'android_native',APP_VERSION))
+      safeStorageSet(NATIVE_BINDING_ID_KEY,replacement.bindingId);safeStorageSet(NATIVE_BINDING_OWNER_KEY,userId)
+      await checked(PassivePing.configure({...configureOptions,bindingId:replacement.bindingId,evidenceCredential:replacement.credential}))
     }
-    if (options.emitAppPing !== false) await PassivePing.pingApp()
-  } catch (cause) {
-    if (options.strict) throw cause
-    // Native bridge is best-effort; PWA ping URLs remain the fallback.
+    ensureCurrent()
+    if(options.emitAppPing !== false) await checked(PassivePing.pingApp())
+  } catch(cause) {
+    if(cause !== stale && options.strict) throw cause
   }
 }
 
@@ -261,7 +193,9 @@ export async function syncNativeSensorPreferences(): Promise<void> {
     await configureNativePassivePing(null, { strict: true, emitAppPing: false })
     return
   }
+  const epoch = nativeConfigurationEpoch
   const token = await getHeartbeatToken()
+  if (epoch !== nativeConfigurationEpoch) return
   if (!token) throw new Error('无法同步设备采集设置，请登录后重试。 / Sign in to sync collection settings.')
   await configureNativePassivePing(token, { strict: true, emitAppPing: false })
 }
@@ -274,7 +208,9 @@ export async function syncNativeSensorPreferences(): Promise<void> {
  */
 export async function refreshNativePassivePing(): Promise<void> {
   try {
+    const epoch = nativeConfigurationEpoch
     const token = await getHeartbeatToken()
+    if (epoch !== nativeConfigurationEpoch) return
     if (token) await configureNativePassivePing(token)
   } catch {
     // The saved Routine contract remains valid. Boot retries on a later

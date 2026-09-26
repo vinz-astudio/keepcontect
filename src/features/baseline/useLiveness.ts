@@ -179,11 +179,11 @@ export function useLiveness(): LivenessState {
     let cancelled = false
 
     // 启动信号源：新事件写入本地存储后触发重载
-    const stop = startSignalSources((kind) => {
-      void recordSignal(kind).then(() => {
+    const stop = startSignalSources((kind, observedAt) => {
+      return recordSignal(kind, observedAt, user?.id).then(() => {
         if (!cancelled) void reload()
       })
-    })
+    }, user?.id)
 
     // 清理过期时序 + 首次加载
     void pruneBefore(Date.now() - RETENTION_DAYS * 86_400_000)

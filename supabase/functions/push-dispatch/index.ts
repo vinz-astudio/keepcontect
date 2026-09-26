@@ -192,6 +192,9 @@ async function sendTickle(
   alertBody?: string | null,
   notificationId?: string,
   notificationKind?: string,
+  alertId?: string | null,
+  recipientUserId?: string,
+  pushBindingId?: string | null,
 ): Promise<'sent' | 'dead' | 'failed'> {
   const message: Record<string, unknown> = alertBody
     ? {
@@ -202,7 +205,8 @@ async function sendTickle(
         // unlock prompt the instant it launches, instead of showing the home
         // screen and only swapping to the prompt once the network round-trip
         // confirms an open alert.
-        data: { kind: 'alert', notifKind: notificationKind ?? '' },
+        data: { kind: 'alert', notifKind: notificationKind ?? '', notificationId: notificationId ?? '',
+          alertId: alertId ?? '', recipientUserId: recipientUserId ?? '', pushBindingId: pushBindingId ?? '', contractVersion: '2' },
         android: {
           priority: 'HIGH',
           notification: {
@@ -228,7 +232,7 @@ async function sendTickle(
       }
     : {
         token: deviceToken,
-        data: { kind: 'tickle' },
+        data: { kind: 'tickle', recipientUserId: recipientUserId ?? '', pushBindingId: pushBindingId ?? '' },
         android: { priority: 'HIGH' },
         apns: {
           headers: {
@@ -331,7 +335,7 @@ Deno.serve(async () => {
   // Fetch FCM tokens for the recipients
   const { data: fcmRows } = await supabase
     .from('push_tokens')
-    .select('token, user_id, platform')
+    .select('token, user_id, platform, binding_id')
     .in('user_id', recipientIds)
   const fcmRowsByUser = new Map<string, NonNullable<typeof fcmRows>>()
   for (const row of fcmRows ?? []) {
@@ -389,6 +393,8 @@ Deno.serve(async () => {
       ),
       body: n.body,
       alertId: n.alert_id,
+      notificationId: n.id,
+      recipientUserId: n.recipient_id,
       badge: badgeByUser.get(n.recipient_id) ?? 0,
       actions: isSelfStage ? [{ action: 'safe', title: '一切安好' }] : undefined,
     })
@@ -428,7 +434,7 @@ Deno.serve(async () => {
       for (const row of recipientFcmRows) {
         const alertBody = selfAddressed && row.platform === 'ios' ? n.body : null
         const result = await sendTickle(
-          sa, fcmAccessTokenVal, row.token, alertBody, n.id, n.kind,
+          sa, fcmAccessTokenVal, row.token, alertBody, n.id, n.kind, n.alert_id, n.recipient_id, row.binding_id,
         )
         if (result === 'sent') {
           fcmSuccessCount++

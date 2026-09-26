@@ -11,6 +11,7 @@ import { useLiveness } from '@/features/baseline/useLiveness'
 import {
   getMyOpenAlert,
   acknowledgeSafe,
+  acknowledgeNotificationSafe,
   sendHeartbeat,
   type Alert,
 } from '@/features/alerts/api'
@@ -36,7 +37,9 @@ import { primeAlarm } from '@/features/baseline/alarm'
 import type { BaselineConfig, Evaluation } from '@/features/baseline/types'
 import { shouldShowSelfCheckForNotificationKind } from '@/features/alerts/notificationRouting'
 import { recordViewportTrace } from '@/lib/viewportDiagnostics'
-import { consumeLaunchNotificationDetails } from '@/features/passive/native'
+import { consumeLaunchNotificationDetails, getPendingNativeNotificationActions, completeNativeNotificationAction, onNativeNotificationAction } from '@/features/passive/native'
+import { getNativePushSession } from '@/features/push/nativePushBinding'
+import { createNotificationActionDrainer } from '@/features/alerts/notificationActions'
 
 /** 解锁遮罩的非告警模式：演练（验证已设手势）/ 设置（首次或修改手势） */
 export type OverlayMode = 'none' | 'practice' | 'setup'
@@ -94,10 +97,10 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
   const realAlert = serverNeedsConfirm
 
   // 首次进入且本机还没设过手势：自动同步服务器，若无则弹出"设置手势"引导
-  const promptedRef = useRef(false)
+  const promptedRef = useRef<string | null>(null)
   useEffect(() => {
-    if (authLoading || !uid || promptedRef.current) return
-    promptedRef.current = true
+    if (authLoading || !uid || promptedRef.current === uid) return
+    promptedRef.current = uid
     primeAlarm() // 解锁应用内告警声（iOS 需首个手势）
     
     // 冷启动从通知点开：只有 self/concern 通知可先乐观弹自证；group 通知只刷新列表
@@ -109,8 +112,8 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
     if (isAckSafe) {
       void (async () => {
         try {
-          await acknowledgeSafe(alertIdParam)
-          await live.checkIn()
+          if (launchParams.get('recipientUserId') !== uid) throw new Error('notification_not_owned')
+          await acknowledgeNotificationSafe(launchParams.get('notificationId') ?? '', alertIdParam ?? '')
           await live.reload()
           await refreshAlert()
           toast(localStorage.getItem('kc.lang') === 'en' ? 'Confirmed safe' : '已确认安全，一切安好', 'ok')
@@ -126,26 +129,9 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
       window.history.replaceState(null, '', window.location.pathname) // 清掉参数，避免刷新再触发
     }
 
-    // 原生壳支持携带通知详情与快速安全确认
+    // Old native shells may navigate to a prompt, but their unscoped flag is never an answer.
     void consumeLaunchNotificationDetails().then((details) => {
-      if (!details.kind) return
-      recordViewportTrace('liveness-from-notification-native', { notificationKind: details.kind })
-      if (details.ackSafe) {
-        void (async () => {
-          try {
-            await acknowledgeSafe()
-            await live.checkIn()
-            await live.reload()
-            await refreshAlert()
-            toast(localStorage.getItem('kc.lang') === 'en' ? 'Confirmed safe' : '已确认安全，一切安好', 'ok')
-          } catch {
-            setAlertHint(true)
-            toast(localStorage.getItem('kc.lang') === 'en' ? 'Could not confirm safety. Please retry.' : '安全确认失败，请重试。', 'danger')
-          }
-        })()
-      } else if (shouldShowSelfCheckForNotificationKind(details.kind)) {
-        setAlertHint(true)
-      }
+      if (shouldShowSelfCheckForNotificationKind(details.kind)) setAlertHint(true)
     })
 
   }, [authLoading, uid])
@@ -265,6 +251,43 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
   }, [])
 
 
+  useEffect(() => {
+    if (!uid || authLoading) return
+    let cancelled=false
+    let key=''
+    let drain:(()=>Promise<void>)|null=null
+    let removeNative:(()=>Promise<void>)|undefined
+    const wake=()=>{
+      const push=getNativePushSession()
+      if(cancelled || !push || push.ownerId!==uid) return
+      const nextKey=String(push.epoch)+':'+String(push.generation)
+      if(nextKey!==key){
+        key=nextKey
+        drain=createNotificationActionDrainer({
+          owner:uid,generation:push.generation,
+          isCurrent:()=>!cancelled && getNativePushSession()?.epoch===push.epoch && getNativePushSession()?.ownerId===uid,
+          list:getPendingNativeNotificationActions,complete:completeNativeNotificationAction,
+          acknowledge:acknowledgeNotificationSafe,
+          open:kind=>{if(shouldShowSelfCheckForNotificationKind(kind))setAlertHint(true);void refreshAlert()},
+          confirmed:async()=>{await live.reload();await refreshAlert()},
+          failed:()=>{setAlertHint(true)},
+        })
+      }
+      void drain?.()
+    }
+    // Install the listener before the first read so cold/warm arrivals cannot fall in a gap.
+    void onNativeNotificationAction(wake).then(handle=>{
+      if(cancelled){void handle.remove();return}
+      removeNative=()=>handle.remove();wake()
+    }).catch(()=>{})
+    window.addEventListener('kc-native-push-ready',wake)
+    window.addEventListener('online',wake)
+    window.addEventListener('focus',wake)
+    document.addEventListener('visibilitychange',wake)
+    const timer=window.setInterval(wake,30_000)
+    return ()=>{cancelled=true;void removeNative?.();clearInterval(timer);window.removeEventListener('kc-native-push-ready',wake);window.removeEventListener('online',wake);window.removeEventListener('focus',wake);document.removeEventListener('visibilitychange',wake)}
+  },[uid,authLoading,refreshAlert,live.reload])
+
   // 轮询服务器 open 告警 + 回到前台时立刻查（这样打开 App 就能弹 pattern）
   useEffect(() => {
     void refreshAlert()
@@ -279,13 +302,15 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
         source?: string
         notificationKind?: string | null
         alertId?: string | null
+        notificationId?: string | null
+        recipientUserId?: string | null
       } | null
       if (data?.type === 'kc-ack-safe') {
         void (async () => {
           try {
-            await acknowledgeSafe(data.alertId || undefined)
-            await live.checkIn()
-            await live.reload()
+            if (data.recipientUserId !== uid) throw new Error('notification_not_owned')
+            await acknowledgeNotificationSafe(data.notificationId ?? '',data.alertId ?? '')
+              await live.reload()
             await refreshAlert()
             toast(localStorage.getItem('kc.lang') === 'en' ? 'Confirmed safe' : '已确认安全，一切安好', 'ok')
           } catch {
@@ -339,7 +364,6 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
         return
       }
       await acknowledgeSafe(serverAlert?.id, pattern)
-      await live.checkIn()
       setAlertHint(false)
       await live.reload()
       await refreshAlert() // 清掉刚解除的服务器告警

@@ -39,6 +39,7 @@ vi.mock('@/lib/supabase', () => ({
 }))
 vi.mock('./evidenceContract', () => ({
   bindPassiveCollector: nativeHarness.binding.bind,
+  resumePassiveCollector: vi.fn(),
   revokePassiveCollector: nativeHarness.binding.revoke,
 }))
 vi.mock('./api', () => ({ getHeartbeatToken: nativeHarness.token.get }))
@@ -54,6 +55,18 @@ vi.stubGlobal('localStorage', {
 const native = await import('./native')
 
 describe('native passive setup truth', () => {
+  it('does not re-arm a collector when its pending bind returns after logout',async()=>{
+    let release!:(value:unknown)=>void
+    nativeHarness.binding.bind.mockImplementationOnce(()=>new Promise(resolve=>{release=resolve}))
+    const setup=native.configureNativePassivePing('old-token')
+    for(let i=0;i<8;i++)await Promise.resolve()
+    await native.configureNativePassivePing(null)
+    release({bindingId:'late-binding',credential:'x'.repeat(64)})
+    await setup
+    expect(nativeHarness.plugin.configure).not.toHaveBeenCalled()
+    expect(nativeHarness.plugin.pingApp).not.toHaveBeenCalled()
+    expect(storage.has('kc.passiveEvidence.bindingId')).toBe(false)
+  })
   beforeEach(() => {
     nativeHarness.platform = 'ios'
     nativeHarness.activityEnabled = true

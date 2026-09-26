@@ -3,6 +3,7 @@ import { getGuardianPermissions } from '@/features/passive/guardianPermissions'
 import { getGuardStatus, type GuardStatus } from '@/features/passive/native'
 import { isSensorEnabled } from '@/features/signals/sensors'
 import { isTauri, isStandalone } from '@/lib/platform'
+import { getTauriEvidenceStatus } from './shadowCoverage'
 
 export type CollectionSurface = 'android-native' | 'ios-native' | 'tauri' | 'pwa'
 export type CollectionDistribution =
@@ -95,6 +96,7 @@ export interface CollectionCapabilityDeps {
   permissionGranted: (id: GuardianPermissionId) => Promise<boolean | null>
   getGuardStatus: () => Promise<GuardStatus | null>
   desktopProbeAvailable: () => Promise<boolean | null>
+  desktopCollectorReady?: () => boolean
   isStandalone: () => boolean
 }
 
@@ -109,6 +111,7 @@ const defaultDeps: CollectionCapabilityDeps = {
     return state === 'granted' ? true : state === 'denied' || state === 'prompt' ? false : null
   },
   getGuardStatus,
+  desktopCollectorReady: () => getTauriEvidenceStatus().state === 'ready',
   desktopProbeAvailable: async () => {
     const internals = (window as unknown as {
       __TAURI_INTERNALS__?: { invoke?: (name: string) => Promise<{ idleProbeAvailable?: boolean }> }
@@ -172,7 +175,7 @@ async function resolveCapability(
     state = await resolveNativeCapability(surface, definition, deps)
   } else if (surface === 'tauri') {
     state = definition.id === 'desktop-input'
-      ? (!deps.isSensorEnabled('system_idle') ? 'disabled' : await deps.desktopProbeAvailable() === true ? 'granted' : 'unavailable')
+      ? (!deps.isSensorEnabled('system_idle') ? 'disabled' : await deps.desktopProbeAvailable() !== true ? 'unavailable' : deps.desktopCollectorReady?.() === false ? 'limited' : 'granted')
       : definition.id === 'interaction'
         ? (deps.isSensorEnabled('interaction') ? 'granted' : 'disabled')
       : 'unavailable'

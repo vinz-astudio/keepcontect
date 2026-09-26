@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
 
   const { data: notifications, error } = await supabase
     .from('notifications')
-    .select('id, kind, params, alert_id, body, created_at')
+    .select('id, kind, params, alert_id, recipient_id, body, created_at')
     .eq('recipient_id', uid)
     .is('read_at', null)
     .gt('created_at', cursor)
@@ -152,6 +152,7 @@ Deno.serve(async (req) => {
 
   const marked = (notifications ?? []).map((n) => ({
     ...n,
+    contractVersion: 2,
     params: paramsWithRecipientMark(n.params, uid, profile?.display_name ?? null),
   }))
 

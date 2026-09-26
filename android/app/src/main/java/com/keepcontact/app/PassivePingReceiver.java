@@ -12,6 +12,7 @@ public class PassivePingReceiver extends BroadcastReceiver {
 
         if (Intent.ACTION_BOOT_COMPLETED.equals(action) ||
             "android.intent.action.MY_PACKAGE_REPLACED".equals(action)) {
+            EvidenceUploadWorker.schedule(context);
             PassivePing.updateBackgroundServices(context);
             return;
         }

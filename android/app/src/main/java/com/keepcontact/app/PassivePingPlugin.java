@@ -18,6 +18,53 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class PassivePingPlugin extends Plugin {
     private BroadcastReceiver chargingReceiver;
 
+    @Override
+    public void load() {
+        NotificationActionQueue.listen(() -> notifyListeners("notificationActionPending", new JSObject()));
+        NotificationActionQueue.capture(getContext(), getActivity().getIntent());
+        EvidenceUploadWorker.schedule(getContext());
+    }
+
+    @PluginMethod
+    public void configurePushNotifications(PluginCall call) {
+        String owner = call.getString("recipientUserId");
+        if (!NotificationActionQueue.isUuid(owner)) { call.reject("recipientUserId is required"); return; }
+        try {
+            String generation = PushBindingStore.configure(getContext(), owner, call.getString("pushBindingId"),
+                call.getString("revokeSecret"), call.getString("supabaseUrl"), call.getString("anonKey"),
+                call.getString("token"), call.getString("legacyToken"));
+            NotifyWorker.schedule(getContext());
+            JSObject result = new JSObject();
+            result.put("generation", generation);
+            call.resolve(result);
+        } catch (Exception exception) { call.reject("Unable to configure push binding", exception); }
+    }
+
+    @PluginMethod
+    public void clearPushNotifications(PluginCall call) {
+        try {
+            PushBindingStore.clear(getContext());
+            NotifyWorker.cancel(getContext());
+            call.resolve();
+        } catch (Exception exception) { call.reject("Unable to clear push binding", exception); }
+    }
+
+    @PluginMethod
+    public void getPendingNotificationActions(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("actions", NotificationActionQueue.pending(getContext()));
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void completeNotificationAction(PluginCall call) {
+        String eventId = call.getString("eventId");
+        String generation = call.getString("generation");
+        if (eventId == null || generation == null) { call.reject("eventId and generation are required"); return; }
+        NotificationActionQueue.complete(getContext(), eventId, generation);
+        call.resolve();
+    }
+
     @PluginMethod
     public void configure(PluginCall call) {
         String supabaseUrl = call.getString("supabaseUrl");
@@ -45,6 +92,7 @@ public class PassivePingPlugin extends Plugin {
             getContext(), supabaseUrl, token, allowCharging, allowUsageStats,
             allowActivityRecognition, clientId, appVersion, collectorContract,
             evidenceBindingId, evidenceCredential, evidenceCollectorContract);
+        PushBindingStore.configureFeed(getContext(), supabaseUrl, token);
         refreshEventReceiver();
 
         // Logged in + configured -> keep the background notification poll alive.
@@ -57,7 +105,6 @@ public class PassivePingPlugin extends Plugin {
     @PluginMethod
     public void clear(PluginCall call) {
         unregisterEventReceiver();
-        NotifyWorker.cancel(getContext());
         PassivePing.clear(getContext());
         call.resolve(new JSObject());
     }
@@ -202,24 +249,14 @@ public class PassivePingPlugin extends Plugin {
      *  the unlock prompt on the first frame instead of after a round-trip. */
     @PluginMethod
     public void consumeLaunchNotificationKind(PluginCall call) {
-        String kind = "";
-        boolean ackSafe = false;
         android.app.Activity activity = getActivity();
         if (activity != null && activity.getIntent() != null) {
-            String extra = activity.getIntent().getStringExtra(NotifyWorker.EXTRA_NOTIF_KIND);
-            if (extra != null) {
-                kind = extra;
-                // Cleared so a later resume cannot replay a prompt already dealt with.
-                activity.getIntent().removeExtra(NotifyWorker.EXTRA_NOTIF_KIND);
-            }
-            if (activity.getIntent().getBooleanExtra(NotifyWorker.EXTRA_ACK_SAFE, false)) {
-                ackSafe = true;
-                activity.getIntent().removeExtra(NotifyWorker.EXTRA_ACK_SAFE);
-            }
+            activity.getIntent().removeExtra(NotifyWorker.EXTRA_NOTIF_KIND);
+            activity.getIntent().removeExtra(NotifyWorker.EXTRA_ACK_SAFE);
         }
         JSObject ret = new JSObject();
-        ret.put("kind", kind);
-        ret.put("ackSafe", ackSafe);
+        ret.put("kind", "");
+        ret.put("ackSafe", false);
         call.resolve(ret);
     }
 
@@ -233,13 +270,17 @@ public class PassivePingPlugin extends Plugin {
      *  land in push_tokens through one interface. */
     @PluginMethod
     public void getFcmToken(PluginCall call) {
+        String owner = PushBindingStore.owner(getContext());
+        String generation = PushBindingStore.generation(getContext());
+        if (owner.isEmpty()) { call.resolve(new JSObject().put("token", "")); return; }
         try {
             com.google.firebase.messaging.FirebaseMessaging.getInstance()
                 .getToken()
                 .addOnCompleteListener(task -> {
                     JSObject ret = new JSObject();
                     ret.put("token",
-                        task.isSuccessful() && task.getResult() != null ? task.getResult() : "");
+                        PushBindingStore.matches(getContext(), owner, generation) && task.isSuccessful()
+                            && task.getResult() != null ? task.getResult() : "");
                     call.resolve(ret);
                 });
         } catch (Exception e) {
@@ -431,6 +472,8 @@ public class PassivePingPlugin extends Plugin {
 
     @Override
     protected void handleOnResume() {
+        EvidenceUploadWorker.schedule(getContext());
+        notifyListeners("notificationActionPending", new JSObject());
         refreshEventReceiver();
         PassivePing.updateBackgroundServices(getContext());
         PassivePing.pingApp(getContext());
@@ -438,6 +481,7 @@ public class PassivePingPlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
+        NotificationActionQueue.listen(null);
         unregisterEventReceiver();
     }
 

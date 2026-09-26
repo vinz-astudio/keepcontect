@@ -7,8 +7,10 @@ import { Capacitor } from '@capacitor/core'
 import type { SignalKind } from '@/features/baseline/types'
 import { isTauri } from '@/lib/platform'
 import { isSensorEnabled } from '@/features/signals/sensors'
+import { listen } from '@tauri-apps/api/event'
+import { sameNativeInputIdentity } from '@/features/passive/evidenceContract'
 
-type Recorder = (kind: SignalKind) => void
+type Recorder = (kind: SignalKind, observedAt?: number) => unknown
 
 const ACTIVITY_THROTTLE_MS = 5 * 60_000 // 同类互动信号最多 5 分钟记一次，避免刷量
 
@@ -42,43 +44,53 @@ function startWebInteractionSource(record: Recorder): () => void {
  * Tauri 桌面后台保平安信号源。
  * 定期获取系统空闲时间，若有鼠标/键盘 activity 则上报；同时监听托盘快捷签到。
  */
-function startTauriIdleSource(record: Recorder): () => void {
-  let last = 0
-  let timerId: any = null
+function startTauriIdleSource(record: Recorder, ownerId?: string): () => void {
+  const key = `kc.tauriInput.${ownerId ?? 'local'}`
+  let last = Number(globalThis.localStorage?.getItem(key) ?? 0)
+  let lastIdentity = globalThis.localStorage?.getItem(`${key}.identity`)
+  let stopped = false
+  let inFlight = false
   let unlistenTrayCheckin: (() => void) | null = null
 
   const checkIdle = async () => {
-    if (!isSensorEnabled('system_idle')) return
+    if (stopped || inFlight || !isSensorEnabled('system_idle')) return
+    inFlight = true
     try {
       const internals = (window as any).__TAURI_INTERNALS__
       if (!internals || typeof internals.invoke !== 'function') return
 
-      const idleMs = (await internals.invoke(
-        'get_system_idle_time_ms',
-      )) as number | null
-      if (idleMs !== null && idleMs < 10 * 60_000) {
-        const now = Date.now()
-        if (now - last >= ACTIVITY_THROTTLE_MS) {
-          last = now
-          record('interaction')
-        }
+      const sample = await internals.invoke('get_tauri_input_evidence_sample')
+      if (stopped || !sample || sample.collectorContract !== 'tauri-passive-evidence-v1'
+        || sample.channel !== 'tauri' || !sample.probeAvailable) return
+      const { sampleTimeMs, idleDurationMs, lastInputAtMs } = sample
+      if (sameNativeInputIdentity(sample.inputIdentity, lastIdentity)) return
+      if (![sampleTimeMs, idleDurationMs, lastInputAtMs].every(Number.isFinite)
+        || idleDurationMs < 0 || idleDurationMs >= 10 * 60_000
+        || lastInputAtMs > sampleTimeMs || sampleTimeMs > Date.now() + 1_000
+        || Math.abs(sampleTimeMs - idleDurationMs - lastInputAtMs) > 1_000
+        || lastInputAtMs <= last + 1_000) return
+      await record('interaction', lastInputAtMs)
+      if (stopped) return
+      last = lastInputAtMs
+      globalThis.localStorage?.setItem(key, String(last))
+      if (typeof sample.inputIdentity === 'string') {
+        lastIdentity = sample.inputIdentity
+        globalThis.localStorage?.setItem(`${key}.identity`, sample.inputIdentity)
       }
     } catch (err) {
       console.error('Failed to get system idle time from Tauri:', err)
+    } finally {
+      inFlight = false
     }
   }
 
   const setupTrayCheckinListener = async () => {
     try {
-      const internals = (window as any).__TAURI_INTERNALS__
-      if (internals && typeof internals.listen === 'function') {
-        unlistenTrayCheckin = (await internals.listen(
-          'tray-checkin',
-          () => {
-            record('manual_checkin')
-          },
-        )) as () => void
-      }
+      const unlisten = await listen('tray-checkin', () => {
+        if (!stopped && ownerId) void record('manual_checkin')
+      })
+      if (stopped) unlisten()
+      else unlistenTrayCheckin = unlisten
     } catch (err) {
       console.error('Failed to listen to tray check-in event:', err)
     }
@@ -86,10 +98,11 @@ function startTauriIdleSource(record: Recorder): () => void {
 
   // 启动即检查一次，并设置定时器
   void checkIdle()
-  timerId = setInterval(() => void checkIdle(), 2 * 60_000)
+  const timerId = setInterval(() => void checkIdle(), 2 * 60_000)
   void setupTrayCheckinListener()
 
   return () => {
+    stopped = true
     if (timerId) {
       clearInterval(timerId)
     }
@@ -109,11 +122,11 @@ function startNativeSources(_record: Recorder): () => void {
 }
 
 /** 启动所有可用信号源，返回统一的停止函数 */
-export function startSignalSources(record: Recorder): () => void {
+export function startSignalSources(record: Recorder, ownerId?: string): () => void {
   const stops: Array<() => void> = []
   stops.push(startWebInteractionSource(record))
   if (isTauri()) {
-    stops.push(startTauriIdleSource(record))
+    stops.push(startTauriIdleSource(record, ownerId))
   }
   if (Capacitor.isNativePlatform()) {
     stops.push(startNativeSources(record))

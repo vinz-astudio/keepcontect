@@ -20,12 +20,27 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getCollectionPermissionStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openNotificationSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openAppSettings", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "configurePushNotifications", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getPendingNotificationActions", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "completeNotificationAction", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "clearPushNotifications", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getFcmToken", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "consumeLaunchNotificationKind", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "enableHealthWake", returnType: CAPPluginReturnPromise)
     ]
 
+    private var notificationObserver: NSObjectProtocol?
+
+    deinit {
+        if let notificationObserver { NotificationCenter.default.removeObserver(notificationObserver) }
+    }
+
     override public func load() {
+        NotificationTap.shared.register()
+        NotificationActionQueue.shared.retryPendingRevocations()
+        notificationObserver = NotificationCenter.default.addObserver(
+            forName: NotificationTap.pendingNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.notifyListeners("notificationActionPending", data: [:]) }
         // Runs on every process start, including background relaunches, so a
         // guard configured in an earlier session re-arms without user action.
         PassiveGuard.shared.resumeIfConfigured()
@@ -168,6 +183,41 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
     /// string means the app was opened some other way.
     @objc func consumeLaunchNotificationKind(_ call: CAPPluginCall) {
         call.resolve(NotificationTap.shared.consume())
+    }
+
+    @objc func configurePushNotifications(_ call: CAPPluginCall) {
+        guard let owner = call.getString("recipientUserId"), UUID(uuidString: owner) != nil else {
+            call.reject("recipientUserId is required"); return
+        }
+        DispatchQueue.main.async {
+            guard let generation = NotificationTap.shared.configure(recipientUserId: owner,
+                pushBindingId: call.getString("pushBindingId"), revokeSecret: call.getString("revokeSecret"),
+                supabaseUrl: call.getString("supabaseUrl"), anonKey: call.getString("anonKey"), legacyToken: call.getString("legacyToken")) else {
+                call.reject("Push notification configuration could not be stored"); return
+            }
+            PushRegistrar.activate()
+            call.resolve(["generation": generation])
+        }
+    }
+
+    @objc func getPendingNotificationActions(_ call: CAPPluginCall) {
+        call.resolve(["actions": NotificationActionQueue.shared.pending()])
+    }
+
+    @objc func completeNotificationAction(_ call: CAPPluginCall) {
+        guard let eventId = call.getString("eventId"), let generation = call.getString("generation") else {
+            call.reject("eventId and generation are required"); return
+        }
+        NotificationActionQueue.shared.complete(eventId: eventId, generation: generation)
+        call.resolve()
+    }
+
+    @objc func clearPushNotifications(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            NotificationTap.shared.clear()
+            PushRegistrar.deactivate()
+            call.resolve()
+        }
     }
 
     @objc func getFcmToken(_ call: CAPPluginCall) {

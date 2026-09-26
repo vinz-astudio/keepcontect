@@ -16,12 +16,8 @@ import UIKit
 /// take whenever the process happens to be running, never something to depend
 /// on.
 ///
-/// The dependable path is the other way round: the server wakes the device with
-/// a silent push, and the device answers with the one thing it can always
-/// establish at that instant — whether it is currently unlocked. That is
-/// sampled evidence rather than an event stream, which is enough because the
-/// alert model sessionises activity at thirty minutes and never sees finer
-/// detail anyway.
+/// A wake permits a history query. Protected data availability is diagnostic
+/// only: a device without a passcode may report it continuously.
 ///
 /// Location appears here only as significant-change monitoring. Apple
 /// documents relaunch after system termination; user force-quit remains unproven
@@ -68,6 +64,8 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     private var observers: [NSObjectProtocol] = []
     private var armed = false
     private let evidenceLock = NSLock()
+    private var sampleInFlight = false
+    private var sampleCompletions: [() -> Void] = []
     private var evidenceSending = false
     private var evidenceSendGeneration = 0
 
@@ -137,6 +135,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         // start from its own "now", not inherit the previous one's position.
         NotifyFeed.resetCursor()
         clearEvidenceBinding()
+        defaults.removeObject(forKey: "kc.passive.ambiguousMotion.v1")
         for key in [Key.supabaseUrl, Key.token, Key.clientId, Key.appVersion, Key.record, Key.lastPingAt, Key.lastEventAt, Key.lastRecordedAt, Key.connectedAt] {
             defaults.removeObject(forKey: key)
         }
@@ -259,44 +258,20 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         locationManager.startMonitoringSignificantLocationChanges()
     }
 
-    /// Called when a silent push wakes the process. The push proves the device
-    /// is reachable, which is not the same as the user being active, so the
-    /// evidence comes from the lock state instead: protected data is available
-    /// only after the user has unlocked the device and while it stays unlocked.
-    ///
-    /// A locked device deliberately reports nothing. Treating mere
-    /// reachability as liveness would let a phone sitting on a table refresh
-    /// the heartbeat forever, which is the one failure mode that would make KC
-    /// worse than having no monitoring at all.
+    /// Reachability and lock state do not prove activity. Only newly collected
+    /// positive evidence determines the background completion result.
     func handleWake(completion: @escaping (Bool) -> Void) {
-        guard credentials() != nil else {
-            completion(false)
-            return
-        }
+        NotificationActionQueue.shared.retryPendingRevocations()
+        guard credentials() != nil else { completion(false); return }
         arm()
         flushRecord()
-        // Unconditional, and deliberately before the lock check. This records
-        // that the watcher was awake and looking, which is true of this wake
-        // even when the device is locked and the answer below is "nothing".
-        // Reporting coverage only when something was observed is what let
-        // S3-C2 conclude that a person's normal quiet was fourteen minutes.
         reportCoverageLease()
-
-        let unlocked = UIApplication.shared.isProtectedDataAvailable
-        if unlocked {
-            recordEvent(reason: "wake-sample")
-        }
-
-        // Sampled whether or not the device is unlocked, which is the opposite
-        // of how the ping above behaves and is deliberate. Lock state is only
-        // one of the readings; battery drain, the pasteboard counter and the
-        // step history describe the whole interval since the last wake and are
-        // just as readable through a locked screen. Answering "still locked"
-        // and collecting nothing would throw away the interval evidence at
-        // exactly the moments it is most needed.
+        let sequenceBefore = defaults.integer(forKey: Key.evidenceNextSequence)
+        let bindingBefore = defaults.string(forKey: Key.evidenceBindingId)
         HealthWake.shared.retryHistory(reportCoverageLease: false) {
             self.captureSample(trigger: "push-wake") {
-                completion(unlocked)
+                completion(bindingBefore == self.defaults.string(forKey: Key.evidenceBindingId)
+                    && self.defaults.integer(forKey: Key.evidenceNextSequence) > sequenceBefore)
             }
         }
     }
@@ -356,16 +331,17 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         )
     }
 
-    func recordMotionEvidence(
+    @discardableResult func recordMotionEvidence(
         observedAt: Date,
         stepsPositive: Bool,
         floorsPositive: Bool,
         automotive: Bool,
         queryStart: Date?,
-        queryEnd: Date?
-    ) {
-        guard (stepsPositive || floorsPositive), !automotive else { return }
-        enqueueEvidence(
+        queryEnd: Date?,
+        timePolicy: String = "healthkit-sample-end-v1"
+    ) -> Bool {
+        guard (stepsPositive || floorsPositive), !automotive else { return false }
+        return enqueueEvidence(
             observedAt: observedAt,
             evidenceClass: "personal_device_motion",
             correlationId: nil,
@@ -377,25 +353,26 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             ],
             queryStart: queryStart,
             queryEnd: queryEnd,
-            querySucceeded: queryStart != nil && queryEnd != nil
+            querySucceeded: queryStart != nil && queryEnd != nil,
+            timePolicy: timePolicy
         )
     }
 
-    private func enqueueEvidence(
+    @discardableResult private func enqueueEvidence(
         observedAt: Date,
         evidenceClass: String,
         correlationId: String?,
         facts: [String: Any],
         queryStart: Date?,
         queryEnd: Date?,
-        querySucceeded: Bool
-    ) {
-        guard isEvidenceConfigured else { return }
+        querySucceeded: Bool,
+        timePolicy: String = "event-time-v1"
+    ) -> Bool {
+        guard isEvidenceConfigured else { return false }
         evidenceLock.lock()
         let sequence = defaults.object(forKey: Key.evidenceNextSequence) == nil
             ? 0
             : defaults.integer(forKey: Key.evidenceNextSequence)
-        defaults.set(sequence + 1, forKey: Key.evidenceNextSequence)
         let entry: [String: Any] = [
             "binding_id": defaults.string(forKey: Key.evidenceBindingId)!,
             "event_id": UUID().uuidString,
@@ -407,16 +384,17 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             "qualification_facts": facts,
             "query_started_at": queryStart.map { Self.iso8601.string(from: $0) } ?? NSNull(),
             "query_ended_at": queryEnd.map { Self.iso8601.string(from: $0) } ?? NSNull(),
-            "query_succeeded": querySucceeded
+            "query_succeeded": querySucceeded,
+            "_time_policy": timePolicy
         ]
         var queue = evidenceQueue()
+        guard queue.count < Self.maxRecordEntries else { evidenceLock.unlock(); return false }
         queue.append(entry)
-        if queue.count > Self.maxRecordEntries {
-            queue.removeFirst(queue.count - Self.maxRecordEntries)
-        }
-        saveEvidenceQueue(queue)
+        let saved = saveEvidenceQueue(queue)
+        if saved { defaults.set(sequence + 1, forKey: Key.evidenceNextSequence) }
         evidenceLock.unlock()
-        flushEvidenceQueue()
+        if saved { flushEvidenceQueue() }
+        return saved
     }
 
     private func evidenceQueue() -> [[String: Any]] {
@@ -426,13 +404,30 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         return queue
     }
 
-    private func saveEvidenceQueue(_ queue: [[String: Any]]) {
-        guard let data = try? JSONSerialization.data(withJSONObject: queue) else { return }
+    @discardableResult private func saveEvidenceQueue(_ queue: [[String: Any]]) -> Bool {
+        guard let data = try? JSONSerialization.data(withJSONObject: queue) else { return false }
         defaults.set(data, forKey: Key.evidenceQueue)
+        return true
+    }
+
+    private func quarantineAmbiguousMotion() {
+        let queue = evidenceQueue()
+        let ambiguous = queue.filter { $0["evidence_class"] as? String == "personal_device_motion" && $0["_time_policy"] == nil }
+        guard !ambiguous.isEmpty else { return }
+        // Earlier builds mixed CoreMotion aggregate end times with HealthKit
+        // sample times. Keep these for diagnosis; never invent a replacement time.
+        let key = "kc.passive.ambiguousMotion.v1"
+        var quarantined = defaults.data(forKey: key).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [[String: Any]] } ?? []
+        quarantined.append(contentsOf: ambiguous)
+        // JSON data supports the null values in historical evidence entries.
+        guard let data = try? JSONSerialization.data(withJSONObject: quarantined) else { return }
+        defaults.set(data, forKey: key)
+        saveEvidenceQueue(queue.filter { $0["evidence_class"] as? String != "personal_device_motion" || $0["_time_policy"] != nil })
     }
 
     private func flushEvidenceQueue() {
         evidenceLock.lock()
+        if !evidenceSending { quarantineAmbiguousMotion() }
         guard !evidenceSending,
               let first = evidenceQueue().first,
               let credential = keychainCredential(),
@@ -446,6 +441,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         evidenceLock.unlock()
 
         var body = first
+        body.removeValue(forKey: "_time_policy")
         body["credential"] = credential
         let sentBindingId = first["binding_id"] as? String
         guard let payload = try? JSONSerialization.data(withJSONObject: body) else {
@@ -657,6 +653,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     /// so today every iOS ping arrives indistinguishable from every other one.
     /// It defaults to `app` so existing callers keep their meaning.
     func recordEvent(reason: String, kind: String = "app") {
+        guard reason != "wake-sample" else { return }
         let now = Date()
         defaults.set(now.timeIntervalSince1970, forKey: Key.lastEventAt)
 
@@ -706,6 +703,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
         // fails is put back by `send`.
         defaults.removeObject(forKey: Key.record)
         for entry in record {
+            if entry["reason"] as? String == "wake-sample" { continue }
             guard let eventId = entry["event_id"] as? String,
                   let observedAt = entry["observed_at"] as? TimeInterval else { continue }
             send(
@@ -774,36 +772,58 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
     /// while a request is still in flight — the process would be suspended and
     /// the sample lost.
     func captureSample(trigger: String, completion: (() -> Void)? = nil) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.captureSample(trigger: trigger, completion: completion) }
+            return
+        }
+        if let completion { sampleCompletions.append(completion) }
+        guard !sampleInFlight else { return }
+        sampleInFlight = true
+        let finish: () -> Void = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.sampleInFlight = false
+                let callbacks = self.sampleCompletions
+                self.sampleCompletions = []
+                callbacks.forEach { $0() }
+            }
+        }
         // A wake also retries previously queued positives, even when the new
         // history query is empty. Sending does not manufacture fresh activity.
         flushEvidenceQueue()
         guard let (baseUrl, token) = credentials(),
               let url = URL(string: baseUrl + "/functions/v1/device-sample") else {
-            completion?()
+            finish()
             return
         }
 
         let sampleBindingId = defaults.string(forKey: Key.evidenceBindingId)
+        let sampleGeneration = evidenceSendGeneration
         DeviceSampleCollector.shared.collect(trigger: trigger) { [weak self] sample in
             guard let self else {
-                completion?()
+                finish()
                 return
             }
-            guard sampleBindingId == self.defaults.string(forKey: Key.evidenceBindingId) else {
-                completion?()
+            guard sampleGeneration == self.evidenceSendGeneration,
+                  sampleBindingId == self.defaults.string(forKey: Key.evidenceBindingId) else {
+                finish()
                 return
             }
             self.observePowerState(sample.batteryState)
-            if sample.hasPositivePedestrianMotion {
-                self.recordMotionEvidence(
-                    observedAt: sample.observedAt,
+            var historyHandled = sample.motionQuerySucceeded && !sample.hasPositivePedestrianMotion
+            if sample.hasPositivePedestrianMotion, let motionStart = sample.motionIntervalStart,
+               let motionEnd = sample.motionIntervalEnd {
+                historyHandled = self.recordMotionEvidence(
+                    observedAt: motionStart,
                     stepsPositive: (sample.stepsSinceLastSample ?? 0) > 0,
                     floorsPositive: (sample.floorsSinceLastSample ?? 0) > 0,
                     automotive: sample.dominantActivity == "automotive",
-                    queryStart: sample.motionIntervalStart,
-                    queryEnd: sample.observedAt
+                    queryStart: motionStart,
+                    queryEnd: motionEnd,
+                    timePolicy: "coremotion-positive-interval-start-v1"
                 )
             }
+            if historyHandled { DeviceSampleCollector.shared.commitHistory(sample) }
             var payload = sample.asPayload(
                 clientId: self.defaults.string(forKey: Key.clientId),
                 appVersion: self.defaults.string(forKey: Key.appVersion),
@@ -811,7 +831,7 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             )
             payload["token"] = token
             guard let data = try? JSONSerialization.data(withJSONObject: payload) else {
-                completion?()
+                finish()
                 return
             }
 
@@ -820,11 +840,11 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
             request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
             request.httpBody = data
             self.session.dataTask(with: request) { [weak self] _, _, _ in
-                guard let self else { completion?(); return }
+                guard let self else { finish(); return }
                 // The diagnostics request is not the evidence request. Do not
                 // acknowledge a background wake while its evidence is still
                 // in flight; pending events remain durable if the budget ends.
-                self.finishBackgroundEvidence(deadline: Date().addingTimeInterval(5), completion: completion)
+                self.finishBackgroundEvidence(deadline: Date().addingTimeInterval(5), completion: finish)
             }.resume()
         }
     }
@@ -904,20 +924,20 @@ final class PassiveGuard: NSObject, CLLocationManagerDelegate {
 
 /// Entry point for the app target, which cannot see internal types in this pod.
 public enum KcPassiveBridge {
-    /// Call from `didFinishLaunchingWithOptions`. A cold-start notification tap
-    /// is delivered as soon as a delegate exists, so registering later — from a
-    /// plugin's `load()`, say — can miss the launch that carried it.
+    /// Also runs while signed out; a revoke-only tombstone needs no session.
+    public static func retryPendingPushRevocations() {
+        NotificationActionQueue.shared.retryPendingRevocations()
+    }
+
+    /// Register in didFinishLaunchingWithOptions before a cold-start tap arrives.
     public static func registerNotificationTapCapture() {
         NotificationTap.shared.register()
     }
 
     /// Forwarded from the AppDelegate's silent-push handler.
     ///
-    /// The wake-up serves two purposes at once: it samples whether the device is
-    /// unlocked (liveness), and it is the only moment a suspended app can learn
-    /// that a notification is waiting. Both run on every push — a device that
-    /// answers "still locked" is exactly the device whose owner needs to be
-    /// shown the alert.
+    /// A wake permits positive history collection and notification delivery.
+    /// Lock state remains diagnostic only; it never refreshes liveness.
     ///
     /// `true` means something arrived, which iOS reads as a reason to keep
     /// granting this app background wake-ups.

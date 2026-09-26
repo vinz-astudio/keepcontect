@@ -12,6 +12,11 @@ import { acknowledgeSafe } from './api'
 describe('acknowledgeSafe', () => {
   beforeEach(() => vi.resetAllMocks())
 
+  it('rejects an unscoped confirmation before issuing an RPC', async () => {
+    await expect(acknowledgeSafe()).rejects.toThrow('alert_id_required')
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
   it('reports success after the server clears the alert', async () => {
     rpc.mockResolvedValue({ data: { ok: true, cleared_alert: true }, error: null })
     await expect(acknowledgeSafe('alert-1')).resolves.toBe(true)
@@ -22,28 +27,28 @@ describe('acknowledgeSafe', () => {
 
   it('accepts an already-resolved alert without targeting a newer one', async () => {
     rpc.mockResolvedValue({ data: { ok: true, already_resolved: true }, error: null })
-    await expect(acknowledgeSafe()).resolves.toBe(true)
+    await expect(acknowledgeSafe('alert-old')).resolves.toBe(true)
     expect(rpc).toHaveBeenCalledTimes(1)
     expect(emitAlertChange).toHaveBeenCalledTimes(1)
   })
 
   it('does not claim success when both confirmation calls fail', async () => {
     rpc.mockResolvedValue({ data: null, error: new Error('not authenticated') })
-    await expect(acknowledgeSafe()).rejects.toThrow('not authenticated')
+    await expect(acknowledgeSafe('alert-1')).rejects.toThrow('not authenticated')
     expect(rpc).toHaveBeenCalledTimes(1)
     expect(emitAlertChange).not.toHaveBeenCalled()
   })
 
   it('propagates a network failure instead of claiming the alert was cleared', async () => {
     rpc.mockRejectedValue(new Error('offline'))
-    await expect(acknowledgeSafe()).rejects.toThrow('offline')
+    await expect(acknowledgeSafe('alert-1')).rejects.toThrow('offline')
     expect(rpc).toHaveBeenCalledTimes(1)
     expect(emitAlertChange).not.toHaveBeenCalled()
   })
 
   it('does not accept cleared_alert when the response explicitly rejects the action', async () => {
     rpc.mockResolvedValueOnce({ data: { ok: false, cleared_alert: true }, error: null })
-    await expect(acknowledgeSafe()).rejects.toThrow('confirmation rejected')
+    await expect(acknowledgeSafe('alert-1')).rejects.toThrow('confirmation rejected')
     expect(emitAlertChange).not.toHaveBeenCalled()
   })
 

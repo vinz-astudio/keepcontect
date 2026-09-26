@@ -41,6 +41,9 @@ struct DeviceSample {
     var stepsSinceLastSample: Int?
     var floorsSinceLastSample: Int?
     var motionIntervalStart: Date?
+    var motionIntervalEnd: Date?
+    var motionQuerySucceeded = false
+    var historyGeneration = 0
     var dominantActivity: String?
     var activityConfidence: Int?
     var volumeAvailableBytes: Int64?
@@ -153,9 +156,9 @@ final class DeviceSampleCollector {
             sample.volumeAvailableBytes = Int64(capacity)
         }
 
-        let since = lastSampleAt()
-        let generation = motionSerialQueue.sync { historyGeneration }
-        sample.motionIntervalStart = since
+        let end = sample.observedAt
+        let since = lastSampleAt(end: end)
+        sample.historyGeneration = motionSerialQueue.sync { historyGeneration }
         let group = DispatchGroup()
 
         // The same hazard as the accelerometer loop, one level up: these three
@@ -178,16 +181,27 @@ final class DeviceSampleCollector {
         }
 
         group.enter()
-        readPedometer(since: since) { [motionSerialQueue] steps, floors in
+        readPedometer(since: since, until: end, generation: sample.historyGeneration) { [motionSerialQueue] result in
             motionSerialQueue.async {
-                sample.stepsSinceLastSample = steps
-                sample.floorsSinceLastSample = floors
+                switch result {
+                case .positive(let interval, let steps, let floors):
+                    sample.stepsSinceLastSample = steps
+                    sample.floorsSinceLastSample = floors
+                    sample.motionIntervalStart = interval.start
+                    sample.motionIntervalEnd = interval.end
+                    sample.motionQuerySucceeded = true
+                case .empty:
+                    sample.stepsSinceLastSample = 0
+                    sample.floorsSinceLastSample = 0
+                    sample.motionQuerySucceeded = true
+                default: break
+                }
                 group.leave()
             }
         }
 
         group.enter()
-        readDominantActivity(since: since) { [motionSerialQueue] activity, confidence in
+        readDominantActivity(since: since, until: end) { [motionSerialQueue] activity, confidence in
             motionSerialQueue.async {
                 sample.dominantActivity = activity
                 sample.activityConfidence = confidence
@@ -195,25 +209,29 @@ final class DeviceSampleCollector {
             }
         }
 
-        group.notify(queue: motionSerialQueue) { [weak self] in
+        group.notify(queue: motionSerialQueue) {
             let finished = sample
-            // An unavailable/locked pedometer is not a successful empty read.
-            // Preserve the unread interval, including across account resets.
-            if let self, generation == self.historyGeneration, finished.stepsSinceLastSample != nil {
-                self.defaults.set(finished.observedAt.timeIntervalSince1970, forKey: Key.lastSampleAt)
-            }
             DispatchQueue.main.async { completion(finished) }
         }
     }
 
     // MARK: - Individual readings
 
-    private func lastSampleAt() -> Date {
+    /// Called only after a positive was durably queued, or a successful empty /
+    /// automotive-excluded query. Errors and late callbacks never skip history.
+    func commitHistory(_ sample: DeviceSample) {
+        motionSerialQueue.sync {
+            guard sample.motionQuerySucceeded, sample.historyGeneration == historyGeneration else { return }
+            defaults.set(max(defaults.double(forKey: Key.lastSampleAt), sample.observedAt.timeIntervalSince1970), forKey: Key.lastSampleAt)
+        }
+    }
+
+    private func lastSampleAt(end: Date) -> Date {
         let stored = defaults.double(forKey: Key.lastSampleAt)
         // A first run has nothing to look back at. Six hours is chosen to be
         // longer than any plausible wake interval without dragging in a whole
         // night of history that belongs to an earlier session.
-        return HistoryQueryPolicy.start(cursor: stored, end: Date())
+        return HistoryQueryPolicy.start(cursor: stored, end: end)
     }
 
     /// A phone resting on a surface produces acceleration magnitudes that barely
@@ -263,20 +281,32 @@ final class DeviceSampleCollector {
     /// Steps and floors over the interval. Floors matter more than they look:
     /// they come from the barometer, so a phone rattling around in a vehicle
     /// cannot manufacture them the way it can manufacture steps.
-    private func readPedometer(since: Date, completion: @escaping (Int?, Int?) -> Void) {
-        guard CMPedometer.isStepCountingAvailable() else {
-            completion(nil, nil)
-            return
-        }
-        pedometer.queryPedometerData(from: since, to: Date()) { data, _ in
-            guard let data else {
-                completion(nil, nil)
-                return
+    private func readPedometer(since: Date, until: Date, generation: Int, completion: @escaping (MotionEvidenceWindow.Result) -> Void) {
+        guard CMPedometer.isStepCountingAvailable() else { completion(.failed); return }
+        motionSerialQueue.async {
+            let search = MotionEvidenceWindow.Search(start: since, end: until)
+            let deadline = ProcessInfo.processInfo.systemUptime + 8
+            var finished = false
+            func finish(_ result: MotionEvidenceWindow.Result) {
+                guard !finished else { return }
+                finished = true
+                completion(result)
             }
-            let floors = CMPedometer.isFloorCountingAvailable()
-                ? data.floorsAscended?.intValue
-                : nil
-            completion(data.numberOfSteps.intValue, floors)
+            func queryNext() {
+                guard !finished else { return }
+                guard generation == self.historyGeneration, ProcessInfo.processInfo.systemUptime < deadline else { finish(.failed); return }
+                guard let interval = search.nextQuery() else { finish(search.result); return }
+                self.pedometer.queryPedometerData(from: interval.start, to: interval.end) { data, error in
+                    self.motionSerialQueue.async {
+                        guard !finished, generation == self.historyGeneration else { finish(.failed); return }
+                        guard error == nil, let data else { finish(.failed); return }
+                        search.accept(steps: data.numberOfSteps.intValue, floors: data.floorsAscended?.intValue)
+                        queryNext()
+                    }
+                }
+            }
+            self.motionSerialQueue.asyncAfter(deadline: .now() + 8) { finish(.failed) }
+            queryNext()
         }
     }
 
@@ -284,14 +314,24 @@ final class DeviceSampleCollector {
     /// a bus from reading as a walking human: that interval comes back
     /// `automotive`, and motion evidence from an automotive interval is worth
     /// nothing.
-    private func readDominantActivity(since: Date, completion: @escaping (String?, Int?) -> Void) {
+    private func readDominantActivity(since: Date, until: Date, completion: @escaping (String?, Int?) -> Void) {
         guard CMMotionActivityManager.isActivityAvailable() else {
             completion(nil, nil)
             return
         }
-        activityManager.queryActivityStarting(from: since, to: Date(), to: OperationQueue()) { activities, _ in
+        let callbackQueue = OperationQueue()
+        callbackQueue.maxConcurrentOperationCount = 1
+        callbackQueue.underlyingQueue = motionSerialQueue
+        var finished = false
+        func finish(_ activity: String?, _ confidence: Int?) {
+            guard !finished else { return }
+            finished = true
+            completion(activity, confidence)
+        }
+        motionSerialQueue.asyncAfter(deadline: .now() + 8) { finish(nil, nil) }
+        activityManager.queryActivityStarting(from: since, to: until, to: callbackQueue) { activities, _ in
             guard let activities, !activities.isEmpty else {
-                completion(nil, nil)
+                finish(nil, nil)
                 return
             }
             // Ranked rather than counted: a single confident automotive stretch
@@ -301,11 +341,8 @@ final class DeviceSampleCollector {
             let ranked = activities.max { lhs, rhs in
                 Self.rank(lhs) < Self.rank(rhs)
             }
-            guard let winner = ranked else {
-                completion(nil, nil)
-                return
-            }
-            completion(Self.name(for: winner), winner.confidence.rawValue)
+            guard let winner = ranked else { finish(nil, nil); return }
+            finish(Self.name(for: winner), winner.confidence.rawValue)
         }
     }
 

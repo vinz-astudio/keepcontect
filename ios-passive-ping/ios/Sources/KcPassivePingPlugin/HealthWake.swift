@@ -199,8 +199,9 @@ final class HealthWake {
                 seen[sampleID] = timestamp
             }
             let unseen = samples.filter { seen[$0.id.uuidString] == nil }
+            var savedPositive = unseen.isEmpty
             if let sample = unseen.max(by: { $0.observedAt < $1.observedAt }) {
-                PassiveGuard.shared.recordMotionEvidence(
+                savedPositive = PassiveGuard.shared.recordMotionEvidence(
                     observedAt: sample.observedAt,
                     stepsPositive: sample.stepsPositive,
                     floorsPositive: sample.floorsPositive,
@@ -209,8 +210,10 @@ final class HealthWake {
                     queryEnd: queryEnd
                 )
             }
-            for sample in samples {
-                seen[sample.id.uuidString] = sample.observedAt.timeIntervalSince1970
+            if savedPositive {
+                for sample in samples {
+                    seen[sample.id.uuidString] = sample.observedAt.timeIntervalSince1970
+                }
             }
             UserDefaults.standard.set(seen, forKey: Self.seenPositiveSamplesKey)
             let finished = {

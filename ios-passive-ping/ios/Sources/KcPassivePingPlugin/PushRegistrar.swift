@@ -39,6 +39,28 @@ enum PushRegistrar {
         options.bundleID = bundleID
         FirebaseApp.configure(options: options)
         configured = true
+        Messaging.messaging().isAutoInitEnabled = NotificationActionQueue.shared.recipientUserId != nil
+    }
+
+    static func activate() {
+        configureIfNeeded()
+        Messaging.messaging().isAutoInitEnabled = true
+        status { granted, _ in
+            if granted {
+                DispatchQueue.main.async {
+                    guard NotificationActionQueue.shared.recipientUserId != nil else { return }
+                    UIApplication.shared.registerForRemoteNotifications()
+                }
+            }
+        }
+    }
+
+    static func deactivate() {
+        configureIfNeeded()
+        Messaging.messaging().isAutoInitEnabled = false
+        UIApplication.shared.unregisterForRemoteNotifications()
+        // The server binding is separately revoked by the durable JS tombstone.
+        // Do not let a delayed deletion callback invalidate a new owner's token.
     }
 
     /// Asks for notification permission, then registers with APNs. Firebase's
@@ -51,6 +73,7 @@ enum PushRegistrar {
         ) { granted, _ in
             if granted {
                 DispatchQueue.main.async {
+                    guard NotificationActionQueue.shared.recipientUserId != nil else { return }
                     UIApplication.shared.registerForRemoteNotifications()
                 }
             }
@@ -83,9 +106,14 @@ enum PushRegistrar {
     ///
     /// Retrying costs nothing when the token is already there, and the JS side
     /// simply awaits a slightly slower promise when it is not.
-    static func fetchToken(retriesLeft: Int = 6, completion: @escaping (String?) -> Void) {
+    static func fetchToken(retriesLeft: Int = 6, generation: String? = nil, completion: @escaping (String?) -> Void) {
         configureIfNeeded()
+        let currentGeneration = generation ?? NotificationActionQueue.shared.generation
+        guard NotificationActionQueue.shared.recipientUserId != nil,
+              currentGeneration == NotificationActionQueue.shared.generation else { completion(nil); return }
         Messaging.messaging().token { token, error in
+            guard NotificationActionQueue.shared.recipientUserId != nil,
+                  currentGeneration == NotificationActionQueue.shared.generation else { completion(nil); return }
             if let token, !token.isEmpty {
                 completion(token)
                 return
@@ -97,7 +125,7 @@ enum PushRegistrar {
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                fetchToken(retriesLeft: retriesLeft - 1, completion: completion)
+                fetchToken(retriesLeft: retriesLeft - 1, generation: currentGeneration, completion: completion)
             }
         }
     }

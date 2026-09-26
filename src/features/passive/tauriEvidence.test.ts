@@ -43,9 +43,10 @@ function deps(overrides: Partial<TauriEvidenceDeps> = {}): TauriEvidenceDeps {
       collectorContract: 'tauri-passive-evidence-v1',
     }),
     revoke: vi.fn().mockResolvedValue(true),
+    resume: vi.fn().mockRejectedValue(new Error('unexpected resume in fresh binding test')),
     sendEvidence: vi.fn().mockResolvedValue('inserted'),
     randomUUID: () => '00000000-0000-4000-8000-000000000002',
-    now: () => Date.parse('2026-08-14T12:05:00.000Z'),
+    now: () => Date.now(),
     storage,
     setInterval: globalThis.setInterval,
     clearInterval: globalThis.clearInterval,
@@ -61,6 +62,7 @@ describe('Tauri reconstructed input evidence', () => {
   beforeEach(() => {
     storage.clear()
     vi.useFakeTimers()
+    vi.setSystemTime(Date.parse('2026-08-14T12:05:00.000Z'))
   })
 
   it('uses the reconstructed occurrence time and closed direct-input facts', async () => {
@@ -77,6 +79,7 @@ describe('Tauri reconstructed input evidence', () => {
         queryEndedAt: '2026-08-14T12:05:00.000Z',
         querySucceeded: true,
       }),
+      expect.any(AbortSignal),
     )
     expect(JSON.stringify((d.sendEvidence as ReturnType<typeof vi.fn>).mock.calls)).not.toMatch(/key|app|url|content/i)
     stop()
@@ -146,5 +149,13 @@ describe('Tauri reconstructed input evidence', () => {
     expect(storage.getItem('kc.tauriEvidence.ownerId')).toBeNull()
     expect(storage.getItem('kc.tauriEvidence.sequence')).toBeNull()
     expect(storage.getItem('kc.tauriEvidence.queue')).toBeNull()
+  })
+
+  it('finishes local logout even when remote collector revocation never responds', async () => {
+    storage.setItem('kc.tauriEvidence.bindingId', 'offline-binding')
+    const revoke = vi.fn(() => new Promise<boolean>(() => {}))
+    await clearTauriPassiveEvidence({ isTauri: () => true, storage, revoke })
+    expect(storage.getItem('kc.tauriEvidence.bindingId')).toBeNull()
+    expect(revoke).toHaveBeenCalledWith('offline-binding')
   })
 })

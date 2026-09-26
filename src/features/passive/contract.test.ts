@@ -225,11 +225,12 @@ describe('Client Surface Gating Contract', () => {
     await recordSignal('manual_checkin')
 
     expect(mockRpc).toHaveBeenCalledTimes(1)
-    expect(mockRpc).toHaveBeenCalledWith('record_behavior_ping', {
-      event_id: expect.any(String),
-      observed_at: expect.any(String),
-      source: 'manual',
-      kind: 'manual_checkin',
+    expect(mockRpc).toHaveBeenCalledWith('record_owned_behavior_ping', {
+      _expected_user_id: 'test-user-id',
+      _event_id: expect.any(String),
+      _observed_at: expect.any(String),
+      _source: 'manual',
+      _kind: 'manual_checkin',
     })
   })
 

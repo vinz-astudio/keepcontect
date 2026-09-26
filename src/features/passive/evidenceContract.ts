@@ -1,6 +1,20 @@
 import { supabase } from '@/lib/supabase'
 
 export const PASSIVE_QUALIFICATION_POLICY = 'passive-qualification-v1' as const
+
+/** Calendar time is not part of native input identity. The two macOS monotonic
+ * references differ in sleep accounting; either stable offset means no new input. */
+export function sameNativeInputIdentity(current: string | undefined, previous: string | null | undefined): boolean {
+  if (!current || !previous) return false
+  if (current === previous) return true
+  const parse = (value: string) => /^macos:([^:]+):(-?\d+):(-?\d+)$/.exec(value)
+  const next = parse(current)
+  const old = parse(previous)
+  if (!next || !old || next[1] !== old[1]) return false
+  const offsets = [Number(next[2]), Number(next[3]), Number(old[2]), Number(old[3])]
+  return offsets.every(Number.isSafeInteger)
+    && (Math.abs(offsets[0] - offsets[2]) <= 1_000 || Math.abs(offsets[1] - offsets[3]) <= 1_000)
+}
 export type PassiveSurfaceType =
   | 'tauri_native'
   | 'tauri_native_linux'
@@ -29,6 +43,7 @@ export interface PassiveCollectorBinding {
   credentialVersion: number
   surfaceType: PassiveSurfaceType
   collectorContract: string
+  nextSequence?: number
 }
 
 export interface PassiveEvidenceDraft {
@@ -68,6 +83,8 @@ export function parsePassiveCollectorBinding(value: unknown): PassiveCollectorBi
     credentialVersion: raw.credential_version as number,
     surfaceType: surfaceType as PassiveSurfaceType,
     collectorContract: raw.collector_contract,
+    ...(Number.isSafeInteger(raw.next_sequence) && Number(raw.next_sequence) >= 0
+      ? { nextSequence: Number(raw.next_sequence) } : {}),
   }
 }
 
@@ -110,6 +127,16 @@ export async function revokePassiveCollector(bindingId: string): Promise<boolean
   const { data, error } = await supabase.rpc('revoke_passive_collector', { _binding_id: bindingId })
   if (error) throw error
   return data
+}
+
+/** Rotate only the upload credential; keep queued event IDs and sequence identity. */
+export async function resumePassiveCollector(bindingId: string, clientVersion: string): Promise<PassiveCollectorBinding> {
+  const { data, error } = await supabase.rpc('resume_passive_collector' as never, {
+    _binding_id: bindingId,
+    _client_version: clientVersion,
+  } as never)
+  if (error) throw error
+  return parsePassiveCollectorBinding(data)
 }
 
 export async function recordAuthenticatedPassiveEvidence(

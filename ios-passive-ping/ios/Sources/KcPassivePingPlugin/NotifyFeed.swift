@@ -81,6 +81,8 @@ enum NotifyFeed {
             completion(false)
             return
         }
+        guard NotificationActionQueue.shared.recipientUserId != nil else { completion(false); return }
+        let generation = NotificationActionQueue.shared.generation
         primeCursorIfNeeded()
         let since = defaults.string(forKey: cursorKey) ?? iso8601.string(from: Date())
 
@@ -93,6 +95,11 @@ enum NotifyFeed {
         }
 
         session.dataTask(with: url) { data, response, error in
+            // Serialize posting and account teardown so no old callback can
+            // enqueue a notification after logout has removed them.
+            DispatchQueue.main.async {
+            guard generation == NotificationActionQueue.shared.generation,
+                  NotificationActionQueue.shared.recipientUserId != nil else { completion(false); return }
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard error == nil, status == 200, let data else {
                 completion(false)
@@ -113,6 +120,10 @@ enum NotifyFeed {
             var newlyPosted: [String] = []
             for item in list {
                 let kind = item["kind"] as? String ?? ""
+                guard var metadata = NotificationActionQueue.metadata(item),
+                      NotificationActionQueue.shared.accepts(recipientUserId: metadata["recipientUserId"] as? String, generation: generation) else { continue }
+                metadata["pushBindingId"] = NotificationActionQueue.shared.pushBindingId
+                metadata["generation"] = generation
                 if let createdAt = item["created_at"] as? String, createdAt > latest {
                     latest = createdAt
                 }
@@ -127,13 +138,14 @@ enum NotifyFeed {
                 if alreadyPosted.contains(id) { continue }
                 let params = item["params"] as? [String: Any]
                 let fallback = item["body"] as? String ?? ""
-                post(body: render(kind: kind, params: params, fallback: fallback), id: id)
+                post(body: render(kind: kind, params: params, fallback: fallback), id: id, metadata: metadata)
                 newlyPosted.append(id)
                 posted = true
             }
             rememberPosted(newlyPosted)
             defaults.set(latest, forKey: cursorKey)
             completion(posted)
+            }
         }.resume()
     }
 
@@ -166,11 +178,12 @@ enum NotifyFeed {
 
     // MARK: - Presentation
 
-    private static func post(body: String, id: String) {
+    private static func post(body: String, id: String, metadata: [String: Any]) {
         let content = UNMutableNotificationContent()
         content.title = "Keep Contact"
         content.body = body
         content.sound = .default
+        content.userInfo = metadata
         // No trigger: deliver immediately, including while the screen is locked.
         let request = UNNotificationRequest(identifier: id, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)

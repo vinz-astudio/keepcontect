@@ -88,7 +88,7 @@ self.addEventListener('push', (event) => {
     badge: '/icons/icon-192.png',
     silent: false, // 明确要求系统出声（最终仍受设备通知设置控制）
     vibrate: [200, 100, 200], // Android 震动提示；iOS 忽略，无害
-    data: { url: '/', kind: data.kind, alertId: data.alertId },
+    data: { url: '/', kind: data.kind, alertId: data.alertId, notificationId: data.notificationId, recipientUserId: data.recipientUserId },
   }
   if (isSelf) {
     options.actions = [
@@ -123,6 +123,7 @@ self.addEventListener('notificationclick', (event) => {
         const kindQuery = notificationData.kind ? '&notifKind=' + encodeURIComponent(notificationData.kind) : ''
         const ackQuery = shouldAckSafe ? '&ackSafe=true' : ''
         const alertIdQuery = notificationData.alertId ? '&alertId=' + encodeURIComponent(notificationData.alertId) : ''
+        const identityQuery = '&notificationId=' + encodeURIComponent(notificationData.notificationId || '') + '&recipientUserId=' + encodeURIComponent(notificationData.recipientUserId || '')
 
         for (const c of list) {
           if ('focus' in c) {
@@ -132,11 +133,13 @@ self.addEventListener('notificationclick', (event) => {
               clickedAt: Date.now(),
               notificationKind: notificationData.kind || null,
               alertId: notificationData.alertId || null,
+              notificationId: notificationData.notificationId || null,
+              recipientUserId: notificationData.recipientUserId || null,
             })
             return c.focus()
           }
         }
-        return self.clients.openWindow('/?from=notif&swts=' + Date.now() + kindQuery + ackQuery + alertIdQuery)
+        return self.clients.openWindow('/?from=notif&swts=' + Date.now() + kindQuery + ackQuery + alertIdQuery + identityQuery)
       }),
   )
 })

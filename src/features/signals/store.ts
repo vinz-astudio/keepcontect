@@ -116,7 +116,9 @@ function generateUUID(): string {
 export async function recordSignal(
   kind: SignalKind,
   t: number = Date.now(),
+  expectedOwnerId?: string,
 ): Promise<void> {
+  if (!Number.isFinite(t) || t > Date.now() + 1_000) return
   // Determine source at record time
   let recordSource: string | null = null
   if (kind === 'manual_checkin') {
@@ -133,6 +135,8 @@ export async function recordSignal(
   } catch {
     verifiedUserId = null
   }
+  // A source can finish after its account's React effect has been disposed.
+  if (expectedOwnerId && verifiedUserId !== expectedOwnerId) return
   const event_id = generateUUID()
   const at = new Date(t).toISOString()
 
@@ -169,12 +173,13 @@ export async function recordSignal(
     if (kind === 'manual_checkin' || t - lastUpload >= DEBOUNCE_MS) {
       // If ownerless (quarantined) or plain browser, do not upload
       if (verifiedUserId && recordSource) {
-        const { data: status, error } = await supabase.rpc('record_behavior_ping', {
-          event_id,
-          observed_at: at,
-          source: recordSource,
-          kind
-        })
+        const { data: status, error } = await supabase.rpc('record_owned_behavior_ping' as never, {
+          _expected_user_id: verifiedUserId,
+          _event_id: event_id,
+          _observed_at: at,
+          _source: recordSource,
+          _kind: kind,
+        } as never)
 
         if (!error) {
           const isSuccess = status === 'inserted' || status === 'duplicate' || status === 'coalesced'
@@ -286,13 +291,14 @@ export async function syncSignalsWithServer(uid: string): Promise<void> {
         }
       })
 
-      const { data, error: uploadError } = await supabase.rpc('record_behavior_pings', {
-        events
-      })
+      const { data, error: uploadError } = await supabase.rpc('record_owned_behavior_pings' as never, {
+        _expected_user_id: uid, _events: events,
+      } as never)
       if (uploadError) throw uploadError
 
-      if (data && Array.isArray(data) && data.length === localEventsToUpload.length) {
-        const statuses = data.map((d: any) => d.status || d)
+      const outcomes: unknown = data
+      if (Array.isArray(outcomes) && outcomes.length === localEventsToUpload.length) {
+        const statuses = outcomes.map((d: any) => d.status || d)
 
         // Mark these local events as uploaded or quarantined based on responses
         const dbMark = await openDb()
