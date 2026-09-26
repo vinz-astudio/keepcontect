@@ -38,6 +38,15 @@ jobs:
             scripts/verify-ios-evidence-policy.swift -o "$RUNNER_TEMP/verify-ios-evidence-policy"
           "$RUNNER_TEMP/verify-ios-evidence-policy"
 
+      - name: Verify native motion and notification lifecycle
+        run: |
+          swiftc -swift-version 5 -parse-as-library \
+            ios-passive-ping/ios/Sources/KcPassivePingPlugin/MotionEvidenceWindow.swift \
+            ios-passive-ping/ios/Sources/KcPassivePingPlugin/NotificationActionQueue.swift \
+            scripts/test-ios-native-mechanisms.swift \
+            -framework Security -o "$RUNNER_TEMP/test-ios-native-mechanisms"
+          "$RUNNER_TEMP/test-ios-native-mechanisms"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
