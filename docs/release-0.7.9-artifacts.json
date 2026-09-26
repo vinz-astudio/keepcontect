@@ -1,0 +1,22 @@
+[
+  {
+    "path": "release-artifacts/keep-contact-v0.7.9.apk",
+    "bytes": 5395611,
+    "sha256": "61f0acfb7dd0144a130cd4c9117b0461a19fc3b45636534ba79b8f5c215f0db4"
+  },
+  {
+    "path": "release-artifacts/keep-contact-v0.7.9.aab",
+    "bytes": 4995399,
+    "sha256": "3c90f1667b0f605c9699ebd49ac5113f6fd6efdd1d52ee84bd88d4dd8c4ad5b6"
+  },
+  {
+    "path": "release-artifacts/desktop/KeepContact-0.7.9-Setup.exe",
+    "bytes": 3619494,
+    "sha256": "25ebd60b1bf0b60d70ec08fdfef479b974478b13df2bd1721a4618f8cadde898"
+  },
+  {
+    "path": "release-artifacts/desktop/KeepContact-0.7.9-x64.msi",
+    "bytes": 4784128,
+    "sha256": "af19e49b377f42632313adcc22e8e0aee2e0d506d552c74016c0c0c3335d8ffc"
+  }
+]

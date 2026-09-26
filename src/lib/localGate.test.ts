@@ -106,7 +106,8 @@ describe('resolveBrainVaultRoot', () => {
     mkdirSync(worktree, { recursive: true });
     mkdirSync(vault, { recursive: true });
 
-    expect(resolveBrainVaultRoot(worktree)).toBe(vault);
+    // Exercise discovery independently of the invoking release environment.
+    expect(resolveBrainVaultRoot(worktree, '')).toBe(vault);
   });
 
   test('honors an explicit Brain path', async () => {
