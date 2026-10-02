@@ -3,6 +3,11 @@ import { cp, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/p
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 
+import {
+  PRODUCTION_ACL_FIXTURE_FILENAME,
+  buildProductionAclFixtureSql,
+} from './local-replay-production-acl.mjs';
+
 export const PINNED_INPUTS = Object.freeze({
   '20260623090000_gm_admin_console.sql':
     '12961556d0263a5bc223ef932ade1330df5a1af6b37736b5148cb0412b3ac81c',
@@ -282,6 +287,7 @@ async function verifyCopiedTree(
   const expectedFiles = new Set([
     ...sourceFiles,
     join('migrations', FIXTURE_FILENAME),
+    join('migrations', PRODUCTION_ACL_FIXTURE_FILENAME),
     join('migrations', INSPECTION_FIXTURE_FILENAME),
   ]);
 
@@ -318,6 +324,13 @@ async function verifyCopiedTree(
     throw new Error('Copied tree fixture differs from the authorized fixture.');
   }
 
+  const productionAclFixture = await readFile(
+    join(copiedSupabaseRoot, 'migrations', PRODUCTION_ACL_FIXTURE_FILENAME),
+  );
+  if (!productionAclFixture.equals(Buffer.from(buildProductionAclFixtureSql(), 'utf8'))) {
+    throw new Error('Copied tree production ACL fixture differs from the authorized fixture.');
+  }
+
   const inspectionFixture = await readFile(
     join(copiedSupabaseRoot, 'migrations', INSPECTION_FIXTURE_FILENAME),
   );
@@ -340,6 +353,7 @@ async function verifyFoldedReplayTree(sourceSupabaseRoot, copiedSupabaseRoot) {
   ];
   const expectedFiles = new Set([
     ...sourceFiles,
+    join('migrations', PRODUCTION_ACL_FIXTURE_FILENAME),
     join('migrations', INSPECTION_FIXTURE_FILENAME),
   ]);
   if (copiedFiles.length !== expectedFiles.size
@@ -353,6 +367,10 @@ async function verifyFoldedReplayTree(sourceSupabaseRoot, copiedSupabaseRoot) {
     if (!(await readFile(sourcePath)).equals(await readFile(join(copiedSupabaseRoot, relativePath)))) {
       throw new Error(`Folded replay copy differs from source: ${relativePath}.`);
     }
+  }
+  const productionAcl = await readFile(join(copiedSupabaseRoot, 'migrations', PRODUCTION_ACL_FIXTURE_FILENAME));
+  if (!productionAcl.equals(Buffer.from(buildProductionAclFixtureSql(), 'utf8'))) {
+    throw new Error('Folded replay production ACL fixture differs from the authorized fixture.');
   }
   const inspection = await readFile(join(copiedSupabaseRoot, 'migrations', INSPECTION_FIXTURE_FILENAME));
   if (!inspection.equals(Buffer.from(INSPECTION_FIXTURE_SQL, 'utf8'))) {
@@ -414,6 +432,10 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
     usesFoldedBaseline ? compatibilityMigrationsRoot : disposableMigrationsRoot,
     fixtureFilename,
   );
+  const productionAclFixtureMigration = join(
+    disposableMigrationsRoot,
+    PRODUCTION_ACL_FIXTURE_FILENAME,
+  );
   const inspectionFixtureMigration = join(
     disposableMigrationsRoot,
     INSPECTION_FIXTURE_FILENAME,
@@ -426,6 +448,7 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
   const compatibilityActions = [];
 
   await writeFile(fixtureMigration, FIXTURE_SQL, 'utf8');
+  await writeFile(productionAclFixtureMigration, buildProductionAclFixtureSql(), 'utf8');
   await writeFile(inspectionFixtureMigration, INSPECTION_FIXTURE_SQL, 'utf8');
   await writeFile(patchedMigration, adaptedRoutine.sql, 'utf8');
   compatibilityActions.push({
@@ -434,6 +457,11 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
       : 'add-local-admin-fixture',
     filename: fixtureFilename,
     resultingHash: await hashFile(fixtureMigration),
+  });
+  compatibilityActions.push({
+    type: 'add-local-production-acl-fixture',
+    filename: PRODUCTION_ACL_FIXTURE_FILENAME,
+    resultingHash: await hashFile(productionAclFixtureMigration),
   });
   compatibilityActions.push({
     type: 'add-local-inspection-acl-fixture',
@@ -481,6 +509,7 @@ export async function prepareReplayProject({ repoRoot, disposableProjectRoot } =
     disposableProjectRoot: output,
     verifiedInputs,
     fixtureMigration,
+    productionAclFixtureMigration,
     inspectionFixtureMigration,
     patchedMigration,
     compatibilityMigrationsRoot,

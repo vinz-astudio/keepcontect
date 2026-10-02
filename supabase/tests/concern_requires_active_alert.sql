@@ -99,9 +99,9 @@ SELECT is(
 );
 
 SELECT ok(
-  (SELECT requires_explicit_unlock FROM public.alerts
+  NOT (SELECT requires_explicit_unlock FROM public.alerts
    WHERE id = '52000000-0000-4000-8000-000000000030'),
-  'Concern strengthens the requirement for an explicit personal unlock'
+  'ADR-0045: Concern alone does not require an explicit unlock; only an active Guardian pattern requirement does'
 );
 
 SELECT is(

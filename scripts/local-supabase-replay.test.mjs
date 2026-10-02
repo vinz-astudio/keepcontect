@@ -13,6 +13,11 @@ import {
   runReplay,
   stripLeadingUtf8Bom,
 } from './local-supabase-replay-core.mjs';
+import {
+  buildProductionAclFixtureSql,
+  parseFunctionAcl,
+  parseTableAcl,
+} from './local-replay-production-acl.mjs';
 
 const REAL_REPO_ROOT = resolve(process.cwd());
 // S0 moved the pinned inputs out of supabase/migrations into the archive, so
@@ -103,6 +108,23 @@ describe('local Supabase replay compatibility harness', () => {
     );
     expect(fixtureSql).not.toMatch(
       /grant\s+(?:all|insert|update|delete|truncate|references|trigger)\b/i,
+    );
+  }, 30_000);
+
+  it('adds a revoke-only production ACL snapshot that runs before the inspection grants', async () => {
+    const manifest = await prepareReplayProject({ repoRoot: REAL_REPO_ROOT });
+    const aclSql = await readFile(manifest.productionAclFixtureMigration, 'utf8');
+
+    expect(aclSql).toBe(buildProductionAclFixtureSql());
+    expect(aclSql).not.toMatch(/\bGRANT\b/i);
+    expect(aclSql).toContain('REVOKE EXECUTE ON ROUTINE');
+    expect(aclSql).toContain("('public.record_behavior_ping_for_user(uuid, uuid, timestamp with time zone, text, text)', false, false, false)");
+    expect(aclSql).toContain("('public.behavior_pings', 'dxrtDw', 'dxrtDw')");
+    expect(parseFunctionAcl()).toHaveLength(187);
+    expect(parseTableAcl()).toHaveLength(49);
+    expect(manifest.productionAclFixtureMigration < manifest.inspectionFixtureMigration).toBe(true);
+    expect(manifest.compatibilityActions.map((action) => action.type)).toContain(
+      'add-local-production-acl-fixture',
     );
   }, 30_000);
 
