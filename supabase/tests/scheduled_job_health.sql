@@ -3,7 +3,7 @@
 
 BEGIN;
 
-SELECT plan(9);
+SELECT plan(11);
 
 SELECT has_function('private', 'scheduled_job_health', 'the health view exists');
 SELECT has_function('public', 'gm_scheduled_job_health', 'and a GM-visible wrapper exists');
@@ -77,6 +77,24 @@ SELECT is(
 SELECT ok(
   NOT (SELECT healthy FROM private.scheduled_job_health() WHERE job_name = 'run-daily-aggregations'),
   'and makes the job unhealthy even though the run itself did not raise'
+);
+
+-- Production stalled on 2026-10-30 after this check, reading an unpruned
+-- 782,000-row job history about forty times per call, timed out every run for
+-- hours. Two things keep it from coming back: the history is pruned daily, and
+-- the check reads a bounded window once. Neither is visible from a verdict, so
+-- both are pinned here. The window and the prune are both 7 days; change them
+-- together.
+SELECT is(
+  (SELECT schedule FROM cron.job WHERE jobname = 'prune-cron-run-details'),
+  '47 3 * * *',
+  'the pg_cron job history is pruned daily'
+);
+
+SELECT matches(
+  pg_get_functiondef('private.scheduled_job_health()'::regprocedure),
+  'interval ''7 days''',
+  'the health check reads a bounded window of the job history, not all of it'
 );
 
 SELECT * FROM finish();
