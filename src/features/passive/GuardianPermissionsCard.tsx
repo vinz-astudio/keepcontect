@@ -68,7 +68,7 @@ export function GuardianPermissionsCard() {
     prompt: zh ? '部分系统权限待开启。' : 'Some permissions are not enabled.',
     restricted: zh ? '部分系统权限受系统限制。' : 'Some permissions are restricted by the system.',
     limited: zh ? '部分系统权限受限。' : 'Some permissions are limited.',
-    granted: zh ? '系统权限已全部就绪。' : 'All system permissions are ready.',
+    granted: zh ? '列出的系统权限均已允许。' : 'Listed system permissions are allowed.',
   }[summary]
 
   async function fix(permission: GuardianPermission) {
