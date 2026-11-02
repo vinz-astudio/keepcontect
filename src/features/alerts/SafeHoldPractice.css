@@ -1,0 +1,53 @@
+.safe-hold-practice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+.safe-hold-practice__button {
+  --hold-ring-fill: #10b981;
+  --hold-ring-track: rgba(16, 185, 129, 0.18);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fg, inherit);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.safe-hold-practice__button .hold-ring {
+  width: 120px;
+  margin-bottom: 0;
+}
+
+.safe-hold-practice__button .hold-ring__content {
+  inset: 11px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.1);
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.safe-hold-practice__button.is-holding .hold-ring__content {
+  transform: scale(0.96);
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.safe-hold-practice__button:focus-visible {
+  outline: 3px solid var(--accent, #10b981);
+  outline-offset: 4px;
+}
+
+.safe-hold-practice__label {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.safe-hold-practice__hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+}

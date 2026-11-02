@@ -38,6 +38,7 @@ import { buildNotificationFeed } from '@/features/alerts/notificationFeed'
 import { getPlatform, isStandalone, isTauri } from '@/lib/platform'
 import { requestDesktopNotifierCheck } from '@/features/desktop/notificationPicker'
 import { getNativeNotificationPermissionStatus } from '@/features/passive/native'
+import { SafeHoldPractice } from '@/features/alerts/SafeHoldPractice'
 import { useUiMode } from '@/lib/uiMode'
 import './NotificationsCard.css'
 
@@ -88,6 +89,7 @@ export function NotificationsCard({
   const [testMsg, setTestMsg] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [showTools, setShowTools] = useState(false)
+  const [showHoldPractice, setShowHoldPractice] = useState(false)
   const [pushPromptDismissed, setPushPromptDismissed] = useState(readPushPromptDismissed)
 
   // The iOS and Android apps have no Web Push; their channel is FCM/APNs, ready
@@ -299,7 +301,15 @@ export function NotificationsCard({
                 >
                   {t('push.testUnlock')}
                 </button>
+                <button
+                  className="pushbar__btn"
+                  aria-expanded={showHoldPractice}
+                  onClick={() => setShowHoldPractice((v) => !v)}
+                >
+                  {lang === 'zh' ? '试按「一切安好」' : 'Try “I am safe”'}
+                </button>
               </div>
+              {showHoldPractice && <SafeHoldPractice lang={lang === 'zh' ? 'zh' : 'en'} />}
             </div>
           )}
         </>
