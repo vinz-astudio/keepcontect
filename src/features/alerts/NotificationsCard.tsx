@@ -35,7 +35,7 @@ import { launchUpdate, PRODUCTION_UPDATE_URLS } from '@/features/update/launchUp
 import { fetchLatest } from '@/features/update/versionCheck'
 import { renderNotificationCopy } from '@/features/alerts/notificationCopy'
 import { buildNotificationFeed } from '@/features/alerts/notificationFeed'
-import { getPlatform, isStandalone } from '@/lib/platform'
+import { getPlatform, isStandalone, isTauri } from '@/lib/platform'
 import { useUiMode } from '@/lib/uiMode'
 import './NotificationsCard.css'
 
@@ -244,7 +244,8 @@ export function NotificationsCard({
         </div>
       )}
 
-      {pushStatus === 'subscribed' && (
+      {/* The desktop app has no Web Push but shows OS notifications (DESK-01), so it gets the test tools too. */}
+      {(pushStatus === 'subscribed' || isTauri()) && (
         <>
           {showTools && (
             <div className="pushbar">

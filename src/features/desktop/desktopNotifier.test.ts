@@ -54,4 +54,7 @@ describe('desktop system notifications: wiring (DESK-01)', () => {
   it('mounts the notifier for signed-in desktop users', () => {
     expect(read('src/App.tsx')).toContain('<DesktopNotifier />')
   })
+  it('lets the desktop app send itself a test notification to check OS delivery', () => {
+    expect(read('src/features/alerts/NotificationsCard.tsx')).toContain("(pushStatus === 'subscribed' || isTauri())")
+  })
 })
