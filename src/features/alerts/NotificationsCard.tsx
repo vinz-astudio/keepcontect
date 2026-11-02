@@ -36,6 +36,7 @@ import { fetchLatest } from '@/features/update/versionCheck'
 import { renderNotificationCopy } from '@/features/alerts/notificationCopy'
 import { buildNotificationFeed } from '@/features/alerts/notificationFeed'
 import { getPlatform, isStandalone, isTauri } from '@/lib/platform'
+import { requestDesktopNotifierCheck } from '@/features/desktop/notificationPicker'
 import { useUiMode } from '@/lib/uiMode'
 import './NotificationsCard.css'
 
@@ -175,6 +176,9 @@ export function NotificationsCard({
   const byId = new Map(notifs.map((n) => [n.id, n]))
   const platform = getPlatform()
   const standalone = isStandalone()
+  // The desktop app has no Web Push but shows OS notifications (DESK-01), so it gets the test tools too.
+  const desktop = isTauri()
+  const canSelfTest = pushStatus === 'subscribed' || desktop
   const pushPrompt = getPushPromptPlacement({
     status: pushStatus,
     platform,
@@ -192,8 +196,19 @@ export function NotificationsCard({
     <section className={uiMode === 'v2' ? 'spatial-v2-section' : 'card'}>
       {uiMode === 'v2' ? (
         <div className="spatial-v2-header">
-          <span>{lang === 'zh' ? '动态与风险通知' : 'NOTIFICATIONS'}</span>
-          {unread > 0 && <span className="nbadge">{unread} UNREAD</span>}
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>{lang === 'zh' ? '动态与风险通知' : 'NOTIFICATIONS'}</span>
+            {unread > 0 && <span className="nbadge">{unread} UNREAD</span>}
+          </span>
+          {canSelfTest && (
+            <button
+              className="notif-tools-toggle"
+              aria-expanded={showTools}
+              onClick={() => setShowTools((v) => !v)}
+            >
+              {t('push.tools')} {showTools ? '▴' : '▾'}
+            </button>
+          )}
         </div>
       ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -202,7 +217,7 @@ export function NotificationsCard({
             {t('notif.title')}
             {unread > 0 && <span className="nbadge">{unread}</span>}
           </h2>
-          {pushStatus === 'subscribed' && (
+          {canSelfTest && (
             <button
               className="notif-tools-toggle"
               aria-expanded={showTools}
@@ -244,12 +259,11 @@ export function NotificationsCard({
         </div>
       )}
 
-      {/* The desktop app has no Web Push but shows OS notifications (DESK-01), so it gets the test tools too. */}
-      {(pushStatus === 'subscribed' || isTauri()) && (
+      {canSelfTest && (
         <>
           {showTools && (
             <div className="pushbar">
-              <p className="muted">{testMsg ?? t('push.test.hint')}</p>
+              <p className="muted">{testMsg ?? t(desktop ? 'push.test.hint.desktop' : 'push.test.hint')}</p>
               <div className="pushbar__btns">
                 <button
                   className="pushbar__btn"
@@ -257,6 +271,7 @@ export function NotificationsCard({
                   onClick={() =>
                     act(async () => {
                       await sendTestNotification()
+                      if (desktop) requestDesktopNotifierCheck()
                       setTestMsg(t('push.test.sent'))
                     })
                   }
@@ -269,6 +284,7 @@ export function NotificationsCard({
                   onClick={() =>
                     act(async () => {
                       await sendTestUnlock()
+                      if (desktop) requestDesktopNotifierCheck()
                       setTestMsg(t('push.testUnlock.sent'))
                     })
                   }

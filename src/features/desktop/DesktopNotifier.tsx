@@ -5,7 +5,12 @@ import { listMyNotifications } from '@/features/alerts/api'
 import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import { renderNotificationCopy } from '@/features/alerts/notificationCopy'
 import { isTauri } from '@/lib/platform'
-import { pickNewNotifications, readNotifierCursor, writeNotifierCursor } from '@/features/desktop/notificationPicker'
+import {
+  DESKTOP_NOTIFIER_CHECK_EVENT,
+  pickNewNotifications,
+  readNotifierCursor,
+  writeNotifierCursor,
+} from '@/features/desktop/notificationPicker'
 
 const POLL_MS = 60_000
 
@@ -56,6 +61,7 @@ export function DesktopNotifier() {
     const onWake = () => void check()
     window.addEventListener('online', onWake)
     window.addEventListener('focus', onWake)
+    window.addEventListener(DESKTOP_NOTIFIER_CHECK_EVENT, onWake)
     void subscribeAlertSignals(onWake).then((stop) => {
       if (stopped) stop()
       else stopRealtime = stop
@@ -65,6 +71,7 @@ export function DesktopNotifier() {
       window.clearInterval(timer)
       window.removeEventListener('online', onWake)
       window.removeEventListener('focus', onWake)
+      window.removeEventListener(DESKTOP_NOTIFIER_CHECK_EVENT, onWake)
       stopRealtime?.()
     }
   }, [userId, displayName, email])

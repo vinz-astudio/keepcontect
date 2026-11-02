@@ -64,3 +64,14 @@ export function writeNotifierCursor(key: string, cursor: NotifierCursor): void {
     /* storage unavailable: worst case a notice is shown again */
   }
 }
+
+/** Window event that asks the desktop notifier to check right away (after a self-test). */
+export const DESKTOP_NOTIFIER_CHECK_EVENT = 'kc:desktop-notifier-check'
+
+export function requestDesktopNotifierCheck(): void {
+  try {
+    window.dispatchEvent(new Event(DESKTOP_NOTIFIER_CHECK_EVENT))
+  } catch {
+    /* no window (tests, SSR) */
+  }
+}

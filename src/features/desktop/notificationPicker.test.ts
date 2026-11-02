@@ -54,7 +54,17 @@ describe('desktop system notifications: wiring (DESK-01)', () => {
   it('mounts the notifier for signed-in desktop users', () => {
     expect(read('src/App.tsx')).toContain('<DesktopNotifier />')
   })
-  it('lets the desktop app send itself a test notification to check OS delivery', () => {
-    expect(read('src/features/alerts/NotificationsCard.tsx')).toContain("(pushStatus === 'subscribed' || isTauri())")
+  // The panel used to be enabled for desktop while the button that opens it
+  // stayed behind pushStatus === 'subscribed', and the v2 header (the only UI
+  // mode) had no button at all, so nobody could reach the test tools.
+  it('lets the desktop app open the self-test tools and send itself a test notification', () => {
+    const card = read('src/features/alerts/NotificationsCard.tsx')
+    expect(card).toContain("const canSelfTest = pushStatus === 'subscribed' || desktop")
+    expect(card).not.toContain("pushStatus === 'subscribed' && (")
+    const v2Header = card.slice(card.indexOf('className="spatial-v2-header"'), card.indexOf(') : ('))
+    expect(v2Header).toContain('{canSelfTest && (')
+    expect(v2Header).toContain('setShowTools((v) => !v)')
+    expect(card).toContain('if (desktop) requestDesktopNotifierCheck()')
+    expect(read('src/features/desktop/DesktopNotifier.tsx')).toContain('addEventListener(DESKTOP_NOTIFIER_CHECK_EVENT, onWake)')
   })
 })
