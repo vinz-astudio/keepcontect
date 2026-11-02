@@ -142,3 +142,7 @@ iPhone 拔电时,苹果不保证任何后台唤醒(24 小时实验:拔电响应 
 - C 部分:核对完毕,无代码改动。
 - 测试:全量 vitest 115 文件 / 736 用例通过,typecheck 通过。本机无 Swift 编译器,Swift 由 iOS 流水线编译执行。
 - 未做:`push-dispatch` 生产部署(待人类批准)、真机验收(第 6 节)。
+- TestFlight:0.7.9 (49) 由分支 `claude/exciting-ramanujan-5z62ve@b1293cd` 上传成功(Actions run 41429520067)。
+  途中:App Store Connect API 不支持开启时效性通知能力,改为人类在开发者后台手动勾选(Fastfile 已注明);
+  `PushRegistrar` 内部调用点漏改导致第一次编译失败,已修。
+
