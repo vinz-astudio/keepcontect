@@ -341,8 +341,8 @@ export async function openUsageStatsSettings(): Promise<void> {
   if (Capacitor.getPlatform() !== 'android') return
   const isZh = (navigator.language || '').startsWith('zh')
   const message = isZh
-    ? '【使用情况访问权限 - 显著披露】\n\nKeep Contact 需要使用情况访问权限，仅用于在后台检测您最后使用手机的时间戳（以判定安全状态并防止误报紧急失联）。\n\n我们承诺：绝不会收集、读取、上传或分享您的任何应用内容、聊天记录、搜索历史或个人隐私信息。'
-    : '【Usage Access Permission - Prominent Disclosure】\n\nKeep Contact requires Usage Access permission solely to detect your last active phone timestamp in background (to assess your safety and prevent false emergency alerts).\n\nWe promise: We NEVER read, collect, upload, or share your app contents, messages, search history, or personal privacy data.'
+    ? '【使用情况访问权限 - 显著披露】\n\nKeep Contact 需要使用情况访问权限，在后台收集并上传您最后使用手机的时间戳到 Keep Contact 后端，用于检测不活跃。\n\n不会收集应用内容。'
+    : '【Usage Access Permission - Prominent Disclosure】\n\nKeep Contact requires Usage Access permission to collect and upload your last phone-use timestamp to the Keep Contact backend in the background to detect inactivity.\n\nApp content is not collected.'
   
   if (window.confirm(message)) {
     try {

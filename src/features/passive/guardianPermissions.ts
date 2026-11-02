@@ -52,8 +52,8 @@ export function getGuardianPermissions(): GuardianPermission[] {
     {
       id: 'battery',
       labelZh: '电池优化豁免', labelEn: 'Battery optimization exemption',
-      costZh: '避免系统在后台清理或休眠应用。',
-      costEn: 'Prevents the system from sleeping the app in the background.',
+      costZh: '减少系统对后台运行的限制，降低后台任务被延迟的可能。',
+      costEn: 'Reduces system restrictions that may delay background work.',
       supported: android,
       check: () => getNativePermissionState('battery'),
       fix: async () => { await requestBatteryExemption() },
@@ -62,8 +62,8 @@ export function getGuardianPermissions(): GuardianPermission[] {
     {
       id: 'motion',
       labelZh: ios ? '运动与健身' : '身体活动', labelEn: ios ? 'Motion & Fitness' : 'Physical activity',
-      costZh: ios ? '用于读取步数与走动迹象以确认安全。' : '用于检测日常活动与走动迹象。',
-      costEn: ios ? 'Detects steps and movement to confirm safety.' : 'Detects physical activity and movement.',
+      costZh: ios ? '用于记录步数与活动迹象，作为活跃证据。' : '用于记录日常活动与走动迹象，作为活跃证据。',
+      costEn: ios ? 'Records steps and movement as activity evidence.' : 'Records physical activity and movement as activity evidence.',
       supported: native,
       check: () => getNativePermissionState('motion'),
       fix: ios ? openNativeAppSettings : requestActivityRecognitionPermission,
@@ -72,8 +72,8 @@ export function getGuardianPermissions(): GuardianPermission[] {
     {
       id: 'usage',
       labelZh: '使用情况访问', labelEn: 'Usage access',
-      costZh: '通过系统记录感知设备活跃，不上传任何隐私内容。',
-      costEn: 'Detects device activity from system records; no content is uploaded.',
+      costZh: '在后台收集并上传您最后使用手机的时间戳到 Keep Contact 后端，用于检测不活跃；不会收集应用内容。',
+      costEn: 'Collects and uploads your last phone-use timestamp to the Keep Contact backend in the background to detect inactivity; app content is not collected.',
       supported: android,
       check: () => getNativePermissionState('usage'),
       fix: openUsageStatsSettings,

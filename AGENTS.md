@@ -7,20 +7,27 @@ and write changes back into it.
 **Brain location** (relative to this repo root): `../../Obsidian Brain/2nd Brain/`
 (absolute on this machine: `C:\Users\vizen\Desktop\Obsidian Brain\2nd Brain\`)
 
-## Read first (in order)
-1. `Brain Rules.md` — vault structure & rules (mandatory).
-2. `Projects/Keep Contact/Keep Contact.md` — project home + 5 core IDE/AI principles.
-3. `Coordination/Coordination.md` + `Coordination/Active Work.md` — multi-IDE protocol + live board.
-4. `Projects/Keep Contact/Decisions.md` — binding decisions (ADR). `accepted` ones are non-negotiable.
-5. The relevant `Projects/Keep Contact/**` business-logic notes for whatever you're touching.
+## Read first
+The session-start hook (`Coordination/tools/context-inject.mjs`) loads this project's Invariants & Map,
+Lessons and Memory, the human's preferences, and a "开工提醒" block when something waits on the human.
+Do not re-read them. If no "Brain context" block is present (an agent without the hook), read
+`Projects/Keep Contact/Keep Contact Invariants & Map.md` first; it links the lessons page.
+
+Then read only what the task touches:
+1. `Projects/Keep Contact/Decisions.md` — binding decisions (ADR). `accepted` ones are non-negotiable.
+   It is about 114 KB: search it for the area you change, do not load it whole.
+2. The relevant `Projects/Keep Contact/**` business-logic notes.
+3. `Coordination/Active Work.md` — only for coordination work.
 
 ## Multi-IDE coordination protocol
 - **Sign every coordination note** `[<IDE> · YYYY-MM-DD HH:mm]`; append/edit only your own lines.
 - **Big or irreversible changes** (architecture, DB schema, cross-module, migrations): write a
   proposal in `Active Work.md` → wait for the human to record it as an `accepted` ADR in
   `Decisions.md` → then execute. **Small fixes** (bugfix, copy, local refactor): just do it + log.
-- **After a change**: update the truth notes in `Projects/Keep Contact/`, append an
-  `Experiences/Keep Contact/Dev Log.md` entry (the *why*), and clear/update the `Active Work.md` item.
+- **After a change**: write back to the Brain only on an event: changed project truth (update the notes in
+  `Projects/Keep Contact/`), an accepted decision (one line under "快记" in `Decisions.md`; an ADR if it is
+  big or irreversible), a handoff, a blocker, or release state (an `Experiences/Keep Contact/Dev Log.md`
+  entry with the *why*). Ordinary completion needs no Dev Log entry.
 - The human is the arbiter & sync point. **Code/migrations are the runtime truth; keep the Brain aligned to them.**
 - **Token economy**: agent-to-agent notes (`Active Work`, Threads) and your own working scratch use terse "caveman" style — drop grammar/filler/pleasantries, shortest tokens, any language. Only human-facing decision summaries stay in plain readable prose.
 
