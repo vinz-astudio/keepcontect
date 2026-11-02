@@ -36,8 +36,9 @@ const SOURCES = {
     write: (s, v) => s.replace(/(\[package\][\s\S]*?\nversion\s*=\s*)"[^"]*"/, `$1"${v}"`),
   },
   'src-tauri/Cargo.lock': {
-    read: (s) => s.match(/name = "app"\nversion = "([^"]+)"/)?.[1],
-    write: (s, v) => s.replace(/(name = "app"\nversion = )"[^"]*"/, `$1"${v}"`),
+    // \r?\n: a Windows checkout may hold Cargo.lock as CRLF; the capture group keeps the original line ending.
+    read: (s) => s.match(/name = "app"\r?\nversion = "([^"]+)"/)?.[1],
+    write: (s, v) => s.replace(/(name = "app"\r?\nversion = )"[^"]*"/, `$1"${v}"`),
   },
 }
 

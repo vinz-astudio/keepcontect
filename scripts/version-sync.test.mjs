@@ -30,8 +30,24 @@ describe('one version number across every surface', () => {
     expect(after.match(/versionCode\s+(\d+)/)[1]).toBe(codeBefore)
     // Only the app crate's lock entry moves; dependencies keep their versions.
     const lock = fs.readFileSync(path.join(tmp, 'src-tauri/Cargo.lock'), 'utf8')
-    expect(lock.match(/name = "app"\nversion = "([^"]+)"/)[1]).toBe('9.8.7')
+    expect(lock.match(/name = "app"\r?\nversion = "([^"]+)"/)[1]).toBe('9.8.7')
     expect(lock.split('version = "9.8.7"').length - 1).toBe(1)
+    fs.rmSync(tmp, { recursive: true, force: true })
+  })
+
+  test('setVersion also works on a Windows (CRLF) checkout and keeps the CRLF line endings', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kc-version-crlf-'))
+    for (const rel of ['src/lib/version.ts', 'public/version.json', 'android/app/build.gradle',
+      'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock']) {
+      const dest = path.join(tmp, rel)
+      fs.mkdirSync(path.dirname(dest), { recursive: true })
+      const text = fs.readFileSync(path.join(process.cwd(), rel), 'utf8').replace(/\r?\n/g, '\r\n')
+      fs.writeFileSync(dest, text)
+    }
+    setVersion(tmp, '9.8.7')
+    expect(Object.values(readVersions(tmp))).toEqual(Array(6).fill('9.8.7'))
+    const lock = fs.readFileSync(path.join(tmp, 'src-tauri/Cargo.lock'), 'utf8')
+    expect(lock).toMatch(/name = "app"\r\nversion = "9\.8\.7"\r\n/)
     fs.rmSync(tmp, { recursive: true, force: true })
   })
 
