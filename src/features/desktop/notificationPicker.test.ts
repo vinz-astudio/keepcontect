@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { pickNewNotifications, type NotifierCursor } from '@/features/desktop/desktopNotifier'
+import { pickNewNotifications, type NotifierCursor } from '@/features/desktop/notificationPicker'
 
 const row = (id: string, created_at: string, read_at: string | null = null) =>
   ({ id, created_at, read_at, kind: 'group', body: 'b', params: {} })

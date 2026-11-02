@@ -5,7 +5,7 @@ import { listMyNotifications } from '@/features/alerts/api'
 import { subscribeAlertSignals } from '@/features/alerts/realtime'
 import { renderNotificationCopy } from '@/features/alerts/notificationCopy'
 import { isTauri } from '@/lib/platform'
-import { pickNewNotifications, readNotifierCursor, writeNotifierCursor } from '@/features/desktop/desktopNotifier'
+import { pickNewNotifications, readNotifierCursor, writeNotifierCursor } from '@/features/desktop/notificationPicker'
 
 const POLL_MS = 60_000
 
