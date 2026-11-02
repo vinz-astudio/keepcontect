@@ -45,7 +45,7 @@ enum PushRegistrar {
     static func activate() {
         configureIfNeeded()
         Messaging.messaging().isAutoInitEnabled = true
-        status { granted, _ in
+        status { granted, _, _ in
             if granted {
                 DispatchQueue.main.async {
                     guard NotificationActionQueue.shared.recipientUserId != nil else { return }
