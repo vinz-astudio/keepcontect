@@ -1,3 +1,4 @@
+import { HoldRing } from '@/features/common/HoldRing'
 import {
   type PointerEvent,
   type ReactNode,
@@ -164,10 +165,11 @@ export function AppShell({
 
       {holding && (
         <div className="app-shell__sos-overlay" role="status" aria-live="polite">
-          <PrototypeIcon name="emergency" className="app-shell__sos-overlay-icon" />
+          <HoldRing progress={holdProgress} label={t('sos.hold')}>
+            <PrototypeIcon name="emergency" className="app-shell__sos-overlay-icon" />
+          </HoldRing>
           <h2>{t('sos.hold')}</h2>
           <p>{Math.max(0, ((SOS_HOLD_MS * (100 - holdProgress)) / 100) / 1000).toFixed(1)}s</p>
-          <progress max={100} value={holdProgress} aria-label={t('sos.hold')} />
           <span>{lang === 'zh' ? '松开即可取消' : 'Release to cancel'}</span>
         </div>
       )}

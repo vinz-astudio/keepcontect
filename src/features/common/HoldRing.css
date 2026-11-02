@@ -1,0 +1,35 @@
+.hold-ring {
+  position: relative;
+  width: clamp(120px, 30vw, 140px);
+  aspect-ratio: 1;
+  margin-bottom: 18px;
+}
+
+.hold-ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.hold-ring__track,
+.hold-ring__fill {
+  fill: none;
+}
+
+.hold-ring__track {
+  stroke: rgba(255, 255, 255, 0.3);
+}
+
+.hold-ring__fill {
+  stroke: #fff;
+  stroke-linecap: round;
+}
+
+.hold-ring__content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

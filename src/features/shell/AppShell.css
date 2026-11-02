@@ -183,7 +183,6 @@
 }
 
 .app-shell__sos-overlay-icon {
-  margin-bottom: 12px;
   font-size: 56px;
 }
 
@@ -199,14 +198,8 @@
   font-weight: 700;
 }
 
-.app-shell__sos-overlay progress {
-  width: min(280px, 80vw);
-  height: 10px;
-  margin: 18px 0 10px;
-  accent-color: #fff;
-}
-
-.app-shell__sos-overlay span {
+.app-shell__sos-overlay > span {
+  margin-top: 14px;
   font-size: 0.82rem;
   opacity: 0.88;
 }
