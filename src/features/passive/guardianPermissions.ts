@@ -6,7 +6,7 @@ import {
 } from './native'
 import { isTauri } from '@/lib/platform'
 import { enablePush, pushSupported } from '@/features/push/pushApi'
-import { timeSensitiveLimitation } from './timeSensitiveNotice'
+import { FOCUS_TIME_SENSITIVE_HINT, timeSensitiveLimitation } from './timeSensitiveNotice'
 
 export type PermissionState = 'granted' | 'denied' | 'unavailable' | 'checking' | 'prompt' | 'limited' | 'restricted'
 
@@ -37,8 +37,9 @@ export function getGuardianPermissions(): GuardianPermission[] {
     {
       id: 'notifications',
       labelZh: '通知权限', labelEn: 'Notifications',
-      costZh: '用于发送关怀通知与紧急安全提醒。',
-      costEn: 'Used for care notifications and emergency alerts.',
+      // IOS-FOCUS-01: KC cannot read the Focus switch, so iPhone users are told where it is.
+      costZh: ios ? `用于发送关怀通知与紧急安全提醒。${FOCUS_TIME_SENSITIVE_HINT.zh}` : '用于发送关怀通知与紧急安全提醒。',
+      costEn: ios ? `Used for care notifications and emergency alerts. ${FOCUS_TIME_SENSITIVE_HINT.en}` : 'Used for care notifications and emergency alerts.',
       supported: native || web,
       check: async (): Promise<PermissionState> => {
         if (native) {
