@@ -89,9 +89,15 @@ platform :ios do
         UI.important("Bundle ID #{APP_IDENTIFIER} not found; leaving capabilities untouched")
       else
         existing = bundle_id.get_capabilities.map { |c| c.capability_type.to_s }
-        # Time Sensitive Notifications (2026-11-02) is self-serve like HealthKit.
-        { "HEALTHKIT" => "HealthKit",
-          "USERNOTIFICATIONS_TIMESENSITIVE" => "Time Sensitive Notifications" }.each do |type, label|
+        # Time Sensitive Notifications (2026-11-02) cannot be enabled from here:
+        # the App Store Connect API's capabilityType has no value for it (the
+        # 2026-11-02 run listed every accepted value). It is enabled once by hand
+        # in the Apple Developer portal (Identifiers > com.keepcontact.app >
+        # Capabilities > Time Sensitive Notifications). Every profile this lane
+        # creates afterwards carries it; if it is ever turned off, archiving
+        # fails with "Provisioning profile ... doesn't include the Time Sensitive
+        # Notifications capability", which names the fix.
+        { "HEALTHKIT" => "HealthKit" }.each do |type, label|
           begin
             if existing.any? { |t| t.include?(type) }
               UI.message("#{label} capability already enabled on #{APP_IDENTIFIER}")

@@ -80,7 +80,10 @@ describe('S1 iOS Native repository contracts', () => {
   // action (Critical Alerts would need Apple's approval and is not used).
   test('ADR0039-IOS-06 safety notifications are Time Sensitive on iOS 15+', () => {
     expect(iosEntitlements).toMatch(/<key>com\.apple\.developer\.usernotifications\.time-sensitive<\/key>\s*<true\/>/)
-    expect(fastfile).toMatch(/USERNOTIFICATIONS_TIMESENSITIVE/)
+    // Not enableable through the App Store Connect API; the Fastfile must say
+    // so and point at the one-time portal step instead of pretending.
+    expect(fastfile).not.toMatch(/USERNOTIFICATIONS_TIMESENSITIVE/)
+    expect(fastfile).toMatch(/Time Sensitive Notifications[\s\S]{0,400}Apple Developer portal/)
     const urgency = read(urgencyPath)
     for (const kind of ['self', 'concern', 'sos', 'terminal']) expect(urgency).toContain(`"${kind}"`)
     expect(urgency).not.toMatch(/"group"|"community"/)
