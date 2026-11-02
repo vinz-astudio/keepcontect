@@ -13,7 +13,11 @@
   - Web: `main` fast-forwarded to `e98e6f6` 04:37 UTC (also carries `f3bed38`, `878ae50`, `ee86410` from
     `test/sql-replay-production-acl`, whose migration was already in production). GitHub CI passed. The
     Vercel result was not observable from the cloud session (host blocked); confirm on the live site.
-  - Android: not built or released.
+  - iOS: TestFlight build 0.7.9 (46) from `main@e98e6f6` uploaded 05:10 UTC (Actions run 41390051614,
+    attempt 3). Attempts 1–2 failed at `get_certificates`: an Apple developer agreement had expired;
+    the human re-signed it. Still needs Apple processing and tester distribution in App Store Connect.
+  - Android: not built or released (needs the human's machine: keystore + SDK).
+  - Tauri desktop: not built.
 
 ## 1. Decisions.md, 快记 (replace the open item, add the new ones)
 
