@@ -17,6 +17,9 @@ import { toast } from '@/lib/toast'
 import { getAvailableSensors, isSensorEnabled, setSensorEnabled } from '@/features/signals/sensors'
 import { getPlatform } from '@/lib/platform'
 import { getConfirmationMethod } from '@/features/alerts/confirmationPolicy'
+import { HoldRing } from '@/features/common/HoldRing'
+import { SAFE_HOLD_MS } from '@/features/common/holdProgress'
+import { useHoldToConfirm } from '@/features/common/useHoldToConfirm'
 import {
   getPatternSavedMessage,
   getPatternSetupActiveIndex,
@@ -94,6 +97,20 @@ export function AlertOverlay() {
     stopAlarm()
   }, [isAlarmingAlert])
 
+  // "一切安好" is held for SAFE_HOLD_MS, not tapped (human decision 2026-11-02).
+  const safeHold = useHoldToConfirm({
+    durationMs: SAFE_HOLD_MS,
+    disabled: busy || confirmationMethod === 'pending',
+    onComplete: () => {
+      setBusy(true)
+      setError(null)
+      void confirmSafe()
+        .catch(() => setError(lang === 'zh' ? '安全确认失败，请重试。' : 'Could not confirm safety. Please retry.'))
+        .finally(() => setBusy(false))
+    },
+    onEarlyRelease: () => toast(lang === 'zh' ? '请按住“一切安好”3 秒' : 'Hold “I am safe” for 3 seconds', 'info'),
+  })
+
   if (!show) return null
 
   // 告警路径:还没设过手势的用户在告警时现场设置(危机场景不加验证摩擦)
@@ -123,7 +140,7 @@ export function AlertOverlay() {
       ? (lang === 'zh' ? '您的守护者开启了手势确认。请画出已设置的手势。' : 'Your guardian requires your pattern. Draw your existing pattern to confirm.')
       : confirmationMethod === 'pending'
         ? (lang === 'zh' ? '正在检查最新状态…' : 'Checking your latest status…')
-        : (lang === 'zh' ? '轻按“一切安好”即可。检测到您的新活动也会自动解除告警。' : 'Tap “I am safe” to confirm. New activity also clears this alert automatically.')
+        : (lang === 'zh' ? '按住“一切安好”3 秒即可。检测到您的新活动也会自动解除告警。' : 'Hold “I am safe” for 3 seconds to confirm. New activity also clears this alert automatically.')
     : mode === 'setup'
       ? getPatternSetupIntro(hadOld, lang)
       : needSetup
@@ -287,22 +304,22 @@ export function AlertOverlay() {
           <div style={{ marginBottom: 16, width: '100%', maxWidth: 280, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <button
               type="button"
-              className="prototype-button home-prototype__primary"
-              style={{ width: '100%', minHeight: 48, fontSize: '1.05rem', fontWeight: 600, borderRadius: 8 }}
+              className={`overlay__safe-hold${safeHold.holding ? ' is-holding' : ''}`}
               disabled={busy || confirmationMethod === 'pending'}
-              onClick={async () => {
-                setBusy(true)
-                try {
-                  await confirmSafe()
-                } catch {
-                  setError(lang === 'zh' ? '安全确认失败，请重试。' : 'Could not confirm safety. Please retry.')
-                } finally {
-                  setBusy(false)
-                }
-              }}
+              aria-describedby="overlay-safe-hint"
+              {...safeHold.handlers}
             >
-              {busy ? (lang === 'zh' ? '正在确认…' : 'Confirming…') : (lang === 'zh' ? '一切安好' : 'I am safe')}
+              <HoldRing progress={safeHold.progress} label={lang === 'zh' ? '按住确认一切安好' : 'Hold to confirm you are safe'}>
+                <span className="overlay__safe-hold-label">
+                  {busy ? (lang === 'zh' ? '正在确认…' : 'Confirming…') : (lang === 'zh' ? '一切安好' : 'I am safe')}
+                </span>
+              </HoldRing>
             </button>
+            <p id="overlay-safe-hint" className="overlay__safe-hint">
+              {safeHold.holding
+                ? (lang === 'zh' ? '继续按住…' : 'Keep holding…')
+                : (lang === 'zh' ? '按住 3 秒' : 'Hold for 3 seconds')}
+            </p>
           </div>
         )}
 

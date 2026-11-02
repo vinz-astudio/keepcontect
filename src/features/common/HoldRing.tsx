@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import {
   HOLD_RING_CIRCUMFERENCE, HOLD_RING_RADIUS, HOLD_RING_SIZE, HOLD_RING_STROKE, holdRingDashOffset,
-} from './holdRing'
+} from './holdRingGeometry'
 import './HoldRing.css'
 
 /** Circular progress for a press-and-hold action; fills clockwise from 12 o'clock. */

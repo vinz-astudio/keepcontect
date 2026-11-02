@@ -193,3 +193,59 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* "一切安好": press and hold; the ring fills clockwise from 12 o'clock. */
+.overlay__safe-hold {
+  --hold-ring-fill: #34d399;
+  --hold-ring-track: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.overlay__safe-hold .hold-ring {
+  margin-bottom: 0;
+}
+
+.overlay__safe-hold .hold-ring__content {
+  inset: 12px;
+  border-radius: 50%;
+  background: rgba(52, 211, 153, 0.16);
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.overlay__safe-hold.is-holding .hold-ring__content {
+  transform: scale(0.96);
+  background: rgba(52, 211, 153, 0.28);
+}
+
+.overlay__safe-hold:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.overlay__safe-hold:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 4px;
+}
+
+.overlay__safe-hold-label {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.overlay__safe-hint {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}

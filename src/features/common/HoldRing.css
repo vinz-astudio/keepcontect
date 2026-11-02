@@ -18,11 +18,11 @@
 }
 
 .hold-ring__track {
-  stroke: rgba(255, 255, 255, 0.3);
+  stroke: var(--hold-ring-track, rgba(255, 255, 255, 0.3));
 }
 
 .hold-ring__fill {
-  stroke: #fff;
+  stroke: var(--hold-ring-fill, #fff);
   stroke-linecap: round;
 }
 

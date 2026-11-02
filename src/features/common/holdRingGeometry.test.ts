@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { HOLD_RING_CIRCUMFERENCE, holdRingDashOffset } from './holdRing'
+import { HOLD_RING_CIRCUMFERENCE, holdRingDashOffset } from './holdRingGeometry'
 import { HoldRing } from './HoldRing'
 
 describe('hold ring', () => {
