@@ -6,7 +6,7 @@ export function PrivacyPolicy() {
       <header className="legal-header">
         <div className="legal-brand">Keep Contact</div>
         <h1 className="legal-title">Privacy Policy / 隐私政策</h1>
-        <div className="legal-date">Last updated / 最终更新时间: September 21, 2026</div>
+        <div className="legal-date">Last updated / 最终更新时间: November 2, 2026</div>
       </header>
 
       <section className="legal-section">
@@ -30,9 +30,9 @@ export function PrivacyPolicy() {
           <li><strong>Optional SOS Location / 可选 SOS 位置:</strong> If you separately choose to share your location for an SOS, we may receive the coordinates, accuracy, and update time needed for that SOS feature. / 如果您单独选择在 SOS 中分享位置，我们可能接收该功能所需的坐标、精度和更新时间。</li>
         </ul>
         <div className="legal-box">
-          <strong>Content limits / 内容限制:</strong> We do not collect screen contents, private messages, browsing history, photos, microphone recordings, or a continuous location history. The iOS significant-location callback is used only to help recover or wake the app; Keep Contact does not read, store, or upload the callback coordinates. SOS location is a separate, user-consented feature.
+          <strong>Content limits / 内容限制:</strong> We do not collect screen contents, private messages, browsing history, photos, microphone recordings, or any location history. Keep Contact does not use location in the background. Location is used only when you choose to share it in an SOS, while the app is in use.
           <br />
-          我们不收集屏幕内容、私人消息、浏览历史、照片、麦克风录音或连续位置历史。iOS 的重大位置变化回调仅用于帮助恢复或唤醒应用；Keep Contact 不读取、存储或上传该回调中的坐标。SOS 位置是单独的、需用户同意的功能。
+          我们不收集屏幕内容、私人消息、浏览历史、照片、麦克风录音或任何位置历史。Keep Contact 不在后台使用定位。仅当您在 SOS 中主动选择分享位置时，才会在使用 App 期间获取位置。
         </div>
       </section>
 
@@ -45,10 +45,10 @@ export function PrivacyPolicy() {
           Keep Contact 会在可用时使用操作系统允许的后台机制。在 Android 上，应用优先使用 WorkManager 和服务器唤醒路径；符合条件的持续守护场景可能使用 Google Play <code>specialUse</code> 类别的前台服务作为兜底，并受用户及设备条件限制。Google Play 审核、电池限制、Doze、厂商设置、用户强制退出、网络状况及其他系统决定都可能限制或停止这些路径。前台服务不代表保证 24/7 运行。
         </p>
         <p>
-          On iOS, HealthKit background delivery and significant-location monitoring are best-effort recovery mechanisms. HealthKit permission is optional and only used for the derived positive movement evidence described above. Significant-location permission is used for app recovery; its callback coordinates are discarded as described in Section 2.
+          On iOS, HealthKit background delivery and silent push notifications are best-effort mechanisms; iOS decides when, and whether, the app may run in the background. HealthKit permission is optional and only used for the derived positive movement evidence described above. Keep Contact does not request background location. Safety check-in notifications addressed to you, and emergency notifications, may be marked Time Sensitive so they can reach you during Focus; you can turn this off in iOS Settings.
         </p>
         <p>
-          在 iOS 上，HealthKit 后台传递和重大位置变化监测都是尽力而为的恢复机制。HealthKit 权限为可选，仅用于上述派生的正向移动证据。重大位置变化权限用于应用恢复；回调坐标会按第 2 节所述丢弃。
+          在 iOS 上，HealthKit 后台传递和静默推送都是尽力而为的机制；App 何时、能否在后台运行由 iOS 决定。HealthKit 权限为可选，仅用于上述派生的正向移动证据。Keep Contact 不申请后台定位。发给您本人的安全确认通知以及紧急通知可能被标记为"时效性通知"，以便在专注模式下也能送达；您可以在 iOS 设置中关闭。
         </p>
       </section>
 
@@ -63,7 +63,24 @@ export function PrivacyPolicy() {
       </section>
 
       <section className="legal-section">
-        <h2>5. Data Deletion & Account Erasure / 数据删除与账号注销权益</h2>
+        <h2>5. Service Providers / 第三方服务商</h2>
+        <p>
+          Keep Contact uses the following service providers only to operate the features described above. They process data on our behalf, are bound by their own privacy and security commitments, and must provide the same or equal protection of user data as stated in this policy. We do not share data with advertisers or data brokers.
+        </p>
+        <ul>
+          <li><strong>Supabase:</strong> database, authentication, and server functions that store and process the data in Section 2. / 数据库、身份验证和服务器函数，存储并处理第 2 节所述数据。</li>
+          <li><strong>Google Firebase Cloud Messaging:</strong> delivers push notifications to Android and iOS. It receives your device push token. Most notifications are content-free wake-ups; on iOS, check-in notifications addressed to you carry their text so the system can display them. / 向 Android 和 iOS 投递推送。它会收到设备推送令牌。多数通知为不含内容的唤醒；在 iOS 上，发给您本人的确认通知会携带文字，以便系统显示。</li>
+          <li><strong>Apple Push Notification service:</strong> delivers notifications to iOS devices. / 向 iOS 设备投递通知。</li>
+          <li><strong>Web push services of your browser:</strong> deliver web notifications; the payload is encrypted under the Web Push standard. / 浏览器的网页推送服务，用于投递网页通知；内容按 Web Push 标准加密。</li>
+          <li><strong>Vercel and GitHub:</strong> host the web app and installer downloads. / 托管网页应用和安装包下载。</li>
+        </ul>
+        <p>
+          Keep Contact 仅为运行上述功能而使用以上服务商。它们代表我们处理数据，受其自身隐私与安全承诺约束，并须对用户数据提供与本政策同等的保护。我们不会与广告商或数据经纪商共享数据。
+        </p>
+      </section>
+
+      <section className="legal-section">
+        <h2>6. Data Deletion & Account Erasure / 数据删除与账号注销权益</h2>
         <p>
           You may request deletion of your account and associated data at any time using the authenticated account deletion flow. The request is processed for the data associated with your authenticated account.
         </p>
@@ -75,6 +92,13 @@ export function PrivacyPolicy() {
             Request Account & Data Deletion / 申请注销账号与删除数据
           </a>
         </div>
+      </section>
+
+      <section className="legal-section">
+        <h2>7. Contact Us / 联系我们</h2>
+        <p>
+          For questions about this policy, contact <a href="mailto:support@keepcontact.app">support@keepcontact.app</a>. / 如对本隐私政策有任何疑问，请联系 <a href="mailto:support@keepcontact.app">support@keepcontact.app</a>。
+        </p>
       </section>
 
       <footer className="legal-footer">

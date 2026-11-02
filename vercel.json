@@ -30,6 +30,9 @@
       ]
     }
   ],
+  "redirects": [
+    { "source": "/privacy.html", "destination": "/privacy", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/((?!assets/|icons/|sw.js|manifest.webmanifest|version.json|.*\\.apk$|.*\\.aab$|.*\\.exe$|.*\\.msi$).*)", "destination": "/index.html" }
   ]

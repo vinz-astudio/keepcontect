@@ -7,7 +7,7 @@
 | 放什么 | 放哪里 |
 |---|---|
 | APK / AAB / EXE / MSI 等**给用户下载的安装包** | `release-artifacts/` |
-| 图标、manifest、`version.json`、`privacy.html` 等**网页本身要用的静态资源** | `public/` |
+| 图标、manifest、`version.json` 等**网页本身要用的静态资源** | `public/` |
 
 **判断标准一句话:它是"网页运行时需要读取的文件",还是"用户点下载才拿到的文件"?** 后者放这里。
 
