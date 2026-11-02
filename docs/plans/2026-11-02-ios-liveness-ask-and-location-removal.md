@@ -145,4 +145,7 @@ iPhone 拔电时,苹果不保证任何后台唤醒(24 小时实验:拔电响应 
 - TestFlight:0.7.9 (49) 由分支 `claude/exciting-ramanujan-5z62ve@b1293cd` 上传成功(Actions run 41429520067)。
   途中:App Store Connect API 不支持开启时效性通知能力,改为人类在开发者后台手动勾选(Fastfile 已注明);
   `PushRegistrar` 内部调用点漏改导致第一次编译失败,已修。
+- 生产部署(2026-11-02,人类批准):`push-dispatch` 第 16 版(此前第 15 版与仓库改动前版本一致,本次仅加 2 行);
+  JWT 校验保持关闭。部署后 15 分钟内定时调用 15 次全部 HTTP 200、`ok:true`;期间没有待推送通知,
+  新的时效性标记分支要等下一条本人询问才会真正走到。Android 0.7.10 状态为 `released`,已对所有人可见。
 
