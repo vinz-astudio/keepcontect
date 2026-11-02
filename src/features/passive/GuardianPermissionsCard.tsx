@@ -121,7 +121,9 @@ export function GuardianPermissionsCard() {
                     {zh ? permission.labelZh : permission.labelEn}
                   </span>
                   <span className="guardian-perms__cost">
-                    {zh ? permission.costZh : permission.costEn}
+                    {state === 'limited' && permission.limitedZh
+                      ? (zh ? permission.limitedZh : permission.limitedEn)
+                      : (zh ? permission.costZh : permission.costEn)}
                   </span>
                 </div>
                 <div className="guardian-perms__action">
@@ -135,7 +137,7 @@ export function GuardianPermissionsCard() {
                       disabled={busy !== null || checking}
                       onClick={() => void fix(permission)}
                     >
-                      {permission.fixIsSettings || state === 'denied' || state === 'restricted'
+                      {permission.fixIsSettings || state === 'denied' || state === 'restricted' || state === 'limited'
                         ? (zh ? '去设置' : 'Settings')
                         : (zh ? '开启' : 'Enable')}
                     </button>

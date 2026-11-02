@@ -14,6 +14,7 @@ vi.mock('@/lib/toast', () => ({ toast: vi.fn() }))
 vi.mock('./permissionRefresh', () => ({ watchPermissionRefresh: () => () => {} }))
 vi.mock('./native', () => ({
   getNativeNotificationPermissionStatus: vi.fn(), getNativePermissionState: async () => 'unavailable',
+  getNativeTimeSensitiveSetting: async () => 'unknown',
   openNativeNotificationSettings: vi.fn(), openNativeAppSettings: vi.fn(), openUsageStatsSettings: vi.fn(),
   requestActivityRecognitionPermission: vi.fn(), requestBatteryExemption: vi.fn(), requestNativeNotificationPermission: vi.fn(),
   getGuardStatus: async () => null, syncNativeSensorPreferences: vi.fn(),

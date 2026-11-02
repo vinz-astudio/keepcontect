@@ -9,6 +9,7 @@ import { isTauri } from '@/lib/platform'
 import { bindPassiveCollector, revokePassiveCollector } from './evidenceContract'
 import { clearTauriPassiveEvidence } from './shadowCoverage'
 import { getHeartbeatToken } from './api'
+import { parseTimeSensitiveSetting, type TimeSensitiveSetting } from './timeSensitiveNotice'
 
 const NATIVE_BINDING_ID_KEY = 'kc.passiveEvidence.bindingId'
 const NATIVE_BINDING_OWNER_KEY = 'kc.passiveEvidence.ownerId'
@@ -65,7 +66,7 @@ interface PassivePingPlugin {
   openAccessibilitySettings(): Promise<void>
   openAutostartSettings(): Promise<void>
   requestNotificationPermission(): Promise<void>
-  getNotificationPermissionStatus(): Promise<{ granted: boolean; canRequest: boolean }>
+  getNotificationPermissionStatus(): Promise<{ granted: boolean; canRequest: boolean; timeSensitive?: string }>
   getCollectionPermissionStatus(): Promise<{ motion: string; backgroundRefresh: string }>
   openNotificationSettings(): Promise<void>
   /** Opens this app's general OS settings page (iOS guard/privacy fallback). */
@@ -564,6 +565,20 @@ export async function getNativePermissionState(
     }
   } catch { /* Old shells and failed reads remain unverified. */ }
   return 'unavailable'
+}
+
+/**
+ * iOS Time Sensitive setting for KC's notifications ("enabled" / "disabled" /
+ * "unsupported"). Old shells do not report it, which reads as "unknown" — never
+ * as "enabled". Other platforms have no such setting.
+ */
+export async function getNativeTimeSensitiveSetting(): Promise<TimeSensitiveSetting> {
+  if (Capacitor.getPlatform() !== 'ios') return 'unsupported'
+  try {
+    return parseTimeSensitiveSetting((await PassivePing.getNotificationPermissionStatus())?.timeSensitive)
+  } catch {
+    return 'unknown'
+  }
 }
 
 // —— Legacy Compatibility Helpers (No-ops) ——

@@ -1,11 +1,12 @@
 import { Capacitor } from '@capacitor/core'
 import {
-  getNativeNotificationPermissionStatus, getNativePermissionState,
+  getNativeNotificationPermissionStatus, getNativePermissionState, getNativeTimeSensitiveSetting,
   openNativeNotificationSettings, openNativeAppSettings, openUsageStatsSettings,
   requestActivityRecognitionPermission, requestBatteryExemption, requestNativeNotificationPermission,
 } from './native'
 import { isTauri } from '@/lib/platform'
 import { enablePush, pushSupported } from '@/features/push/pushApi'
+import { timeSensitiveLimitation } from './timeSensitiveNotice'
 
 export type PermissionState = 'granted' | 'denied' | 'unavailable' | 'checking' | 'prompt' | 'limited' | 'restricted'
 
@@ -19,6 +20,9 @@ export interface GuardianPermission {
   check: () => Promise<PermissionState>
   fix: () => Promise<void>
   fixIsSettings: boolean
+  /** Shown instead of the cost line when the state is 'limited'. */
+  limitedZh?: string
+  limitedEn?: string
 }
 
 /** OS permission checks only. Live OS state query. */
@@ -37,7 +41,14 @@ export function getGuardianPermissions(): GuardianPermission[] {
       costEn: 'Used for care notifications and emergency alerts.',
       supported: native || web,
       check: async (): Promise<PermissionState> => {
-        if (native) return getNativePermissionState('notifications')
+        if (native) {
+          const state = await getNativePermissionState('notifications')
+          // D2 (2026-11-02): allowed, but the safety ask cannot get through Focus.
+          if (ios && timeSensitiveLimitation(await getNativeTimeSensitiveSetting(), state === 'granted')) {
+            return 'limited'
+          }
+          return state
+        }
         if (!pushSupported()) return 'unavailable'
         return Notification.permission === 'default' ? 'prompt' : Notification.permission
       },
@@ -45,9 +56,14 @@ export function getGuardianPermissions(): GuardianPermission[] {
         if (web) { await enablePush(); return }
         const before = await getNativeNotificationPermissionStatus()
         if (before.canRequest) await requestNativeNotificationPermission()
-        if (!(await getNativeNotificationPermissionStatus()).granted) await openNativeNotificationSettings()
+        const after = await getNativeNotificationPermissionStatus()
+        // Time Sensitive is switched on in the same settings page.
+        const timeSensitiveOff = ios && (await getNativeTimeSensitiveSetting()) === 'disabled'
+        if (!after.granted || timeSensitiveOff) await openNativeNotificationSettings()
       },
       fixIsSettings: false,
+      limitedZh: timeSensitiveLimitation('disabled', true)?.zh,
+      limitedEn: timeSensitiveLimitation('disabled', true)?.en,
     },
     {
       id: 'battery',
