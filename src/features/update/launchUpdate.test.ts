@@ -83,6 +83,26 @@ describe('launchUpdate', () => {
     expect(openWindow).not.toHaveBeenCalled()
   })
 
+  // Human request 2026-11-02: Android does not open the installer by itself
+  // once the browser finishes the download, so the app says where to tap.
+  it('tells the user how to install once the APK is handed to the browser', async () => {
+    const showApkInstallHint = vi.fn()
+    await launchUpdate(
+      { apkUrl: 'https://example.com/app.apk' },
+      {
+        isTauri: () => false,
+        isNativePlatform: () => true,
+        getTauriInternals: () => null,
+        openExternalBrowser: vi.fn().mockResolvedValue(undefined),
+        openCapacitorBrowser: vi.fn(),
+        openWindow: vi.fn(),
+        reload: vi.fn(),
+        showApkInstallHint,
+      },
+    )
+    expect(showApkInstallHint).toHaveBeenCalledTimes(1)
+  })
+
   it('falls back to the in-app tab where no external bridge exists', async () => {
     const openCapacitorBrowser = vi.fn().mockResolvedValue(undefined)
     const openWindow = vi.fn()

@@ -63,6 +63,14 @@ describe('desktop system notifications: wiring (DESK-01)', () => {
     expect(notifier).toContain("invoke('show_safety_notification'")
     expect(notifier).not.toContain('sendNotification(')
   })
+  // 2026-11-02: tray click and "Open Keep Contact" restore a minimized window too.
+  it('opens the window from the tray through the restore-and-focus helper', () => {
+    const lib = read('src-tauri/src/lib.rs')
+    expect(lib).toContain('"show" => focus_main_window(app)')
+    expect(lib).toMatch(/MouseButton::Left, \.\. \} = event \{\s*focus_main_window\(tray\.app_handle\(\)\)/)
+    expect(lib).toMatch(/fn focus_main_window[\s\S]*?unminimize\(\)/)
+  })
+
   it('mounts the notifier for signed-in desktop users', () => {
     expect(read('src/App.tsx')).toContain('<DesktopNotifier />')
   })

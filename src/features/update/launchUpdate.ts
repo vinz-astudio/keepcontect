@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { Browser } from '@capacitor/browser'
 import { openInExternalBrowser } from '@/features/passive/native'
 import { isTauri } from '@/lib/platform'
+import { toast } from '@/lib/toast'
 
 export interface UpdateUrls {
   apkUrl?: string
@@ -18,6 +19,8 @@ export interface LaunchUpdateDeps {
   openCapacitorBrowser: (url: string) => Promise<unknown>
   openWindow: (url: string) => void
   reload: () => void
+  /** Android: the browser downloads the APK but does not open the installer by itself. */
+  showApkInstallHint?: () => void
 }
 
 export const PRODUCTION_UPDATE_URLS: UpdateUrls = {
@@ -78,6 +81,7 @@ export async function launchUpdate(
       // so the update dies silently on the last step. Handed to Chrome, the file
       // is Chrome's — it offers to open it, the package installer takes over, and
       // Play Protect scans it on the way in.
+      d.showApkInstallHint?.()
       try {
         await d.openExternalBrowser(urls.apkUrl)
         return
@@ -114,5 +118,12 @@ function defaultDeps(): LaunchUpdateDeps {
       window.open(url, '_blank')
     },
     reload: () => window.location.reload(),
+    showApkInstallHint: () => {
+      let en = false
+      try { en = localStorage.getItem('kc.lang') === 'en' } catch { /* storage blocked */ }
+      toast(en
+        ? 'When the download finishes, tap it in the notification bar (or Downloads) to install.'
+        : '下载完成后，点通知栏（或"下载"）里的安装包即可安装。', 'info')
+    },
   }
 }

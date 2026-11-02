@@ -388,28 +388,19 @@ pub fn run() {
           "quit" => {
             app.exit(0);
           }
-          "show" => {
-            if let Some(window) = app.get_webview_window("main") {
-              let _ = window.show();
-              let _ = window.set_focus();
-            }
-          }
+          "show" => focus_main_window(app),
           "checkin" => {
+            focus_main_window(app);
             if let Some(window) = app.get_webview_window("main") {
-              let _ = window.show();
-              let _ = window.set_focus();
               let _ = window.emit("tray-checkin", ());
             }
           }
           _ => {}
         })
         .on_tray_icon_event(|tray, event| {
+          // A minimized window stays minimized after show(); focus_main_window also restores it.
           if let TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, .. } = event {
-            let app = tray.app_handle();
-            if let Some(window) = app.get_webview_window("main") {
-              let _ = window.show();
-              let _ = window.set_focus();
-            }
+            focus_main_window(tray.app_handle());
           }
         });
 
