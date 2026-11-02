@@ -369,6 +369,13 @@ public class NotifyWorker extends Worker {
             kind = kind + "_you";
             tpl = dict.get(kind);
         }
+        // ADR-0039 rev.1 / ADR-0040 rev.1: losing the device is not a missing person.
+        String missKind = params != null ? params.optString("miss_kind", "") : "";
+        if (("group".equals(kind) || "community".equals(kind))
+            && ("device_unreachable".equals(missKind) || "collection_restricted".equals(missKind))) {
+            String deviceTpl = dict.get(kind + "_" + missKind);
+            if (deviceTpl != null) tpl = deviceTpl;
+        }
         String someone = isZh() ? "某位成员" : "A member";
         String name = params != null ? params.optString("name", someone) : someone;
         String actor = params != null ? params.optString("actor", someone) : someone;
@@ -383,6 +390,10 @@ public class NotifyWorker extends Worker {
         d.put("self", "KC 正在确认您的安全。请点“一切安好”，或打开应用按提示确认。");
         d.put("group", "{name} 出现异常沉默，请尽快联系确认其安全。");
         d.put("community", "社区警示：{name} 长时间失联且其小组无人响应，请协助推动联系。");
+        d.put("group_device_unreachable", "{name} 的设备与 KC 失去联系，可能已关机或没电。请尝试联系本人确认。");
+        d.put("community_device_unreachable", "KC 与 {name} 的设备持续失去联系且小组尚未响应，请协助联系。");
+        d.put("group_collection_restricted", "KC 无法确认 {name} 的情况：设备上的检测被关闭了。请尝试联系本人。");
+        d.put("community_collection_restricted", "KC 仍然无法确认 {name} 的情况且小组尚未响应，请协助联系。");
         d.put("terminal", "紧急：{name} 持续无响应。已为你解锁其地址与紧急联系人，请上门探视或协助报警。");
         d.put("on_it", "{actor} 正在跟进 {target} 的情况。");
         d.put("on_it_you", "{actor} 正在跟进你的情况。");
@@ -404,6 +415,10 @@ public class NotifyWorker extends Worker {
         d.put("self", "KC is checking on your safety. Tap I am safe or open the app to confirm.");
         d.put("group", "{name} has gone unusually silent. Please reach out and make sure they are safe.");
         d.put("community", "Community alert: {name} is unreachable and their group has not responded.");
+        d.put("group_device_unreachable", "KC lost contact with {name}'s device — it may be switched off or out of battery. Please try reaching them.");
+        d.put("community_device_unreachable", "KC is still out of contact with {name}'s device and their group has not responded. Please help reach them.");
+        d.put("group_collection_restricted", "KC can't check on {name}: detection was turned off on their device. Please try reaching them.");
+        d.put("community_collection_restricted", "KC still can't check on {name} and their group has not responded. Please help reach them.");
         d.put("terminal", "URGENT: {name} is unresponsive. Their address and emergency contact are unlocked for you.");
         d.put("on_it", "{actor} is following up on {target}.");
         d.put("on_it_you", "{actor} is following up on you.");

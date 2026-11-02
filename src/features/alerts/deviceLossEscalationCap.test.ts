@@ -2,25 +2,27 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-// Plan A (human decision 2026-11-02; ADR-0039 rev.1, ADR-0040 rev.1): an alert whose
-// causal silence was classified `device_unreachable` is an equipment fact, not a missing
-// person. It may climb to group and community, but never to terminal, so it can never
-// unlock the subject's address and emergency contacts.
+// Human decisions 2026-11-02 (plan A; ADR-0039 rev.1, ADR-0040 rev.1): losing the device
+// (passive `device_unreachable`, legacy `dark_device`) or not being allowed to look
+// (`collection_restricted`) is an equipment fact, not a missing person. Such an alert may
+// climb to group and community, but never to terminal, so it can never unlock the
+// subject's address and emergency contacts.
 //
-// This runs whatever `public.process_escalations()` the migrations leave as the newest
-// definition, so it checks the function production will actually run.
+// This runs whatever definitions the migrations leave as the newest, so it checks the
+// functions production will actually run.
 
 const migrationsDir = new URL('../../../supabase/migrations/', import.meta.url)
 const read = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8')
 
-function newestProcessEscalations() {
+function newestDefinition(signature: string) {
+  const marker = `CREATE OR REPLACE FUNCTION ${signature}`
   const files = readdirSync(migrationsDir).filter(name => name.endsWith('.sql')).sort()
   for (let i = files.length - 1; i >= 0; i--) {
     const sql = readFileSync(new URL(files[i], migrationsDir), 'utf8')
-    const start = sql.indexOf('CREATE OR REPLACE FUNCTION public.process_escalations()')
-    if (start >= 0) return { file: files[i], sql: sql.slice(start, sql.indexOf('$$;', start) + 3) }
+    const start = sql.indexOf(marker)
+    if (start >= 0) return sql.slice(start, sql.indexOf('$$;', start) + 3)
   }
-  throw new Error('no migration defines public.process_escalations()')
+  throw new Error(`no migration defines ${signature}`)
 }
 
 function emergencyInfoSelectPolicy() {
@@ -81,7 +83,7 @@ async function guardianCanReadEmergencyInfo() {
   }
 }
 
-describe('device_unreachable alerts are capped below terminal', () => {
+describe('device-loss alerts are capped below terminal', () => {
   beforeAll(async () => {
     db = new PGlite()
     await db.exec(read('supabase/tests/fixtures/activity_resolution.sql'))
@@ -99,15 +101,17 @@ describe('device_unreachable alerts are capped below terminal', () => {
           where g.ward_id=_ward and g.guardian_id=_guardian and g.status='active') $$;
       create function private.watches_user(_watcher uuid, _target uuid) returns boolean language sql as $$ select false $$;
       create function private.shares_community(_a uuid, _b uuid) returns boolean language sql as $$ select false $$;
+      create table public.community_members(community_id uuid, user_id uuid, status text);
       grant usage on schema public, private, auth to authenticated;
       grant select on public.alerts, public.guardianships, public.emergency_info to authenticated;
     `)
     await db.exec(emergencyInfoSelectPolicy())
-    await db.exec(newestProcessEscalations().sql)
+    await db.exec(newestDefinition('public.process_escalations()'))
+    await db.exec(newestDefinition('private.notify_stage_before_passive_checkin('))
   }, 30000)
   afterAll(async () => { await db?.close() })
   beforeEach(async () => {
-    await db.exec(`truncate alerts,alert_events,notifications,guardianships,profiles,emergency_info,
+    await db.exec(`truncate alerts,alert_events,notifications,guardianships,profiles,emergency_info,community_members,
       passive_checkin_windows,private.passive_alert_causal_windows,private.job_failures cascade;
       insert into profiles values('${subject}','Subject'),('${guardian}','Guardian');
       insert into guardianships(guardian_id,ward_id) values('${guardian}','${subject}');
@@ -174,10 +178,34 @@ describe('device_unreachable alerts are capped below terminal', () => {
     expect((await alertRow()).stage).toBe('terminal')
   })
 
-  it('does not extend the cap to collection_restricted (not authorised; stays as before)', async () => {
+  it('caps collection_restricted too: detection being off says nothing about the person', async () => {
     await openAlert('community', ['collection_restricted'])
     await run()
-    expect((await alertRow()).stage).toBe('terminal')
+    const row = await alertRow()
+    expect(row.stage).toBe('community')
+    expect(row.next_deadline).toBeNull()
+    expect(await sentKinds()).toEqual([])
+    expect(await guardianCanReadEmergencyInfo()).toBe(false)
+  })
+
+  it('caps a legacy dark_device alert: it climbs to community, stops, and never unlocks the profile', async () => {
+    await openAlert('self', null, 'dark_device')
+    await run()
+    expect((await alertRow()).stage).toBe('group')
+    await dueNow(); await run()
+    expect((await alertRow()).stage).toBe('community')
+    await dueNow(); await run()
+    const row = await alertRow()
+    expect(row.status).toBe('open')
+    expect(row.stage).toBe('community')
+    expect(row.next_deadline).toBeNull()
+    expect(await sentKinds()).toEqual(['community', 'group'])
+    expect(await guardianCanReadEmergencyInfo()).toBe(false)
+  })
+
+  it('leaves SOS untouched: it still reveals the profile immediately', async () => {
+    await openAlert('group', null, 'sos')
+    expect(await guardianCanReadEmergencyInfo()).toBe(true)
   })
 
   it('reads the kind from the highest-ordinal causal window, as notify_stage does', async () => {
@@ -189,5 +217,40 @@ describe('device_unreachable alerts are capped below terminal', () => {
     await openAlert('community', ['device_unreachable', 'silent'])
     await run()
     expect((await alertRow()).stage).toBe('terminal')
+  })
+
+  describe('legacy notifier names a dark device as lost contact', () => {
+    const community = 'f0000000-0000-4000-8000-000000000001'
+    async function notice(cause: string, stage: string) {
+      await db.exec('truncate alerts,notifications')
+      await db.query("insert into alerts(id,user_id,cause,stage) values($1,$2,$3,$4)", [alertId, subject, cause, stage])
+      await db.query('select private.notify_stage_before_passive_checkin($1,$2,$3)', [alertId, subject, stage])
+      return (await db.query<{ recipient_id: string; body: string; params: Record<string, string> }>(
+        'select recipient_id,body,params from notifications where alert_id=$1', [alertId])).rows
+    }
+    beforeEach(async () => {
+      await db.query("insert into community_members values($1,$2,'active'),($1,$3,'active')", [community, subject, guardian])
+    })
+
+    it.each(['group', 'community'])('tells %s recipients the device lost contact and says so in params', async stage => {
+      const rows = await notice('dark_device', stage)
+      expect(rows.map(row => row.recipient_id)).toEqual([guardian])
+      expect(rows[0].body).toContain('设备')
+      expect(rows[0].body).toContain('失去联系')
+      expect(rows[0].body).not.toMatch(/异常沉默|长时间失联/)
+      expect(rows[0].params).toMatchObject({ name: 'Subject', miss_kind: 'device_unreachable', cause: 'dark_device' })
+    })
+
+    it.each(['group', 'community'])('keeps the %s wording and params for a legacy silence alert', async stage => {
+      const rows = await notice('silence', stage)
+      expect(rows[0].body).toMatch(/异常沉默|长时间失联/)
+      expect(rows[0].params).toEqual({ name: 'Subject' })
+    })
+
+    it('keeps the SOS wording', async () => {
+      const rows = await notice('sos', 'group')
+      expect(rows[0].body).toContain('紧急求助')
+      expect(rows[0].params).toEqual({ name: 'Subject' })
+    })
   })
 })

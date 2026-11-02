@@ -6,6 +6,10 @@ const DICT = {
     self: 'KC 正在确认您的安全。请点“一切安好”，或打开应用按提示确认。',
     group: '{name} 出现异常沉默，请尽快联系确认其安全。',
     community: '社区警示：{name} 长时间失联且其小组无人响应，请协助推动联系。',
+    group_device_unreachable: '{name} 的设备与 KC 失去联系，可能已关机或没电。请尝试联系本人确认。',
+    community_device_unreachable: 'KC 与 {name} 的设备持续失去联系且小组尚未响应，请协助联系。',
+    group_collection_restricted: 'KC 无法确认 {name} 的情况：设备上的检测被关闭了。请尝试联系本人。',
+    community_collection_restricted: 'KC 仍然无法确认 {name} 的情况且小组尚未响应，请协助联系。',
     terminal: '紧急：{name} 持续无响应。已为你解锁其地址与紧急联系人，请上门探视或协助报警。',
     on_it: '{actor} 正在跟进 {target} 的情况。',
     on_it_you: '{actor} 正在跟进你的情况。',
@@ -26,6 +30,10 @@ const DICT = {
     self: 'KC is checking on your safety. Tap “I am safe” or open the app to confirm.',
     group: '{name} has gone unusually silent. Please reach out and make sure they are safe.',
     community: 'Community alert: {name} is unreachable and their group has not responded.',
+    group_device_unreachable: "KC lost contact with {name}'s device — it may be switched off or out of battery. Please try reaching them.",
+    community_device_unreachable: "KC is still out of contact with {name}'s device and their group has not responded. Please help reach them.",
+    group_collection_restricted: "KC can't check on {name}: detection was turned off on their device. Please try reaching them.",
+    community_collection_restricted: "KC still can't check on {name} and their group has not responded. Please help reach them.",
     terminal: 'URGENT: {name} is unresponsive. Their address and emergency contact are unlocked for you.',
     on_it: '{actor} is following up on {target}.',
     on_it_you: '{actor} is following up on you.',
@@ -51,9 +59,14 @@ function render(data) {
   const d = DICT[lang]
   const p = data.params || {}
   const targetIsRecipient = p.target_is_recipient === true || p.target_is_recipient === 'true'
-  const key = targetIsRecipient && (data.kind === 'on_it' || data.kind === 'resolved')
-    ? data.kind + '_you'
-    : data.kind
+  // ADR-0039 rev.1 / ADR-0040 rev.1: losing the device is not a missing person.
+  const deviceLoss = (data.kind === 'group' || data.kind === 'community')
+    && (p.miss_kind === 'device_unreachable' || p.miss_kind === 'collection_restricted')
+  const key = deviceLoss
+    ? data.kind + '_' + p.miss_kind
+    : targetIsRecipient && (data.kind === 'on_it' || data.kind === 'resolved')
+      ? data.kind + '_you'
+      : data.kind
   const tpl = d[key]
   if (!tpl) return data.body || d.title
   return tpl

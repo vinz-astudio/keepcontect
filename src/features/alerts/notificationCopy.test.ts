@@ -110,3 +110,26 @@ describe('notificationClaimsDanger', () => {
     expect(notificationClaimsDanger({ kind: 'concern', body: '', params: {} })).toBe(false)
   })
 })
+
+describe('device-loss notification copy', () => {
+  // ADR-0039 rev.1 / ADR-0040 rev.1: losing the device is not a missing person. The
+  // server says which silence it was in params.miss_kind; these kinds must never be
+  // shown to the watchers as "unusual silence".
+  it.each([
+    ['group', 'device_unreachable', "KC lost contact with Ana's device"],
+    ['community', 'device_unreachable', "KC is still out of contact with Ana's device"],
+    ['group', 'collection_restricted', 'detection was turned off'],
+    ['community', 'collection_restricted', "KC still can't check on Ana"],
+  ])('says the %s notice for %s is about the device, not the person', (kind, missKind, expected) => {
+    const copy = renderNotificationCopy({ kind, body: 'server body', params: { name: 'Ana', miss_kind: missKind } })
+    expect(copy).toContain(expected)
+    expect(copy).not.toMatch(/silent|unresponsive/i)
+  })
+
+  it.each(['group', 'community'])('keeps the silence wording for a genuinely silent %s notice', kind => {
+    const silent = renderNotificationCopy({ kind, body: 'server body', params: { name: 'Ana', miss_kind: 'silent' } })
+    const legacy = renderNotificationCopy({ kind, body: 'server body', params: { name: 'Ana' } })
+    expect(silent).toBe(legacy)
+    expect(silent).not.toContain('device')
+  })
+})

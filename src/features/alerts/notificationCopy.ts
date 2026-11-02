@@ -70,6 +70,12 @@ function isCurrentUserTarget(params: Record<string, string>, viewer?: Notificati
   return target === norm(viewer?.displayName) || target === norm(viewer?.email)
 }
 
+// ADR-0039 rev.1 / ADR-0040 rev.1: the server names which silence it found. Losing the
+// device, or not being allowed to look, is not evidence about the person, so watchers are
+// told "KC lost contact" rather than "unusual silence". Both engines send params.miss_kind.
+const DEVICE_LOSS_KINDS = new Set(['device_unreachable', 'collection_restricted'])
+const DEVICE_LOSS_STAGES = new Set(['group', 'community'])
+
 function fill(value: string | undefined): string {
   return value || translate('notif.someone')
 }
@@ -81,8 +87,11 @@ export function renderNotificationCopy(
   if (!NOTIF_KINDS.has(notification.kind)) return notification.body
   const params = paramsRecord(notification.params)
   const targetIsViewer = isCurrentUserTarget(params, viewer)
-  const key =
-    targetIsViewer &&
+  const deviceLoss =
+    DEVICE_LOSS_STAGES.has(notification.kind) && DEVICE_LOSS_KINDS.has(params.miss_kind ?? '')
+  const key = deviceLoss
+    ? `notif.${notification.kind}.${params.miss_kind}`
+    : targetIsViewer &&
     (notification.kind === 'on_it' ||
       notification.kind === 'resolved' ||
       notification.kind === 'auto_resolved')
