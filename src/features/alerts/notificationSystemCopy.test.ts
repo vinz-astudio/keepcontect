@@ -70,4 +70,20 @@ describe('system notification device-loss copy', () => {
       expect(worker.split(`d.put("${key}"`).length - 1).toBe(2) // zh and en
     }
   })
+
+  it.each([['zh-CN', '一直没有动静，KC 也联系不上'], ['en', "KC can't reach them"]])(
+    'Web Push (%s) uses the lost-contact wording for a passive silent group notice', (language, expected) => {
+      const copy = swRender(language)({ kind: 'group',
+        params: { name: 'Ana', cause: 'passive_checkin_lost_contact', miss_kind: 'silent' } })
+      expect(copy).toContain(expected)
+      expect(copy).not.toMatch(/异常沉默|unusually silent/)
+    })
+
+  it('Android native notifications carry the passive silent templates and recognise passive alerts', () => {
+    const worker = read('android/app/src/main/java/com/keepcontact/app/NotifyWorker.java')
+    expect(worker).toContain('"passive_checkin_lost_contact"')
+    for (const key of ['group_silent', 'community_silent']) {
+      expect(worker.split(`d.put("${key}"`).length - 1).toBe(2)
+    }
+  })
 })

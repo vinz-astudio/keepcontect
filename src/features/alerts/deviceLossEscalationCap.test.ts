@@ -25,6 +25,16 @@ function newestDefinition(signature: string) {
   throw new Error(`no migration defines ${signature}`)
 }
 
+function newestStatement(prefix: string) {
+  const files = readdirSync(migrationsDir).filter(name => name.endsWith('.sql')).sort()
+  for (let i = files.length - 1; i >= 0; i--) {
+    const sql = readFileSync(new URL(files[i], migrationsDir), 'utf8')
+    const start = sql.indexOf(prefix)
+    if (start >= 0) return sql.slice(start, sql.indexOf(';', start) + 1)
+  }
+  throw new Error(`no migration contains ${prefix}`)
+}
+
 function emergencyInfoSelectPolicy() {
   const sql = read('supabase/migrations/20260808160000_baseline_from_production.sql')
   const start = sql.indexOf('CREATE POLICY "emergency_info_select"')
@@ -36,6 +46,10 @@ function emergencyInfoSelectPolicy() {
 
 const subject = 'd0000000-0000-4000-8000-000000000001'
 const guardian = 'd0000000-0000-4000-8000-000000000002'
+// A group member who watches the subject. ADR-0039 lets an active Guardian see the profile
+// for the whole relationship (not yet implemented); plan A is about alert-scoped unlocks,
+// so privacy is checked from a watcher, whose access exists only because of the alert.
+const watcher = 'd0000000-0000-4000-8000-000000000003'
 const alertId = 'e0000000-0000-4000-8000-000000000001'
 let db: PGlite
 
@@ -73,8 +87,8 @@ async function escalatedNotes() {
   const rows = (await db.query<{ note: string }>("select note from alert_events where alert_id=$1 and kind='escalated'", [alertId])).rows
   return rows.map(row => row.note).sort()
 }
-async function guardianCanReadEmergencyInfo() {
-  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [guardian])
+async function watcherCanReadEmergencyInfo() {
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [watcher])
   await db.exec('set role authenticated')
   try {
     return (await db.query('select home_address from emergency_info where user_id=$1', [subject])).rows.length === 1
@@ -99,7 +113,8 @@ describe('device-loss alerts are capped below terminal', () => {
         language sql stable security definer set search_path to '' as $$
         select exists (select 1 from public.guardianships g
           where g.ward_id=_ward and g.guardian_id=_guardian and g.status='active') $$;
-      create function private.watches_user(_watcher uuid, _target uuid) returns boolean language sql as $$ select false $$;
+      create function private.watches_user(_watcher uuid, _target uuid) returns boolean language sql
+        as $$ select _watcher='${watcher}'::uuid and _target='${subject}'::uuid $$;
       create function private.shares_community(_a uuid, _b uuid) returns boolean language sql as $$ select false $$;
       create table public.community_members(community_id uuid, user_id uuid, status text);
       grant usage on schema public, private, auth to authenticated;
@@ -108,6 +123,8 @@ describe('device-loss alerts are capped below terminal', () => {
     await db.exec(emergencyInfoSelectPolicy())
     await db.exec(newestDefinition('public.process_escalations()'))
     await db.exec(newestDefinition('private.notify_stage_before_passive_checkin('))
+    await db.exec(newestDefinition('private.device_loss_alert_never_terminal()'))
+    await db.exec(newestStatement('CREATE TRIGGER alerts_device_loss_never_terminal'))
   }, 30000)
   afterAll(async () => { await db?.close() })
   beforeEach(async () => {
@@ -153,23 +170,74 @@ describe('device-loss alerts are capped below terminal', () => {
     expect(await escalatedNotes()).toEqual(['community', 'group'])
   })
 
-  it('never lets the guardian read address and emergency contacts for a capped alert', async () => {
+  it('never lets a watcher read address and emergency contacts for a capped alert', async () => {
     await openAlert('community', ['device_unreachable'])
     await run()
-    expect(await guardianCanReadEmergencyInfo()).toBe(false)
+    expect(await watcherCanReadEmergencyInfo()).toBe(false)
   })
 
   it('leaves a genuinely silent alert unchanged: it reaches terminal and the guardian can read the profile', async () => {
     await openAlert('community', ['silent'])
-    expect(await guardianCanReadEmergencyInfo()).toBe(false)
+    expect(await watcherCanReadEmergencyInfo()).toBe(false)
     await run()
     const row = await alertRow()
     expect(row.stage).toBe('terminal')
     expect(row.next_deadline).toBeNull()
     expect(await sentKinds()).toEqual(['terminal'])
     expect(await escalatedNotes()).toEqual(['terminal'])
-    // Control for the capped case above: proves this harness can see an unlock when there is one.
-    expect(await guardianCanReadEmergencyInfo()).toBe(true)
+    // Control for the capped cases: proves this harness can see an unlock when there is one.
+    expect(await watcherCanReadEmergencyInfo()).toBe(true)
+  })
+
+  describe('database guard: no code path may move a device-loss alert to terminal', () => {
+    const toTerminal = () => db.query("update alerts set stage='terminal' where id=$1", [alertId])
+
+    it.each([
+      ['device_unreachable', ['device_unreachable'], 'silence'],
+      ['collection_restricted', ['collection_restricted'], 'silence'],
+      ['dark_device', null, 'dark_device'],
+    ] as const)('refuses a direct update to terminal for %s', async (_label, kinds, cause) => {
+      await openAlert('community', kinds ? [...kinds] : null, cause)
+      await expect(toTerminal()).rejects.toThrow('device_loss_alert_never_terminal')
+      expect((await alertRow()).stage).toBe('community')
+      expect(await watcherCanReadEmergencyInfo()).toBe(false)
+    })
+
+    it.each([
+      ['silent', ['silent'], 'silence'],
+      ['legacy silence', null, 'silence'],
+    ] as const)('still allows terminal for %s', async (_label, kinds, cause) => {
+      await openAlert('community', kinds ? [...kinds] : null, cause)
+      await toTerminal()
+      expect((await alertRow()).stage).toBe('terminal')
+    })
+
+    it('keeps rows that were already terminal updatable (history is left as it is)', async () => {
+      await openAlert('community', ['device_unreachable'])
+      await db.exec('alter table alerts disable trigger alerts_device_loss_never_terminal')
+      await toTerminal()
+      await db.exec('alter table alerts enable trigger alerts_device_loss_never_terminal')
+      await db.query("update alerts set stage='terminal',status='resolved' where id=$1", [alertId])
+      expect((await alertRow()).status).toBe('resolved')
+    })
+
+    it('holds the line even if process_escalations is replaced by the pre-fix body', async () => {
+      const preFix = read('supabase/migrations/20260923054905_activity_auto_resolution_guardian_pattern.sql')
+      const start = preFix.indexOf('CREATE OR REPLACE FUNCTION public.process_escalations()')
+      await db.exec(preFix.slice(start, preFix.indexOf('$$;', start) + 3))
+      try {
+        await openAlert('community', ['device_unreachable'])
+        await db.exec('select public.process_escalations()')
+        expect((await alertRow()).stage).toBe('community')
+        expect(await sentKinds()).toEqual([])
+        expect(await watcherCanReadEmergencyInfo()).toBe(false)
+        // The regression is loud, not silent: it lands in job_failures every run.
+        const failures = (await db.query<{ message: string }>('select message from private.job_failures')).rows
+        expect(failures.map(row => row.message).join()).toContain('device_loss_alert_never_terminal')
+      } finally {
+        await db.exec(newestDefinition('public.process_escalations()'))
+      }
+    })
   })
 
   it('leaves an alert with no causal windows (legacy path) unchanged', async () => {
@@ -185,7 +253,7 @@ describe('device-loss alerts are capped below terminal', () => {
     expect(row.stage).toBe('community')
     expect(row.next_deadline).toBeNull()
     expect(await sentKinds()).toEqual([])
-    expect(await guardianCanReadEmergencyInfo()).toBe(false)
+    expect(await watcherCanReadEmergencyInfo()).toBe(false)
   })
 
   it('caps a legacy dark_device alert: it climbs to community, stops, and never unlocks the profile', async () => {
@@ -200,12 +268,12 @@ describe('device-loss alerts are capped below terminal', () => {
     expect(row.stage).toBe('community')
     expect(row.next_deadline).toBeNull()
     expect(await sentKinds()).toEqual(['community', 'group'])
-    expect(await guardianCanReadEmergencyInfo()).toBe(false)
+    expect(await watcherCanReadEmergencyInfo()).toBe(false)
   })
 
   it('leaves SOS untouched: it still reveals the profile immediately', async () => {
     await openAlert('group', null, 'sos')
-    expect(await guardianCanReadEmergencyInfo()).toBe(true)
+    expect(await watcherCanReadEmergencyInfo()).toBe(true)
   })
 
   it('reads the kind from the highest-ordinal causal window, as notify_stage does', async () => {

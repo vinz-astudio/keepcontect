@@ -24,6 +24,13 @@
 --    params.miss_kind='device_unreachable' like the passive notifier. The web and Android
 --    clients render group/community copy from params.miss_kind (they ignore the server
 --    body for these kinds). SOS and legacy silence wording is unchanged.
+-- 3. A trigger on public.alerts refuses to set stage='terminal' on such an alert, so the
+--    guarantee does not live only in process_escalations(). A protection written as a
+--    field check inside one function is exactly what another branch, or a later
+--    CREATE OR REPLACE copied from an older body (Memory M6), silently bypasses. If that
+--    happens the UPDATE fails, process_escalations() records it in private.job_failures,
+--    and the alert stays where it was instead of unlocking the profile. Rows already at
+--    terminal are untouched.
 --
 -- Bodies copied from the latest definitions, verified identical to production on
 -- 2026-11-02 (whitespace-insensitive md5): process_escalations from
@@ -202,3 +209,32 @@ begin
   end if;
 end;
 $$;
+
+-- Defense in depth: no code path may move a device-loss alert to terminal.
+CREATE OR REPLACE FUNCTION private.device_loss_alert_never_terminal()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+DECLARE _kind text;
+BEGIN
+  IF NEW.stage IS DISTINCT FROM 'terminal'
+     OR (TG_OP='UPDATE' AND OLD.stage IS NOT DISTINCT FROM 'terminal') THEN
+    RETURN NEW;
+  END IF;
+  SELECT causal_window.miss_kind INTO _kind
+  FROM private.passive_alert_causal_windows AS causal
+  JOIN public.passive_checkin_windows AS causal_window ON causal_window.id=causal.window_id
+  WHERE causal.alert_id=NEW.id
+  ORDER BY causal_window.ordinal DESC LIMIT 1;
+  IF NEW.cause='dark_device' OR _kind IN('device_unreachable','collection_restricted') THEN
+    RAISE EXCEPTION 'device_loss_alert_never_terminal: alert % (cause %, miss_kind %)',
+      NEW.id, NEW.cause, coalesce(_kind,'none')
+      USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION private.device_loss_alert_never_terminal() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS alerts_device_loss_never_terminal ON public.alerts;
+CREATE TRIGGER alerts_device_loss_never_terminal
+BEFORE INSERT OR UPDATE OF stage ON public.alerts
+FOR EACH ROW EXECUTE FUNCTION private.device_loss_alert_never_terminal();

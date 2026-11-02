@@ -132,4 +132,23 @@ describe('device-loss notification copy', () => {
     expect(silent).toBe(legacy)
     expect(silent).not.toContain('device')
   })
+
+  // ADR-0042: in passive check-in, group/community copy must say KC lost contact, never that
+  // the person is in danger. The server already words it so; the client must not override it.
+  it.each([
+    ['group', "KC can't reach them"],
+    ['community', 'KC is still out of contact with Ana'],
+  ])('uses the lost-contact wording for a passive silent %s notice', (kind, expected) => {
+    const copy = renderNotificationCopy({ kind, body: 'server body',
+      params: { name: 'Ana', cause: 'passive_checkin_lost_contact', miss_kind: 'silent' } })
+    expect(copy).toContain(expected)
+    expect(copy).not.toMatch(/unusually silent|make sure they are safe/i)
+  })
+
+  // ADR-0045: the default confirmation is the "I am safe" button, not a pattern unlock.
+  it('asks the subject to tap I am safe instead of unlocking', () => {
+    const copy = renderNotificationCopy({ kind: 'self', body: 'server body', params: {} })
+    expect(copy).toContain('I am safe')
+    expect(copy).not.toMatch(/unlock/i)
+  })
 })

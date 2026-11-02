@@ -6,6 +6,8 @@ const DICT = {
     self: 'KC 正在确认您的安全。请点“一切安好”，或打开应用按提示确认。',
     group: '{name} 出现异常沉默，请尽快联系确认其安全。',
     community: '社区警示：{name} 长时间失联且其小组无人响应，请协助推动联系。',
+    group_silent: '{name} 一直没有动静，KC 也联系不上。请尝试联系本人确认。',
+    community_silent: 'KC 与 {name} 持续失去联系且小组尚未响应，请协助联系。',
     group_device_unreachable: '{name} 的设备与 KC 失去联系，可能已关机或没电。请尝试联系本人确认。',
     community_device_unreachable: 'KC 与 {name} 的设备持续失去联系且小组尚未响应，请协助联系。',
     group_collection_restricted: 'KC 无法确认 {name} 的情况：设备上的检测被关闭了。请尝试联系本人。',
@@ -30,6 +32,8 @@ const DICT = {
     self: 'KC is checking on your safety. Tap “I am safe” or open the app to confirm.',
     group: '{name} has gone unusually silent. Please reach out and make sure they are safe.',
     community: 'Community alert: {name} is unreachable and their group has not responded.',
+    group_silent: "{name} has had no activity and KC can't reach them. Please try reaching them.",
+    community_silent: 'KC is still out of contact with {name} and their group has not responded. Please help reach them.',
     group_device_unreachable: "KC lost contact with {name}'s device — it may be switched off or out of battery. Please try reaching them.",
     community_device_unreachable: "KC is still out of contact with {name}'s device and their group has not responded. Please help reach them.",
     group_collection_restricted: "KC can't check on {name}: detection was turned off on their device. Please try reaching them.",
@@ -59,10 +63,14 @@ function render(data) {
   const d = DICT[lang]
   const p = data.params || {}
   const targetIsRecipient = p.target_is_recipient === true || p.target_is_recipient === 'true'
-  // ADR-0039 rev.1 / ADR-0040 rev.1: losing the device is not a missing person.
-  const deviceLoss = (data.kind === 'group' || data.kind === 'community')
+  // ADR-0039 rev.1 / ADR-0040 rev.1 / ADR-0042: losing the device is not a missing person,
+  // and a passive silent miss is worded as "KC lost contact". Legacy silence keeps its copy.
+  const funnel = data.kind === 'group' || data.kind === 'community'
+  const deviceLoss = funnel
     && (p.miss_kind === 'device_unreachable' || p.miss_kind === 'collection_restricted')
-  const key = deviceLoss
+  const passiveSilent = funnel
+    && p.cause === 'passive_checkin_lost_contact' && p.miss_kind === 'silent'
+  const key = deviceLoss || passiveSilent
     ? data.kind + '_' + p.miss_kind
     : targetIsRecipient && (data.kind === 'on_it' || data.kind === 'resolved')
       ? data.kind + '_you'

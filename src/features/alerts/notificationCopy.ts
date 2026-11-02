@@ -70,11 +70,22 @@ function isCurrentUserTarget(params: Record<string, string>, viewer?: Notificati
   return target === norm(viewer?.displayName) || target === norm(viewer?.email)
 }
 
-// ADR-0039 rev.1 / ADR-0040 rev.1: the server names which silence it found. Losing the
-// device, or not being allowed to look, is not evidence about the person, so watchers are
-// told "KC lost contact" rather than "unusual silence". Both engines send params.miss_kind.
+// ADR-0039 rev.1 / ADR-0040 rev.1 / ADR-0042: the server names which silence it found.
+// Losing the device, or not being allowed to look, is not evidence about the person, and in
+// passive check-in even a silent miss is worded as "KC lost contact", never as danger. Both
+// engines send params.miss_kind; passive alerts also send this cause. Legacy silence alerts
+// carry neither and keep their original copy.
 const DEVICE_LOSS_KINDS = new Set(['device_unreachable', 'collection_restricted'])
-const DEVICE_LOSS_STAGES = new Set(['group', 'community'])
+const LOST_CONTACT_STAGES = new Set(['group', 'community'])
+const PASSIVE_CHECKIN_CAUSE = 'passive_checkin_lost_contact'
+
+function lostContactKey(kind: string, params: Record<string, string>): string | null {
+  if (!LOST_CONTACT_STAGES.has(kind)) return null
+  const missKind = params.miss_kind ?? ''
+  if (DEVICE_LOSS_KINDS.has(missKind)) return `notif.${kind}.${missKind}`
+  if (params.cause === PASSIVE_CHECKIN_CAUSE && missKind === 'silent') return `notif.${kind}.silent`
+  return null
+}
 
 function fill(value: string | undefined): string {
   return value || translate('notif.someone')
@@ -87,16 +98,13 @@ export function renderNotificationCopy(
   if (!NOTIF_KINDS.has(notification.kind)) return notification.body
   const params = paramsRecord(notification.params)
   const targetIsViewer = isCurrentUserTarget(params, viewer)
-  const deviceLoss =
-    DEVICE_LOSS_STAGES.has(notification.kind) && DEVICE_LOSS_KINDS.has(params.miss_kind ?? '')
-  const key = deviceLoss
-    ? `notif.${notification.kind}.${params.miss_kind}`
-    : targetIsViewer &&
+  const key = lostContactKey(notification.kind, params) ??
+    (targetIsViewer &&
     (notification.kind === 'on_it' ||
       notification.kind === 'resolved' ||
       notification.kind === 'auto_resolved')
       ? `notif.${notification.kind}.you`
-      : `notif.${notification.kind}`
+      : `notif.${notification.kind}`)
 
   return translate(key as I18nKey, {
     name: fill(params.name),
