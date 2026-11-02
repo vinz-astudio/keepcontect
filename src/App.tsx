@@ -23,6 +23,7 @@ if (urlInvite) {
 
 import { PrivacyPolicy } from '@/features/legal/PrivacyPolicy'
 import { AccountDeletion } from '@/features/legal/AccountDeletion'
+import { DesktopNotifier } from '@/features/desktop/DesktopNotifier'
 
 function Gate() {
   const path = typeof window !== 'undefined' ? window.location.pathname : ''
@@ -71,6 +72,7 @@ export default function App() {
         <UpdateNotice />
         <ErrorBoundary>
           <AuthProvider>
+            <DesktopNotifier />
             <Gate />
           </AuthProvider>
         </ErrorBoundary>

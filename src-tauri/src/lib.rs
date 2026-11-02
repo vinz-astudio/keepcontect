@@ -312,6 +312,7 @@ pub fn run() {
         let _ = window.set_focus();
       }
     }))
+    .plugin(tauri_plugin_notification::init())
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--silently"])))
     .setup(|app| {
       if cfg!(debug_assertions) {
