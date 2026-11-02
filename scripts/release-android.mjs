@@ -4,6 +4,7 @@ import { execSync } from 'node:child_process'
 import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { setVersion } from './set-version.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = 'vinz-astudio/keepcontect'
@@ -46,6 +47,12 @@ releaseApkUrl = verJson.apkUrl
 releaseExeUrl = verJson.exeUrl ?? ''
 writeFileSync(verJsonPath, JSON.stringify(verJson, null, 2) + '\n')
 console.log(`→ APP_VERSION & version.json = ${versionName} (${apkFileName})`)
+
+// 1c) One version number for every surface (human decision 2026-11-02): also move
+// Tauri (tauri.conf.json, Cargo.toml, Cargo.lock). Leaving it behind made the
+// 0.7.9 desktop app and TestFlight see a 0.7.10 they could not install.
+setVersion(root, versionName)
+console.log(`→ Tauri version = ${versionName} (all surfaces aligned)`)
 
 // 2) 构建 Web 产物并同步进原生工程
 run('npm run build')

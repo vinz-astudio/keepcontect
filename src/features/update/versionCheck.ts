@@ -8,6 +8,7 @@ import {
   type VersionChannel,
   type VersionRecord,
 } from '@/features/update/versionSelection'
+import { currentUpdateSurface, hasRealUpdate } from '@/features/update/platformOffer'
 
 export { isNewer }
 
@@ -149,7 +150,8 @@ export function useUpdateStatus(
     }
   }, [check])
 
-  const outdated = latest ? isNewer(latest.version, APP_VERSION) : false
+  // Per surface: only an update this install can actually take (see platformOffer.ts).
+  const outdated = latest ? hasRealUpdate(currentUpdateSurface(), latest, APP_VERSION, isNewer) : false
 
   useEffect(() => {
     if (outdated) void maybeNotifyOnce(translate('update.notify'))
