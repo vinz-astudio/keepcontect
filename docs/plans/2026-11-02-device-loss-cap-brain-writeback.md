@@ -4,7 +4,16 @@
 - **For**: whichever agent has the Brain; apply the items below, then delete nothing here
 - **Code**: branch `claude/exciting-ramanujan-5z62ve`, migration
   `supabase/migrations/20261101213426_cap_device_loss_below_terminal.sql`
-- **Production**: NOT deployed at time of writing. Update the status lines below when it is.
+- **Production status (2026-11-02)**:
+  - DB migration applied 04:16 UTC in one transaction via the Supabase connector, ledger version
+    `20261101213426` (aligned with the file name). Live function fingerprints matched the repo
+    (whitespace-insensitive md5: process_escalations `2b2cd041…`, notify_stage_before_passive_checkin
+    `fd6554db…`, device_loss_alert_never_terminal `bb4870f3…`). process-escalations cron: 19/19 succeeded
+    in the 19 minutes after, 0 job_failures.
+  - Web: `main` fast-forwarded to `e98e6f6` 04:37 UTC (also carries `f3bed38`, `878ae50`, `ee86410` from
+    `test/sql-replay-production-acl`, whose migration was already in production). GitHub CI passed. The
+    Vercel result was not observable from the cloud session (host blocked); confirm on the live site.
+  - Android: not built or released.
 
 ## 1. Decisions.md, 快记 (replace the open item, add the new ones)
 
