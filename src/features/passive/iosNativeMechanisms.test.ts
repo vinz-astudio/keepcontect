@@ -6,7 +6,7 @@ const read = (name: string) => fs.readFileSync(path.join(root, name), 'utf8')
 describe('iOS native repair wiring', () => {
   it('never promotes protected data availability or persisted wake samples to activity', () => {
     const guard = read('PassiveGuard.swift')
-    const wake = guard.slice(guard.indexOf('func handleWake('), guard.indexOf('// MARK: - CLLocationManagerDelegate'))
+    const wake = guard.slice(guard.indexOf('func handleWake('), guard.indexOf('// MARK: - ADR-0042 positive evidence'))
     expect(wake).not.toContain('recordEvent(')
     expect(guard).toContain('entry["reason"] as? String == "wake-sample"')
     expect(guard).toContain('forName: UIApplication.protectedDataDidBecomeAvailableNotification')

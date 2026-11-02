@@ -111,8 +111,8 @@ public class KcPassivePingPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func getNotificationPermissionStatus(_ call: CAPPluginCall) {
-        PushRegistrar.status { granted, canRequest in
-            call.resolve(["granted": granted, "canRequest": canRequest])
+        PushRegistrar.status { granted, canRequest, timeSensitive in
+            call.resolve(["granted": granted, "canRequest": canRequest, "timeSensitive": timeSensitive])
         }
     }
 

@@ -9,6 +9,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
 import { determineDeliveryOutcome } from './outcome.ts'
+import { apnsInterruptionLevel } from './interruption.ts'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -226,6 +227,7 @@ async function sendTickle(
             aps: {
               sound: 'default',
               category: notificationKind === 'self' ? 'KC_CARE_CHECKIN' : undefined,
+              'interruption-level': apnsInterruptionLevel(notificationKind),
             },
           },
         },

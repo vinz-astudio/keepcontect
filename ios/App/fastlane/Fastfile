@@ -89,18 +89,28 @@ platform :ios do
         UI.important("Bundle ID #{APP_IDENTIFIER} not found; leaving capabilities untouched")
       else
         existing = bundle_id.get_capabilities.map { |c| c.capability_type.to_s }
-        if existing.any? { |t| t.include?("HEALTHKIT") }
-          UI.message("HealthKit capability already enabled on #{APP_IDENTIFIER}")
-        else
-          bundle_id.create_capability(Spaceship::ConnectAPI::BundleIdCapability::Type::HEALTHKIT)
-          UI.success("Enabled HealthKit capability on #{APP_IDENTIFIER}")
+        # Time Sensitive Notifications (2026-11-02) is self-serve like HealthKit.
+        { "HEALTHKIT" => "HealthKit",
+          "USERNOTIFICATIONS_TIMESENSITIVE" => "Time Sensitive Notifications" }.each do |type, label|
+          begin
+            if existing.any? { |t| t.include?(type) }
+              UI.message("#{label} capability already enabled on #{APP_IDENTIFIER}")
+            else
+              bundle_id.create_capability(type)
+              UI.success("Enabled #{label} capability on #{APP_IDENTIFIER}")
+            end
+          rescue => e
+            # One capability failing must not skip the other; signing reports a
+            # genuinely missing capability right after, more clearly than here.
+            UI.error("#{label} capability check failed: #{e.message}")
+          end
         end
       end
     rescue => e
       # Not fatal on its own: if the capability really is missing, the signing
       # step fails right after with a far clearer message than anything that
       # could be guessed here.
-      UI.error("HealthKit capability check failed: #{e.message}")
+      UI.error("Capability check failed: #{e.message}")
     end
 
     get_provisioning_profile(

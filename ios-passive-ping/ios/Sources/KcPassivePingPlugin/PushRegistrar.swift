@@ -83,15 +83,26 @@ enum PushRegistrar {
 
     /// Reads the effective system authorization. A Firebase token can survive
     /// after notifications are disabled, so token presence is not permission.
-    static func status(completion: @escaping (Bool, Bool) -> Void) {
+    /// `timeSensitive` is "enabled", "disabled" or "unsupported" (iOS 14, or a
+    /// build without the entitlement). The permission center shows "disabled"
+    /// as a limitation instead of claiming the safety ask will get through Focus.
+    static func status(completion: @escaping (Bool, Bool, String) -> Void) {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
+            var timeSensitive = "unsupported"
+            if #available(iOS 15.0, *) {
+                switch settings.timeSensitiveSetting {
+                case .enabled: timeSensitive = "enabled"
+                case .disabled: timeSensitive = "disabled"
+                default: timeSensitive = "unsupported"
+                }
+            }
             switch settings.authorizationStatus {
             case .authorized, .provisional:
-                completion(true, false)
+                completion(true, false, timeSensitive)
             case .notDetermined:
-                completion(false, true)
+                completion(false, true, timeSensitive)
             default:
-                completion(false, false)
+                completion(false, false, timeSensitive)
             }
         }
     }

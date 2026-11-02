@@ -138,7 +138,7 @@ enum NotifyFeed {
                 if alreadyPosted.contains(id) { continue }
                 let params = item["params"] as? [String: Any]
                 let fallback = item["body"] as? String ?? ""
-                post(body: render(kind: kind, params: params, fallback: fallback), id: id, metadata: metadata)
+                post(body: render(kind: kind, params: params, fallback: fallback), id: id, kind: kind, metadata: metadata)
                 newlyPosted.append(id)
                 posted = true
             }
@@ -178,12 +178,17 @@ enum NotifyFeed {
 
     // MARK: - Presentation
 
-    private static func post(body: String, id: String, metadata: [String: Any]) {
+    private static func post(body: String, id: String, kind: String, metadata: [String: Any]) {
         let content = UNMutableNotificationContent()
         content.title = "Keep Contact"
         content.body = body
         content.sound = .default
         content.userInfo = metadata
+        // The safety ask must get through Focus. Without the entitlement, or if
+        // the user turned it off for KC, iOS shows it as an ordinary notification.
+        if #available(iOS 15.0, *), NotificationUrgency.isTimeSensitive(kind: kind) {
+            content.interruptionLevel = .timeSensitive
+        }
         // No trigger: deliver immediately, including while the screen is locked.
         let request = UNNotificationRequest(identifier: id, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)

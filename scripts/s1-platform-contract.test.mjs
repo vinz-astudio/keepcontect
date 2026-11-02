@@ -17,6 +17,10 @@ const iosEntitlements = read('ios/App/App/App.entitlements')
 const appDelegate = read('ios/App/App/AppDelegate.swift')
 const passiveGuard = read('ios-passive-ping/ios/Sources/KcPassivePingPlugin/PassiveGuard.swift')
 const healthWake = read('ios-passive-ping/ios/Sources/KcPassivePingPlugin/HealthWake.swift')
+const notifyFeed = read('ios-passive-ping/ios/Sources/KcPassivePingPlugin/NotifyFeed.swift')
+const fastfile = read('ios/App/fastlane/Fastfile')
+const iosWorkflow = read('.github/workflows/ios-testflight.yml')
+const urgencyPath = 'ios-passive-ping/ios/Sources/KcPassivePingPlugin/NotificationUrgency.swift'
 
 const tauriLib = read('src-tauri/src/lib.rs')
 const tauriCapabilities = read('src-tauri/capabilities/default.json')
@@ -46,36 +50,45 @@ describe('S1 Android AAB repository contracts', () => {
 })
 
 describe('S1 iOS Native repository contracts', () => {
-  // Revised 2026-08-14. The 2026-08-10 decision removed two different things at
-  // once, and only one of them was the thing being objected to.
-  //
-  // The objection was to declaring `UIBackgroundModes: location` — a background
-  // mode the app never used for location, which made KC look more protective
-  // than it was and is exactly what App Review pushes back on. That still holds
-  // and is still asserted below.
-  //
-  // Significant-change monitoring never needed that background mode: it is
-  // required only for a continuous session via `startUpdatingLocation` +
-  // `allowsBackgroundLocationUpdates`. So the mechanism came back (human
-  // decision 2026-08-14) without the declaration, and the invariant worth
-  // guarding is the real one — no continuous session, no coordinate ever read.
-  test('ADR0039-IOS-01 location is a relaunch wake only, never a session or a source', () => {
-    // The background mode stays gone.
+  // Revised 2026-11-02 (human decision): the significant-change relaunch wake is
+  // removed. It produced 0-3 unplugged wakes a week in production, and "Always"
+  // location for an app that says it never reads location is what App Review
+  // 5.1.5 / 2.5.4 rejects. History: removed 2026-08-10, restored 2026-08-14,
+  // removed again here. The only location left is SOS "while using" from the
+  // WebView. A one-time stop call stays, because the registration survives app
+  // updates and would keep relaunching the new version.
+  test('ADR0039-IOS-01 no Always location and no significant-change wake', () => {
     expect(infoPlist).not.toMatch(/<string>location<\/string>/)
-    // Always authorization is declared, because significant-change monitoring
-    // genuinely needs it — what the app declares must match what it does.
-    expect(infoPlist).toMatch(/NSLocationAlwaysAndWhenInUseUsageDescription/)
+    expect(infoPlist).not.toMatch(/NSLocationAlwaysAndWhenInUseUsageDescription/)
+    // SOS still asks for location while the app is in use.
+    expect(infoPlist).toMatch(/NSLocationWhenInUseUsageDescription/)
 
-    // The relaunch wake is present…
-    expect(passiveGuard).toMatch(/startMonitoringSignificantLocationChanges/)
-    // …and it is the *only* form location takes. A continuous session is what
-    // put an indicator in the status bar and drew a battery baseline.
-    expect(passiveGuard).not.toMatch(/^\s*locationManager\.startUpdatingLocation/m)
-    expect(passiveGuard).not.toMatch(/allowsBackgroundLocationUpdates\s*=/)
+    const iosSources = fs.readdirSync(path.join(root, 'ios-passive-ping/ios/Sources/KcPassivePingPlugin'))
+      .filter((name) => name.endsWith('.swift'))
+      .map((name) => read(`ios-passive-ping/ios/Sources/KcPassivePingPlugin/${name}`))
+      .join('\n') + '\n' + appDelegate
+    expect(iosSources).not.toMatch(/requestAlwaysAuthorization/)
+    expect(iosSources).not.toMatch(/startMonitoringSignificantLocationChanges/)
+    expect(iosSources).not.toMatch(/startUpdatingLocation|allowsBackgroundLocationUpdates/)
+    expect(iosSources).not.toMatch(/CLLocationManagerDelegate/)
+    // The leftover registration from older builds is cleared on every start.
+    expect(passiveGuard).toMatch(/stopMonitoringSignificantLocationChanges\(\)/)
+  })
 
-    // No coordinate is ever read out of the delegate callback. `locations` must
-    // stay unused; touching it turns a wake into collection.
-    expect(passiveGuard).not.toMatch(/locations\s*\[|locations\.first|locations\.last/)
+  // 2026-11-02: the safety ask must reach the subject through Focus. Time
+  // Sensitive is Apple's self-serve level for notifications that need prompt
+  // action (Critical Alerts would need Apple's approval and is not used).
+  test('ADR0039-IOS-06 safety notifications are Time Sensitive on iOS 15+', () => {
+    expect(iosEntitlements).toMatch(/<key>com\.apple\.developer\.usernotifications\.time-sensitive<\/key>\s*<true\/>/)
+    expect(fastfile).toMatch(/USERNOTIFICATIONS_TIMESENSITIVE/)
+    const urgency = read(urgencyPath)
+    for (const kind of ['self', 'concern', 'sos', 'terminal']) expect(urgency).toContain(`"${kind}"`)
+    expect(urgency).not.toMatch(/"group"|"community"/)
+    expect(notifyFeed).toMatch(/NotificationUrgency\.isTimeSensitive\(kind:/)
+    expect(notifyFeed).toMatch(/#available\(iOS 15\.0, \*\)/)
+    expect(notifyFeed).toMatch(/interruptionLevel = \.timeSensitive/)
+    // The rule is compiled and executed on the macOS runner, not only grepped.
+    expect(iosWorkflow).toMatch(/NotificationUrgency\.swift/)
   })
 
   test('ADR0039-IOS-02 native project carries APNs and HealthKit capabilities', () => {

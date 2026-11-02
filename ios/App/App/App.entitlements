@@ -17,5 +17,10 @@
 	<true/>
 	<key>com.apple.developer.healthkit.background-delivery</key>
 	<true/>
+	<!-- The safety ask (self / concern) and real emergencies (sos / terminal)
+	     break through Focus. Self-serve capability, no Apple approval needed,
+	     unlike Critical Alerts. The Fastfile enables it on the App ID. -->
+	<key>com.apple.developer.usernotifications.time-sensitive</key>
+	<true/>
 </dict>
 </plist>

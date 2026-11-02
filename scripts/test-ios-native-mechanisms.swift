@@ -3,7 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-// swiftc ios-passive-ping/ios/Sources/KcPassivePingPlugin/{MotionEvidenceWindow,NotificationActionQueue}.swift scripts/test-ios-native-mechanisms.swift -o /tmp/kc-ios-mechanisms && /tmp/kc-ios-mechanisms
+// swiftc ios-passive-ping/ios/Sources/KcPassivePingPlugin/{MotionEvidenceWindow,NotificationActionQueue,NotificationUrgency}.swift scripts/test-ios-native-mechanisms.swift -o /tmp/kc-ios-mechanisms && /tmp/kc-ios-mechanisms
 
 @main
 struct NativeMechanismRegression {
@@ -127,6 +127,12 @@ struct NativeMechanismRegression {
         _ = inconsistent.nextQuery(); inconsistent.accept(steps: 1, floors: 0)
         _ = inconsistent.nextQuery(); inconsistent.accept(steps: 0, floors: 0)
         precondition(inconsistent.result == .failed, "inconsistent history must not advance the cursor")
+        for kind in ["self", "concern", "sos", "terminal"] {
+            precondition(NotificationUrgency.isTimeSensitive(kind: kind), "\(kind) must break through Focus")
+        }
+        for kind in ["group", "community", "on_it", "resolved", "auto_resolved", "task_due", "test", ""] {
+            precondition(!NotificationUrgency.isTimeSensitive(kind: kind), "\(kind) must stay an ordinary notification")
+        }
         print("iOS native mechanisms: executable motion and notification regressions passed")
     }
 }

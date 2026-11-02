@@ -89,8 +89,6 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Keep Contact uses this only to restart its guardian if the app gets closed, so the people you chose can still tell you are fine. It never reads, stores, or sends your location, and it does not track your movements.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>If you send an SOS, Keep Contact can attach your current location so the people you chose can find you. It is used only for that, only while the app is open, and it never tracks your movements.</string>
 	<key>NSCameraUsageDescription</key>

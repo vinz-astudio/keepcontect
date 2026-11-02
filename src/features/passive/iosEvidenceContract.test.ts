@@ -58,20 +58,19 @@ describe('iOS positive-evidence static contract', () => {
     expect(payload).not.toMatch(/put\("(?:motion_|steps_|floors_|dominant_activity|activity_confidence)/)
   })
 
-  it('keeps location as a coordinate-blind wake with honest force-quit wording', () => {
+  // 2026-11-02 (human decision): the significant-change wake is removed. Older
+  // builds left the registration behind and it survives updates, so every start
+  // clears it; nothing else about location remains.
+  it('uses no location wake and only clears the registration older builds left', () => {
     const guard = read('PassiveGuard.swift')
-    const delegate = guard.slice(
-      guard.indexOf('func locationManager(_ manager: CLLocationManager, didUpdateLocations'),
-      guard.indexOf('func locationManager(_ manager: CLLocationManager, didFailWithError'),
-    )
-    expect(delegate).not.toMatch(/locations\s*[.\[]/)
-    expect(delegate).not.toContain('recordEvent(')
-    expect(guard).not.toMatch(/^\s*locationManager\.startUpdatingLocation\(\)/m)
-    expect(guard).toContain('system termination')
-    expect(guard).toContain('force-quit remains unproven')
+    expect(guard).not.toMatch(/CLLocationManagerDelegate|didUpdateLocations|requestAlwaysAuthorization/)
+    expect(guard).not.toMatch(/startMonitoringSignificantLocationChanges|startUpdatingLocation/)
+    expect(guard).toContain('static func clearLegacyLocationWake()')
+    expect(guard).toMatch(/func resumeIfConfigured\(\) \{\s*Self\.clearLegacyLocationWake\(\)/)
 
     const plist = fs.readFileSync(path.resolve('ios/App/App/Info.plist'), 'utf8')
     expect(plist).not.toContain('<string>location</string>')
+    expect(plist).not.toContain('NSLocationAlwaysAndWhenInUseUsageDescription')
   })
 
   it('requires stable charging and clears Keychain credentials and the queue', () => {

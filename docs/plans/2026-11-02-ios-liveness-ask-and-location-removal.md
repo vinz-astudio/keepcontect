@@ -4,7 +4,7 @@
 - **作者**:Claude Code
 - **人类决定(2026-11-02)**:删除显著位置变化唤醒;做"时效性询问 + 补交证据"(推荐方案第 2 条)。
   不做:iOS 证据到达宽限时间调整(第 4 条)、后台刷新任务、锁屏免解锁确认。
-- **状态**:方案,待人类确认第 5 节两个选择后实施。
+- **状态**:D1、D2 按推荐确认(人类 2026-11-02);已实施,见第 8 节。
 
 ## 1. 为什么这样做(一句话版)
 
@@ -130,3 +130,15 @@ iPhone 拔电时,苹果不保证任何后台唤醒(24 小时实验:拔电响应 
 - 更正 L3 与 12 号 iOS 整理:补记 2026-08-14 曾恢复显著位置唤醒(代码注释称人类决定),2026-11-02 删除。
 - Known Issues:iOS 拔电 HealthKit 唤醒自 0.7.8/0.7.9 发布那周起从每周 20–58 次降到 0–1 次(插电正常),
   原因未查明,需真机日志;唯一测试机疑似无锁屏密码(采样中受保护数据始终可用),数据不具代表性。
+
+## 8. 实施记录(2026-11-02)
+
+- A 部分:已删除定位唤醒、"始终"定位说明;启动和停用时调用 `clearLegacyLocationWake()`。
+- B 部分:entitlement、Fastfile 能力、`NotificationUrgency.swift`(iOS)与 `push-dispatch/interruption.ts`(服务端)同一份四类名单;
+  `NotifyFeed` 按 iOS 15 判断设置级别;iOS CI 编译并执行该规则。
+- D2:原生层 `getNotificationPermissionStatus()` 新增 `timeSensitive` 字段;判断逻辑在 `src/features/passive/timeSensitiveNotice.ts`(含测试)。
+  **接入权限中心界面暂缓**:读取通知权限的 `native.ts` 和权限中心的 `guardianPermissions.ts`、`GuardianPermissionsCard.tsx`
+  都在人类本机未提交的 7 个文件里,现在改会冲突。等那批改动推上来后,只需几行把 `timeSensitiveLimitation()` 接进通知那一行。
+- C 部分:核对完毕,无代码改动。
+- 测试:全量 vitest 115 文件 / 736 用例通过,typecheck 通过。本机无 Swift 编译器,Swift 由 iOS 流水线编译执行。
+- 未做:`push-dispatch` 生产部署(待人类批准)、真机验收(第 6 节)。
