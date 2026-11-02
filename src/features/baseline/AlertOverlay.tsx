@@ -311,14 +311,20 @@ export function AlertOverlay() {
             >
               <HoldRing progress={safeHold.progress} label={lang === 'zh' ? '按住确认一切安好' : 'Hold to confirm you are safe'}>
                 <span className="overlay__safe-hold-label">
-                  {busy ? (lang === 'zh' ? '正在确认…' : 'Confirming…') : (lang === 'zh' ? '一切安好' : 'I am safe')}
+                  {busy
+                    ? (lang === 'zh' ? '正在确认…' : 'Confirming…')
+                    : confirmationMethod === 'pending'
+                      ? (lang === 'zh' ? '正在检查…' : 'Checking…')
+                      : (lang === 'zh' ? '一切安好' : 'I am safe')}
                 </span>
               </HoldRing>
             </button>
             <p id="overlay-safe-hint" className="overlay__safe-hint">
-              {safeHold.holding
-                ? (lang === 'zh' ? '继续按住…' : 'Keep holding…')
-                : (lang === 'zh' ? '按住 3 秒' : 'Hold for 3 seconds')}
+              {confirmationMethod === 'pending'
+                ? (lang === 'zh' ? '正在检查最新状态，请稍候' : 'Checking your latest status…')
+                : safeHold.holding
+                  ? (lang === 'zh' ? '继续按住…' : 'Keep holding…')
+                  : (lang === 'zh' ? '按住 3 秒' : 'Hold for 3 seconds')}
             </p>
           </div>
         )}

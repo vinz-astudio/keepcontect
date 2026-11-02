@@ -18,4 +18,13 @@ describe('"一切安好" is press-and-hold', () => {
     expect(overlay).toContain('Hold “I am safe” for 3 seconds')
     expect(overlay).not.toContain('轻按“一切安好”')
   })
+
+  // 2026-11-02 device test: the overlay opened on a stale "open alert" hint
+  // while the status check ran; the disabled button looked ready, so a hold
+  // did nothing and seemed broken. While checking, it says so.
+  it('says it is checking while the button cannot be held yet', () => {
+    expect(button).toContain("confirmationMethod === 'pending'")
+    expect(button).toContain('正在检查…')
+    expect(overlay).toContain('正在检查最新状态，请稍候')
+  })
 })
