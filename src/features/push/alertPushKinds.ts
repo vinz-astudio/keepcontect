@@ -16,8 +16,12 @@
 //
 // So the rule is scoped per kind rather than applied uniformly.
 
-/** Addressed to the subject; the payload names at most who is checking on them. */
-const SELF_ADDRESSED_KINDS = new Set(['concern', 'self']);
+/**
+ * Addressed to the subject; the payload names at most who is checking on them.
+ * `test` is the self-test, which names no one; as a tickle it would only show
+ * while the iOS app is alive, so a passing push channel could look broken.
+ */
+const SELF_ADDRESSED_KINDS = new Set(['concern', 'self', 'test']);
 
 export function usesAlertPush(kind: string): boolean {
   return SELF_ADDRESSED_KINDS.has(kind);

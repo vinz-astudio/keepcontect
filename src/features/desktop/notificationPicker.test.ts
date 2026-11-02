@@ -59,7 +59,8 @@ describe('desktop system notifications: wiring (DESK-01)', () => {
   // mode) had no button at all, so nobody could reach the test tools.
   it('lets the desktop app open the self-test tools and send itself a test notification', () => {
     const card = read('src/features/alerts/NotificationsCard.tsx')
-    expect(card).toContain("const canSelfTest = pushStatus === 'subscribed' || desktop")
+    expect(card).toContain("const canSelfTest = pushStatus === 'subscribed' || nativePushReady || desktop")
+    expect(card).toContain('getNativeNotificationPermissionStatus().then((s) => setNativePushReady(s.granted))')
     expect(card).not.toContain("pushStatus === 'subscribed' && (")
     const v2Header = card.slice(card.indexOf('className="spatial-v2-header"'), card.indexOf(') : ('))
     expect(v2Header).toContain('{canSelfTest && (')

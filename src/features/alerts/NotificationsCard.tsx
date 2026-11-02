@@ -37,6 +37,7 @@ import { renderNotificationCopy } from '@/features/alerts/notificationCopy'
 import { buildNotificationFeed } from '@/features/alerts/notificationFeed'
 import { getPlatform, isStandalone, isTauri } from '@/lib/platform'
 import { requestDesktopNotifierCheck } from '@/features/desktop/notificationPicker'
+import { getNativeNotificationPermissionStatus } from '@/features/passive/native'
 import { useUiMode } from '@/lib/uiMode'
 import './NotificationsCard.css'
 
@@ -89,8 +90,13 @@ export function NotificationsCard({
   const [showTools, setShowTools] = useState(false)
   const [pushPromptDismissed, setPushPromptDismissed] = useState(readPushPromptDismissed)
 
+  // The iOS and Android apps have no Web Push; their channel is FCM/APNs, ready
+  // once the OS notification permission is granted.
+  const [nativePushReady, setNativePushReady] = useState(false)
+
   useEffect(() => {
     void getPushStatus().then(setPushStatus)
+    void getNativeNotificationPermissionStatus().then((s) => setNativePushReady(s.granted))
   }, [])
 
   const refresh = useCallback(async () => {
@@ -176,9 +182,11 @@ export function NotificationsCard({
   const byId = new Map(notifs.map((n) => [n.id, n]))
   const platform = getPlatform()
   const standalone = isStandalone()
-  // The desktop app has no Web Push but shows OS notifications (DESK-01), so it gets the test tools too.
+  // Self-test tools on every surface that can receive a notification: Web Push,
+  // the iOS/Android apps (FCM/APNs) and the desktop app (OS notifications, DESK-01).
   const desktop = isTauri()
-  const canSelfTest = pushStatus === 'subscribed' || desktop
+  const canSelfTest = pushStatus === 'subscribed' || nativePushReady || desktop
+  const testHintKey: I18nKey = desktop ? 'push.test.hint.desktop' : platform === 'android' ? 'push.test.hint.android' : 'push.test.hint'
   const pushPrompt = getPushPromptPlacement({
     status: pushStatus,
     platform,
@@ -263,7 +271,7 @@ export function NotificationsCard({
         <>
           {showTools && (
             <div className="pushbar">
-              <p className="muted">{testMsg ?? t(desktop ? 'push.test.hint.desktop' : 'push.test.hint')}</p>
+              <p className="muted">{testMsg ?? t(testHintKey)}</p>
               <div className="pushbar__btns">
                 <button
                   className="pushbar__btn"

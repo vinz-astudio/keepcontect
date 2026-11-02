@@ -161,7 +161,9 @@ async function fcmAccessToken(sa: ServiceAccount): Promise<string | null> {
 // cannot import across the src/ boundary at deploy time). Only the kinds
 // addressed to the subject themselves carry text; every escalation kind stays
 // a content-free tickle because its text exposes a third party's jeopardy.
-const SELF_ADDRESSED_KINDS = new Set(['concern', 'self'])
+// `test` (the self-test) names no one and must display even when the iOS app
+// is suspended, or a working push channel looks broken.
+const SELF_ADDRESSED_KINDS = new Set(['concern', 'self', 'test'])
 
 /** Send one FCM message. Returns 'sent' | 'dead' | 'failed'.
  *

@@ -31,7 +31,7 @@ enum NotifyFeed {
     private static let postedLimit = 100
     /// Mirrors src/features/push/alertPushKinds.ts: push-dispatch sends these as
     /// system-displayed alert pushes, so the app must not draw them a second time.
-    private static let selfAddressedKinds: Set<String> = ["concern", "self"]
+    private static let selfAddressedKinds: Set<String> = ["concern", "self", "test"]
     private static let defaults = UserDefaults.standard
 
     private static let session: URLSession = {
