@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
-import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
+import { invoke } from '@tauri-apps/api/core'
+import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { listMyNotifications } from '@/features/alerts/api'
 import { subscribeAlertSignals } from '@/features/alerts/realtime'
@@ -47,7 +48,10 @@ export function DesktopNotifier() {
         // Advance first: a failed toast is better than the same toast every minute.
         writeNotifierCursor(key, cursor)
         if (show.length > 0 && (await canNotify())) {
-          for (const row of show) sendNotification({ title: 'Keep Contact', body: renderNotificationCopy(row, viewer) })
+          // DESK-02: the app's own command, so a click brings the window to the front.
+          for (const row of show) {
+            await invoke('show_safety_notification', { title: 'Keep Contact', body: renderNotificationCopy(row, viewer) })
+          }
         }
       } catch {
         /* offline or signed out: the next poll retries */

@@ -29,3 +29,9 @@ tauri-plugin-autostart = "2"
 # DESK-01 (2026-11-02): OS notifications for safety notices. ~2.4 keeps Tauri core on 2.11 (2.5+ requires tauri ^2.12); matches @tauri-apps/plugin-notification 2.4.0.
 tauri-plugin-notification = "~2.4"
 ureq = { version = "2.10", features = ["tls"] }
+
+# DESK-02 (2026-11-02): the notification plugin drops toast clicks on Windows, so
+# safety notices are shown with the toast library it already uses (same locked
+# version) and a click brings the Keep Contact window to the front.
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.8"

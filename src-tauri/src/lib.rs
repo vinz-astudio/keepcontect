@@ -303,14 +303,66 @@ fn open_in_browser(url: String) -> Result<(), String> {
 }
 
 
+/// Brings the main window to the front, from the tray, a toast click or a
+/// second launch.
+fn focus_main_window(app: &tauri::AppHandle) {
+  if let Some(window) = app.get_webview_window("main") {
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_focus();
+  }
+}
+
+/// Windows reads a toast's app id from the Start-menu shortcut the installer
+/// creates; a dev build has none, so it borrows PowerShell's (the same rule the
+/// notification plugin uses).
+#[cfg(any(windows, test))]
+fn is_installed_exe_dir(dir: &str) -> bool {
+  let sep = std::path::MAIN_SEPARATOR;
+  !(dir.ends_with(&format!("{sep}target{sep}debug")) || dir.ends_with(&format!("{sep}target{sep}release")))
+}
+
+/// DESK-01/02: shows a safety notice as an OS notification. A click brings the
+/// Keep Contact window to the front. The notification plugin drops the click on
+/// Windows, so Windows builds the toast itself.
+#[tauri::command]
+fn show_safety_notification(app: tauri::AppHandle, title: String, body: String) -> Result<(), String> {
+  #[cfg(target_os = "windows")]
+  {
+    use tauri_winrt_notification::Toast;
+    let installed = std::env::current_exe()
+      .ok()
+      .and_then(|exe| exe.parent().map(|dir| is_installed_exe_dir(&dir.display().to_string())))
+      .unwrap_or(false);
+    let app_id = if installed { app.config().identifier.clone() } else { Toast::POWERSHELL_APP_ID.to_string() };
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+      let shown = Toast::new(&app_id)
+        .title(&title)
+        .text1(&body)
+        .on_activated(move |_| {
+          focus_main_window(&handle);
+          Ok(())
+        })
+        .show();
+      if let Err(e) = shown {
+        log::warn!("safety notification failed: {e:?}");
+      }
+    });
+    Ok(())
+  }
+  #[cfg(not(target_os = "windows"))]
+  {
+    use tauri_plugin_notification::NotificationExt;
+    app.notification().builder().title(title).body(body).show().map_err(|e| e.to_string())
+  }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-      if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
-      }
+      focus_main_window(app);
     }))
     .plugin(tauri_plugin_notification::init())
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--silently"])))
@@ -380,7 +432,8 @@ pub fn run() {
       get_tauri_input_evidence_sample,
       get_alert_shadow_coverage_capability,
       download_and_install,
-      open_in_browser
+      open_in_browser,
+      show_safety_notification
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
@@ -389,6 +442,14 @@ pub fn run() {
 #[cfg(test)]
 mod shadow_coverage_tests {
     use super::*;
+
+    #[test]
+    fn toast_app_id_is_used_only_by_the_installed_app() {
+        let sep = std::path::MAIN_SEPARATOR;
+        assert!(is_installed_exe_dir(&format!("C:{sep}Users{sep}u{sep}AppData{sep}Local{sep}Keep Contact")));
+        assert!(!is_installed_exe_dir(&format!("{sep}repo{sep}src-tauri{sep}target{sep}debug")));
+        assert!(!is_installed_exe_dir(&format!("{sep}repo{sep}src-tauri{sep}target{sep}release")));
+    }
 
     #[test]
     fn tauri_capability_is_unavailable_when_idle_probe_is_missing() {

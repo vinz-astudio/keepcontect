@@ -51,6 +51,18 @@ describe('desktop system notifications: wiring (DESK-01)', () => {
     expect(JSON.parse(read('src-tauri/capabilities/default.json')).permissions).toContain('notification:default')
     expect(JSON.parse(read('package.json')).dependencies['@tauri-apps/plugin-notification']).toBeTruthy()
   })
+  // DESK-02: the plugin drops toast clicks on Windows; the app's own command
+  // shows the toast and brings the window to the front when it is clicked.
+  it('shows notices through the click-aware command', () => {
+    const lib = read('src-tauri/src/lib.rs')
+    expect(lib).toMatch(/fn show_safety_notification\(/)
+    expect(lib).toMatch(/on_activated\(move \|_\| \{\s*focus_main_window\(&handle\)/)
+    expect(lib).toMatch(/generate_handler!\[[^\]]*show_safety_notification/)
+    expect(read('src-tauri/Cargo.toml')).toMatch(/\[target\.'cfg\(windows\)'\.dependencies\]\s*\ntauri-winrt-notification = "0\.8"/)
+    const notifier = read('src/features/desktop/DesktopNotifier.tsx')
+    expect(notifier).toContain("invoke('show_safety_notification'")
+    expect(notifier).not.toContain('sendNotification(')
+  })
   it('mounts the notifier for signed-in desktop users', () => {
     expect(read('src/App.tsx')).toContain('<DesktopNotifier />')
   })
