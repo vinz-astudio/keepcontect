@@ -83,6 +83,8 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
   const [alertHint, setAlertHint] = useState(
     () => localStorage.getItem('kc.openAlert') === '1',
   )
+  const alertHintRef = useRef(alertHint)
+  alertHintRef.current = alertHint
 
   const status = live.evaluation?.status ?? null
   const hbStatus: 'normal' | 'alert' = 'normal'
@@ -186,6 +188,13 @@ export function LivenessProvider({ children }: { children: ReactNode }) {
       setServerAlert(a)
       // 记下权威状态供下次启动乐观显示；并收起本次乐观遮罩（有则 realAlert 接手）
       localStorage.setItem('kc.openAlert', a ? '1' : '0')
+      // The safety screen was showing on the stored hint, but there is no open
+      // alert: say why it closes instead of letting it vanish (2026-11-02).
+      if (!a && alertHintRef.current) {
+        toast(localStorage.getItem('kc.lang') === 'en'
+          ? 'This alert has already cleared. Nothing to confirm.'
+          : '这次告警已自动解除，无需再确认。', 'ok')
+      }
       setAlertHint(false)
 
       if (!a && (prevAlert || statusRef.current === 'alert')) {
