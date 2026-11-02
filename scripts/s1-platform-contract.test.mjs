@@ -75,6 +75,22 @@ describe('S1 iOS Native repository contracts', () => {
     expect(passiveGuard).toMatch(/stopMonitoringSignificantLocationChanges\(\)/)
   })
 
+  // 2026-11-02: Apple ITMS-90068 warned on build 0.7.9 (46) that apps must
+  // target iOS 15.0 or later from April 2027. iOS 15 runs on every iPhone that
+  // ran iOS 14, so only people who never updated iOS lose new versions. The app,
+  // its pods and the native plugin must agree, or one of them drags it back.
+  test('IOS-TARGET-01 iOS deployment target is at least 15.0 everywhere', () => {
+    const atLeast15 = (v) => Number(v.split('.')[0]) >= 15
+    const pbx = [...read('ios/App/App.xcodeproj/project.pbxproj')
+      .matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+);/g)].map((m) => m[1])
+    expect(pbx.length).toBeGreaterThan(0)
+    expect(pbx.every(atLeast15)).toBe(true)
+    const podfile = read('ios/App/Podfile').match(/platform :ios, '([\d.]+)'/)
+    expect(podfile && atLeast15(podfile[1])).toBe(true)
+    const podspec = read('ios-passive-ping/KcPassivePing.podspec').match(/deployment_target = '([\d.]+)'/)
+    expect(podspec && atLeast15(podspec[1])).toBe(true)
+  })
+
   // 2026-11-02: the safety ask must reach the subject through Focus. Time
   // Sensitive is Apple's self-serve level for notifications that need prompt
   // action (Critical Alerts would need Apple's approval and is not used).

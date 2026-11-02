@@ -13,7 +13,7 @@ Pod::Spec.new do |s|
   s.author = package['author']
   s.source = { :git => 'https://github.com/vinz-astudio/keepcontect.git', :tag => package['version'] }
   s.source_files = 'ios/Sources/**/*.{swift,h,m}'
-  s.ios.deployment_target = '14.0'
+  s.ios.deployment_target = '15.0'
   s.dependency 'Capacitor'
   # iOS reaches the alert ladder through the same Firebase project as Android,
   # so push-dispatch needs no iOS-specific branch.
