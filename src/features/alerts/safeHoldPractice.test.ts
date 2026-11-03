@@ -20,9 +20,17 @@ describe('"试按「一切安好」" practice', () => {
     expect(src).not.toMatch(/supabase|confirmSafe|acknowledge|pushApi|rpc\(/)
   })
 
-  it('is offered in the self-test tools', () => {
+  // 2026-11-03: the old toggle sat in the notifications card header, which
+  // Home hides inside its sections, so nobody could find it. Human decision:
+  // the tools live in the GM console only.
+  it('is offered in the self-test tools, which live in the GM console', () => {
+    const tools = fs.readFileSync('src/features/alerts/SelfTestTools.tsx', 'utf8')
+    expect(tools).toContain('试按「一切安好」')
+    expect(tools).toContain('<SafeHoldPractice')
+    const gm = fs.readFileSync('src/features/gm/GMScreen.tsx', 'utf8')
+    expect(gm).toContain('<SelfTestTools showUnlockTest />')
     const card = fs.readFileSync('src/features/alerts/NotificationsCard.tsx', 'utf8')
-    expect(card).toContain('试按「一切安好」')
-    expect(card).toContain('<SafeHoldPractice')
+    expect(card).not.toContain('SelfTestTools')
+    expect(card).not.toContain('notif-tools-toggle')
   })
 })

@@ -26,8 +26,6 @@ import { Icon } from '@/features/common/Icon'
 import {
   enablePush,
   getPushStatus,
-  sendTestNotification,
-  sendTestUnlock,
   type PushStatus,
 } from '@/features/push/pushApi'
 import { getPushPromptPlacement } from '@/features/push/pushPrompt'
@@ -35,10 +33,7 @@ import { launchUpdate, PRODUCTION_UPDATE_URLS } from '@/features/update/launchUp
 import { fetchLatest } from '@/features/update/versionCheck'
 import { renderNotificationCopy } from '@/features/alerts/notificationCopy'
 import { buildNotificationFeed } from '@/features/alerts/notificationFeed'
-import { getPlatform, isStandalone, isTauri } from '@/lib/platform'
-import { requestDesktopNotifierCheck } from '@/features/desktop/notificationPicker'
-import { getNativeNotificationPermissionStatus } from '@/features/passive/native'
-import { SafeHoldPractice } from '@/features/alerts/SafeHoldPractice'
+import { getPlatform, isStandalone } from '@/lib/platform'
 import { useUiMode } from '@/lib/uiMode'
 import './NotificationsCard.css'
 
@@ -86,19 +81,12 @@ export function NotificationsCard({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported')
-  const [testMsg, setTestMsg] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
-  const [showTools, setShowTools] = useState(false)
-  const [showHoldPractice, setShowHoldPractice] = useState(false)
   const [pushPromptDismissed, setPushPromptDismissed] = useState(readPushPromptDismissed)
 
-  // The iOS and Android apps have no Web Push; their channel is FCM/APNs, ready
-  // once the OS notification permission is granted.
-  const [nativePushReady, setNativePushReady] = useState(false)
 
   useEffect(() => {
     void getPushStatus().then(setPushStatus)
-    void getNativeNotificationPermissionStatus().then((s) => setNativePushReady(s.granted))
   }, [])
 
   const refresh = useCallback(async () => {
@@ -184,11 +172,6 @@ export function NotificationsCard({
   const byId = new Map(notifs.map((n) => [n.id, n]))
   const platform = getPlatform()
   const standalone = isStandalone()
-  // Self-test tools on every surface that can receive a notification: Web Push,
-  // the iOS/Android apps (FCM/APNs) and the desktop app (OS notifications, DESK-01).
-  const desktop = isTauri()
-  const canSelfTest = pushStatus === 'subscribed' || nativePushReady || desktop
-  const testHintKey: I18nKey = desktop ? 'push.test.hint.desktop' : platform === 'android' ? 'push.test.hint.android' : 'push.test.hint'
   const pushPrompt = getPushPromptPlacement({
     status: pushStatus,
     platform,
@@ -210,15 +193,6 @@ export function NotificationsCard({
             <span>{lang === 'zh' ? '动态与风险通知' : 'NOTIFICATIONS'}</span>
             {unread > 0 && <span className="nbadge">{unread} UNREAD</span>}
           </span>
-          {canSelfTest && (
-            <button
-              className="notif-tools-toggle"
-              aria-expanded={showTools}
-              onClick={() => setShowTools((v) => !v)}
-            >
-              {t('push.tools')} {showTools ? '▴' : '▾'}
-            </button>
-          )}
         </div>
       ) : (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -227,15 +201,6 @@ export function NotificationsCard({
             {t('notif.title')}
             {unread > 0 && <span className="nbadge">{unread}</span>}
           </h2>
-          {canSelfTest && (
-            <button
-              className="notif-tools-toggle"
-              aria-expanded={showTools}
-              onClick={() => setShowTools((v) => !v)}
-            >
-              {t('push.tools')} {showTools ? '▴' : '▾'}
-            </button>
-          )}
         </div>
       )}
 
@@ -267,52 +232,6 @@ export function NotificationsCard({
             </button>
           </div>
         </div>
-      )}
-
-      {canSelfTest && (
-        <>
-          {showTools && (
-            <div className="pushbar">
-              <p className="muted">{testMsg ?? t(testHintKey)}</p>
-              <div className="pushbar__btns">
-                <button
-                  className="pushbar__btn"
-                  disabled={busy}
-                  onClick={() =>
-                    act(async () => {
-                      await sendTestNotification()
-                      if (desktop) requestDesktopNotifierCheck()
-                      setTestMsg(t('push.test.sent'))
-                    })
-                  }
-                >
-                  {t('push.test')}
-                </button>
-                <button
-                  className="pushbar__btn"
-                  disabled={busy}
-                  onClick={() =>
-                    act(async () => {
-                      await sendTestUnlock()
-                      if (desktop) requestDesktopNotifierCheck()
-                      setTestMsg(t('push.testUnlock.sent'))
-                    })
-                  }
-                >
-                  {t('push.testUnlock')}
-                </button>
-                <button
-                  className="pushbar__btn"
-                  aria-expanded={showHoldPractice}
-                  onClick={() => setShowHoldPractice((v) => !v)}
-                >
-                  {lang === 'zh' ? '试按「一切安好」' : 'Try “I am safe”'}
-                </button>
-              </div>
-              {showHoldPractice && <SafeHoldPractice lang={lang === 'zh' ? 'zh' : 'en'} />}
-            </div>
-          )}
-        </>
       )}
 
       {items.length > 0 && (

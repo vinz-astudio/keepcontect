@@ -13,6 +13,7 @@ import {
   type DbVersionInfo,
 } from '@/features/gm/gmApi'
 import { ViewportDiagnosticsCard } from '@/features/profile/ViewportDiagnosticsCard'
+import { SelfTestTools } from '@/features/alerts/SelfTestTools'
 import { subscribeGmStatusSignals } from '@/features/alerts/realtime'
 import { translate, useI18n } from '@/lib/i18n'
 import { clientPlatformKind, clientPlatformLabel } from '@/lib/clientPlatformLabel'
@@ -576,6 +577,12 @@ export function GMScreen({ active = true, onBack }: GMScreenProps) {
         {t('gm.title')}
       </h2>
       <p className="muted">{t('gm.desc')}</p>
+
+      {/* Self-test tools for this device (human request 2026-11-03: "最起码在 GM console 里找到"). */}
+      <div className="gm__release-panel">
+        <h3 className="gm__release-title">{lang === 'zh' ? '自检工具（本机）' : 'Self-test tools (this device)'}</h3>
+        <SelfTestTools showUnlockTest />
+      </div>
 
       {/* 1. Canary release controls */}
       <div className="gm__release-panel">
